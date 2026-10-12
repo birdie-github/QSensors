@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=QSensors
+GenericName=Hardware Sensor Monitor
+Comment=Monitor Linux hardware sensors
+Exec=qsensors
+Icon=io.github.birdie_github.QSensors
+Terminal=false
+Categories=System;Monitor;
+StartupNotify=true
