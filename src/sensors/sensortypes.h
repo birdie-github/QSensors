@@ -3,6 +3,8 @@
 
 #include <QDateTime>
 #include <QString>
+#include <QList>
+#include <QMetaType>
 
 #include <limits>
 
@@ -17,6 +19,7 @@ struct SensorDescriptor {
     QString label;
     SensorKind kind;
     QString unit;
+    QString device;
 };
 
 // A failed reading never represents zero or a previously valid value.
@@ -28,4 +31,18 @@ struct SensorSample {
     QString error;
 };
 
+struct SensorDiscovery {
+    QList<SensorDescriptor> descriptors;
+    QString error;
+};
+
+struct SensorSnapshot {
+    bool rescanned = false;
+    QList<SensorDescriptor> descriptors;
+    QList<SensorSample> samples;
+    QString error;
+};
+
 } // namespace qsensors
+
+Q_DECLARE_METATYPE(qsensors::SensorSnapshot)

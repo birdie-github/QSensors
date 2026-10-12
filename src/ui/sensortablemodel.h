@@ -8,7 +8,7 @@
 
 namespace qsensors {
 
-// Temporary phase-1 view model, independent of provider ownership/polling.
+// Sensor view model, independent of provider ownership/polling.
 class SensorTableModel final : public QAbstractTableModel {
     Q_OBJECT
 

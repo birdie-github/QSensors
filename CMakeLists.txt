@@ -20,6 +20,10 @@ qt_add_executable(qsensors
     src/app/main.cpp
     src/sensors/sensorprovider.h
     src/sensors/sensortypes.h
+    src/sensors/lmsensorsprovider.cpp
+    src/sensors/lmsensorsprovider.h
+    src/sensors/sensormonitor.cpp
+    src/sensors/sensormonitor.h
     src/ui/dashboard.cpp
     src/ui/dashboard.h
     src/ui/sensortablemodel.cpp

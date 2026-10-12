@@ -14,7 +14,7 @@ namespace qsensors {
 class SensorProvider {
 public:
     virtual ~SensorProvider() = default;
-    virtual QList<SensorDescriptor> discover() = 0;
+    virtual SensorDiscovery discover() = 0;
     // One sample per requested ID, including explicit unavailable results.
     virtual QList<SensorSample> readBatch(const QStringList &ids) = 0;
 };

@@ -17,7 +17,7 @@ int SensorTableModel::rowCount(const QModelIndex &parent) const
 
 int SensorTableModel::columnCount(const QModelIndex &parent) const
 {
-    return parent.isValid() ? 0 : 3;
+    return parent.isValid() ? 0 : 4;
 }
 
 QVariant SensorTableModel::data(const QModelIndex &index, int role) const
@@ -28,20 +28,22 @@ QVariant SensorTableModel::data(const QModelIndex &index, int role) const
     const auto &descriptor = m_descriptors[index.row()];
     const auto &sample = m_samples[index.row()];
     if (role == Qt::ToolTipRole) {
-        if (index.column() == 0)
+        if (index.column() <= 1)
             return descriptor.id;
         if (!sample.available)
             return sample.error;
+        return {};
     }
     if (role != Qt::DisplayRole)
         return {};
     switch (index.column()) {
     case 0: return descriptor.label;
-    case 1:
+    case 1: return descriptor.device;
+    case 2:
         if (!sample.available)
             return tr("Unavailable");
-        return QLocale().toString(sample.value, 'f', descriptor.kind == SensorKind::Fan ? 0 : 1);
-    case 2: return descriptor.unit;
+        return QLocale().toString(sample.value, 'g', 8);
+    case 3: return descriptor.unit;
     }
     return {};
 }
@@ -52,8 +54,9 @@ QVariant SensorTableModel::headerData(int section, Qt::Orientation orientation, 
         return {};
     switch (section) {
     case 0: return tr("Sensor");
-    case 1: return tr("Value");
-    case 2: return tr("Unit");
+    case 1: return tr("Device");
+    case 2: return tr("Value");
+    case 3: return tr("Unit");
     }
     return {};
 }
@@ -98,7 +101,7 @@ void SensorTableModel::applySamples(const QList<SensorSample> &samples)
             || (sample.available && sample.value != previous.value);
         m_samples[row] = sample;
         if (changed)
-            emit dataChanged(index(row, 1), index(row, 2), {Qt::DisplayRole, Qt::ToolTipRole});
+            emit dataChanged(index(row, 2), index(row, 3), {Qt::DisplayRole, Qt::ToolTipRole});
     }
 }
 
