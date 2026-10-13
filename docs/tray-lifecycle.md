@@ -1,0 +1,81 @@
+# Tray and lifecycle — phase 3
+
+## Usage
+
+The dashboard opens on startup. Settings (from File, the toolbar or any tray
+icon) currently selects numeric tray sensors; the full sensor/color/alarm
+settings interface follows in later phases. Changes apply on OK, Cancel leaves
+selections unchanged, and selections are stored as stable IDs in `Tray/sensors`.
+An open Settings window preserves unapplied checkboxes across a rescan.
+Temporarily missing selected sensors remain checked until explicitly removed.
+
+One QSystemTrayIcon represents each selected sensor. No selection produces one
+ordinary application icon. Tooltips and the Selected Sensors menu show labels,
+devices, full readings/units and availability. Temperature/humidity use integers,
+fans use thousands of RPM with one decimal (the tooltip explicitly uses RPM),
+and voltage uses one decimal. Other types use compact significant digits;
+large values use scientific notation. Unavailable channels show an em dash.
+
+Transparent numeric icons are painted directly at 16, 22, 24, 32, 48, 64 and
+128 physical pixels. Text has a contrasting outline for legibility on different
+panel backgrounds. This is a bounded resolution set independent of dashboard
+size. Icon images change only when compact text, colors or font parameters
+change; full-value tooltip/menu text can update independently. Color and alarm
+configuration belong to phases 5/6; this phase uses the application palette.
+
+Every icon shares Show Dashboard, Hide Dashboard, Settings, Rescan, About and
+Quit actions with the application menus. Single activation toggles the dashboard
+where the host delivers it; there is no dependency on double-click or wheel
+support. Explicit Show/Hide actions remain available through the context menu.
+
+## Visibility and recovery
+
+Closing with a tray host hides the persistent dashboard. File/Tray Quit always
+exits, including from an open Settings window. Selected tray channels keep
+updating in the background; with none selected, hiding/minimizing stops sensor
+polling. Showing restores full dashboard demand and refreshes stale values.
+Tray and dashboard share one hardware worker; there are no competing readers.
+Settings currently opens with the dashboard visible, so its normal demand also
+covers configuration preview. Alarms will add background demand in phase 6.
+
+If there is no tray host, the dashboard explains it and closing exits. Hide is
+disabled. A small shared, coarse three-second host watchdog detects host loss
+and restores a hidden/minimized dashboard. It does not repaint or regenerate
+icons at each check. This is separate from the sensor polling interval.
+QSystemTrayIcon stays logically visible and handles registration when a host
+appears/restarts; existing objects are reused rather than duplicated.
+
+On X11 Qt may use an XEmbed tray or a StatusNotifierItem host; native Wayland
+requires a compatible StatusNotifierItem host and suitable Qt platform support.
+Host feature support varies, and compositor focus policy may prevent an
+activation request from forcing focus. No direct X11 or KDE APIs are used.
+
+## Single instance
+
+A QLockFile lifetime lock and QLocalServer/QLocalSocket activation handshake
+allow one instance per user and graphical-session environment. The key hashes
+XDG_SESSION_ID, WAYLAND_DISPLAY and DISPLAY; changing those variables may yield
+an independent session key. IPC files live in the user-private RuntimeLocation,
+with a restricted application-data fallback when unavailable.
+
+Only the lifetime-lock owner removes an old socket and starts a listener.
+QLockFile handles dead owners; timestamp expiry is disabled so a live process
+cannot lose ownership merely because it has been running for a long time.
+Concurrent launches retry for roughly three seconds and ask the primary to
+show the dashboard. An unresponsive live primary produces an error rather than
+a second tray instance. `--help`/`--version` exit before instance acquisition.
+IPC permits only a small activation message, at most eight active connections,
+and a 1.5-second connection lifetime. There is no general command interface.
+
+Shutdown deletes tray icons before their shared menu, waits for the serialized
+sensor worker to finish/clean up, then releases the IPC endpoint and lock.
+A synchronous stuck driver read can still delay orderly shutdown as described
+in hardware-backend.md; no thread termination is used.
+
+## Validation status
+
+The user verified phase 2 discovers their sensors and allows interval changes.
+Phase 3 is statically reviewed and checked for clean patch application, without
+compilation or application execution. Real X11 and native Wayland tray tests,
+fractional/high DPI, multiple numeric icons, host restart/loss, activation,
+concurrent launches and stale-endpoint recovery remain pending.

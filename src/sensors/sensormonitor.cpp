@@ -25,10 +25,10 @@ public:
             const auto discovery = m_provider->discover();
             snapshot.descriptors = discovery.descriptors;
             snapshot.error = discovery.error;
-            ids.clear();
             if (readAll) {
                 for (const auto &descriptor : discovery.descriptors)
-                    ids.append(descriptor.id);
+                    if (!ids.contains(descriptor.id))
+                        ids.append(descriptor.id);
             }
         }
         if (snapshot.error.isEmpty())
@@ -76,8 +76,38 @@ void SensorMonitor::setDashboardActive(bool active)
         return;
     m_active = active;
     m_timer.stop();
-    if (active)
+    m_demandChanged = true;
+    if (hasDemand())
         request();
+}
+
+void SensorMonitor::setBackgroundIds(QStringList ids)
+{
+    ids.removeAll(QString());
+    ids.removeDuplicates();
+    std::sort(ids.begin(), ids.end());
+    if (ids == m_backgroundIds)
+        return;
+    m_backgroundIds = ids;
+    m_demandChanged = true;
+    m_timer.stop();
+    if (hasDemand())
+        request();
+}
+
+bool SensorMonitor::hasDemand() const
+{
+    return m_active || !m_backgroundIds.isEmpty();
+}
+
+QStringList SensorMonitor::demandedIds() const
+{
+    QStringList ids = m_active ? m_ids : QStringList();
+    for (const auto &id : m_backgroundIds) {
+        if (!ids.contains(id))
+            ids.append(id);
+    }
+    return ids;
 }
 
 void SensorMonitor::setIntervalSeconds(int seconds)
@@ -101,7 +131,7 @@ void SensorMonitor::rescan()
 void SensorMonitor::request()
 {
     m_timer.stop();
-    if (m_busy || (!m_active && !m_rescanPending))
+    if (m_busy || (!hasDemand() && !m_rescanPending))
         return;
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
     // A delayed timer after suspend (or showing a long-hidden window) rescans.
@@ -112,9 +142,10 @@ void SensorMonitor::request()
     const bool discover = m_rescanPending;
     m_rescanPending = false;
     m_busy = true;
+    m_demandChanged = false;
     if (discover)
         emit statusChanged(tr("Scanning sensors…"));
-    emit collectRequested(discover, discover && m_active, m_active ? m_ids : QStringList());
+    emit collectRequested(discover, discover && m_active, discover ? m_backgroundIds : demandedIds());
 }
 
 void SensorMonitor::completed(const SensorSnapshot &snapshot)
@@ -148,7 +179,9 @@ void SensorMonitor::completed(const SensorSnapshot &snapshot)
         m_nextRecovery = 0;
         m_retrySeconds = 10;
     }
-    if (m_active && (m_rescanPending || (snapshot.samples.isEmpty() && !m_ids.isEmpty()))) {
+    if (hasDemand() && (m_rescanPending
+        || (snapshot.error.isEmpty() && (m_demandChanged
+            || (snapshot.samples.isEmpty() && !m_ids.isEmpty() && !demandedIds().isEmpty()))))) {
         request();
         return;
     }
@@ -158,7 +191,7 @@ void SensorMonitor::completed(const SensorSnapshot &snapshot)
 void SensorMonitor::schedule()
 {
     m_timer.stop();
-    if (!m_active || m_busy)
+    if (!hasDemand() || m_busy)
         return;
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
     int delay = m_intervalSeconds * 1000;

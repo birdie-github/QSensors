@@ -17,7 +17,7 @@ enum class SensorKind { Temperature, Fan, Voltage, Current, Power, Energy, Humid
 struct SensorDescriptor {
     QString id;
     QString label;
-    SensorKind kind;
+    SensorKind kind = SensorKind::Temperature;
     QString unit;
     QString device;
 };

@@ -37,12 +37,13 @@ catalog safely. Resume/long-hidden restoration triggers rescan after a gap;
 read failures or an empty catalog trigger recovery scans with 10, 20, 40, 80,
 160 and then 300-second backoff. Healthy reads do not rescan each tick.
 New devices which do not cause any existing channel to fail require F5 or a
-resume rescan; there is no udev subscription in this phase. Polling and automatic
-recovery pause while the dashboard is hidden or minimized. An in-flight batch
+resume rescan; there is no udev subscription in this phase. With the dashboard hidden or minimized, polling and automatic recovery continue
+only for tray selections. With no selections they pause; an in-flight batch
 may finish after hiding. Newly available rows appear after rescan, removed rows
 leave the view, and the application does not erase sensor preferences on rescan.
-Per-sensor preferences are implemented in phase 5; the only setting written
-here is `Monitoring/intervalSeconds` (1–3600, default 5).
+Per-sensor display/alarm preferences are implemented in phase 5.
+`Monitoring/intervalSeconds` (1–3600, default 5) and `Tray/sensors` selections
+are currently saved.
 
 Disk temperatures are available when a kernel driver exposes them to
 hwmon/libsensors. This does not cover every SATA or USB disk; privileged SMART
@@ -58,8 +59,10 @@ the backend's channel map and is discarded before cleanup.
 The GUI schedules at most one worker operation at a time. A single-shot timer
 is armed after completion, so a slow read extends the interval instead of
 queuing overlapping work. Multiple rescan requests coalesce into one follow-up.
-Every displayed channel is currently demanded; later tray/alarm/configuration
-modules will extend this demand without adding competing readers.
+The visible dashboard demands every displayed channel; tray selections add
+background demand, including selected missing IDs for explicit unavailable
+results and recovery. The worker reads the union once. Alarm demand follows
+in phase 6 without adding competing readers.
 
 Shutdown requests interruption, stops the worker event loop, waits for the
 current call to finish, and destroys the backend on its owning thread. Work
@@ -70,7 +73,7 @@ polling. No thread termination is used.
 
 ## Validation status
 
-The user confirmed phase 1 builds and launches on their system. Phase 2 has
-only undergone static review and patch-application checks. Compilation,
-hardware comparison, slow/failing reads, suspend/resume, removal/reappearance
-and native X11/Wayland operation remain to be tested on actual hardware.
+The user confirmed phase 2 displays their real sensors and allows interval
+changes. Phase 3 has only undergone static review and patch-application checks.
+Hardware comparison, slow/failing reads, suspend/resume, removal/reappearance
+and native X11/Wayland tray operation still need targeted hardware testing.

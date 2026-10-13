@@ -5,26 +5,28 @@ with Qt 6 Widgets and modern libsensors. No KDE dependencies.
 
 ## Current status
 
-Phase 2 discovers real libsensors channels and displays readings in a table,
-with device identity and explicit unavailable states. Initialization, discovery,
-reads and cleanup run on one serialized worker. No fake provider is included.
+Phase 3 adds independently selectable numeric tray icons, shared menus,
+close-to-tray behavior, host recovery and single-instance activation. Real
+libsensors channels use the serialized worker introduced in phase 2.
 
-Use **Sensors → Rescan** (F5) after hardware changes. The toolbar controls the
-update interval (1–3600 seconds, default 5), saved between launches. Polling
-pauses when hidden or minimized. Failures trigger bounded recovery scans.
-Closing the window currently exits; tray and single-instance support follow
-in phase 3. Scalable dashboard tiles, sensor settings and alarms follow later.
+Use **Settings** to select tray sensors and **Sensors → Rescan** (F5) after
+hardware changes. The toolbar controls the saved update interval (1–3600
+seconds, default 5). Hidden/minimized dashboards poll only tray selections;
+with none selected they stop polling. Closing hides when a tray host exists;
+**Quit** exits. Without a tray host the dashboard stays recoverable and closing
+exits. Full sensor settings, scalable tiles and alarms follow in later phases.
 
-The minimum target is **Qt 6.8**. Phase 1 was built and launched by the user;
-its exact Qt version was not recorded. Phase 2 has only been statically reviewed,
-without configuring, compiling or running it. Native X11/Wayland validation
-remains pending. See [hardware-backend.md](docs/hardware-backend.md) for supported
-channels, identity/recovery details and limitations.
+The minimum target is **Qt 6.8**. The user verified phase 2 shows real sensors
+and allows interval changes; their exact Qt version was not recorded. Phase 3
+has only been statically reviewed, without configuring, compiling or running it.
+Native X11/Wayland tray validation remains pending. See
+[hardware-backend.md](docs/hardware-backend.md) and
+[tray-lifecycle.md](docs/tray-lifecycle.md) for architecture and limitations.
 
 ## Prerequisites
 
 - Linux, CMake 3.21 or later and a C++17 compiler.
-- Qt 6.8 or later development files for Core, Gui and Widgets.
+- Qt 6.8 or later development files for Core, Gui, Widgets and Network.
 - libsensors development files (`sensors/sensors.h` and `libsensors`).
 - Qt's xcb or Wayland platform plugin for your desktop.
 
@@ -58,10 +60,11 @@ lists installed files; no custom uninstaller or privileged helper is provided.
 
 ## Architecture
 
-- `src/app`: metadata, command line and application assembly.
+- `src/app`: metadata, command line, application assembly and single-instance IPC.
 - `src/sensors`: libsensors backend, copied descriptors/samples and serialized
   worker/demand scheduler.
-- `src/ui`: small window and temporary table model. The model rejects missing,
+- `src/tray`: shared actions, numeric icons, host recovery and selection dialog.
+- `src/ui`: persistent dashboard and table model. The model rejects missing,
   non-finite or invalid-timestamp readings and does not present stale values.
 - `resources`: embedded PNG icon resolutions and desktop integration.
 - `cmake`: libsensors discovery without requiring a vendor package file.

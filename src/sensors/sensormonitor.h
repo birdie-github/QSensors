@@ -20,6 +20,7 @@ public:
     ~SensorMonitor() override;
     int intervalSeconds() const { return m_intervalSeconds; }
     void setDashboardActive(bool active);
+    void setBackgroundIds(QStringList ids);
     void setIntervalSeconds(int seconds);
     void rescan();
 
@@ -32,13 +33,17 @@ private:
     void request();
     void completed(const SensorSnapshot &snapshot);
     void schedule();
+    bool hasDemand() const;
+    QStringList demandedIds() const;
 
     QThread m_thread;
     SensorWorker *m_worker;
     QTimer m_timer;
     QStringList m_ids;
+    QStringList m_backgroundIds;
     bool m_active = false;
     bool m_busy = false;
+    bool m_demandChanged = false;
     bool m_rescanPending = true;
     int m_intervalSeconds = 5;
     int m_retrySeconds = 10;

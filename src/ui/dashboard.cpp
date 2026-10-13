@@ -4,6 +4,7 @@
 
 #include <QAction>
 #include <QCoreApplication>
+#include <QCloseEvent>
 #include <QEvent>
 #include <QHeaderView>
 #include <QKeySequence>
@@ -16,6 +17,7 @@
 #include <QStatusBar>
 #include <QTableView>
 #include <QToolBar>
+#include <QSystemTrayIcon>
 
 namespace qsensors {
 
@@ -23,18 +25,9 @@ Dashboard::Dashboard(SensorTableModel *model, QWidget *parent) : QMainWindow(par
 {
     setWindowTitle(QCoreApplication::applicationName());
     resize(800, 500);
-    auto *fileMenu = menuBar()->addMenu(tr("&File"));
-    auto *quitAction = fileMenu->addAction(tr("&Quit"));
-    quitAction->setShortcut(QKeySequence::Quit);
-    connect(quitAction, &QAction::triggered, this, &QWidget::close);
-
-    auto *sensorMenu = menuBar()->addMenu(tr("&Sensors"));
-    auto *rescanAction = sensorMenu->addAction(tr("&Rescan"));
-    rescanAction->setShortcut(QKeySequence(Qt::Key_F5));
-    connect(rescanAction, &QAction::triggered, this, &Dashboard::rescanRequested);
     auto *toolbar = addToolBar(tr("Sensors"));
+    toolbar->setObjectName(QStringLiteral("sensorsToolbar"));
     toolbar->setMovable(false);
-    toolbar->addAction(rescanAction);
     toolbar->addSeparator();
     toolbar->addWidget(new QLabel(tr("Update interval: "), toolbar));
     m_interval = new QSpinBox(toolbar);
@@ -68,6 +61,47 @@ Dashboard::Dashboard(SensorTableModel *model, QWidget *parent) : QMainWindow(par
         stack->setCurrentIndex(model->rowCount() ? 1 : 0);
     });
     connect(statusBar(), &QStatusBar::messageChanged, empty, &QLabel::setText);
+    m_trayWarning = new QLabel(tr("No system tray host — closing the window exits."), this);
+    m_trayWarning->setWordWrap(true);
+    m_trayWarning->setToolTip(tr("A compatible system tray host is required for background operation."));
+    statusBar()->addPermanentWidget(m_trayWarning);
+}
+
+void Dashboard::setActions(QAction *show, QAction *hide, QAction *settings,
+                           QAction *rescan, QAction *about, QAction *quit)
+{
+    auto *file = menuBar()->addMenu(tr("&File"));
+    file->addAction(show);
+    file->addAction(hide);
+    file->addSeparator();
+    file->addAction(settings);
+    file->addSeparator();
+    file->addAction(quit);
+    auto *sensors = menuBar()->addMenu(tr("&Sensors"));
+    sensors->addAction(rescan);
+    menuBar()->addMenu(tr("&Help"))->addAction(about);
+    auto *toolbar = findChild<QToolBar *>(QStringLiteral("sensorsToolbar"));
+    toolbar->insertAction(toolbar->actions().first(), rescan);
+    toolbar->addSeparator();
+    toolbar->addAction(settings);
+}
+
+void Dashboard::setTrayAvailable(bool available)
+{
+    m_trayAvailable = available;
+    m_trayWarning->setVisible(!available);
+}
+
+void Dashboard::closeEvent(QCloseEvent *event)
+{
+    // Recheck now rather than trusting the host watchdog's previous result.
+    if (m_trayAvailable && QSystemTrayIcon::isSystemTrayAvailable()) {
+        event->ignore();
+        hide();
+    } else {
+        event->accept();
+        emit quitRequested();
+    }
 }
 
 void Dashboard::setIntervalSeconds(int seconds)

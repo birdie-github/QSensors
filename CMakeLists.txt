@@ -12,12 +12,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(GNUInstallDirs)
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Network)
 find_package(Sensors REQUIRED)
 qt_standard_project_setup(REQUIRES 6.8)
 
 qt_add_executable(qsensors
     src/app/main.cpp
+    src/app/singleinstance.cpp
+    src/app/singleinstance.h
+    src/tray/traycontroller.cpp
+    src/tray/traycontroller.h
+    src/tray/traysettingsdialog.cpp
+    src/tray/traysettingsdialog.h
     src/sensors/sensorprovider.h
     src/sensors/sensortypes.h
     src/sensors/lmsensorsprovider.cpp
@@ -30,7 +36,7 @@ qt_add_executable(qsensors
     src/ui/sensortablemodel.h
 )
 target_include_directories(qsensors PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(qsensors PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Sensors::Sensors)
+target_link_libraries(qsensors PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Sensors::Sensors)
 target_compile_definitions(qsensors PRIVATE QSENSORS_VERSION="${PROJECT_VERSION}")
 
 qt_add_resources(qsensors app_icons
