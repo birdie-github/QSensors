@@ -10,9 +10,9 @@
 
 namespace qsensors {
 
-enum class SensorKind { Temperature, Fan, Voltage, Current, Power, Energy, Humidity, Percentage, Frequency, Duration };
+enum class SensorKind { Temperature, Fan, Voltage, Current, Power, Energy, Humidity, Percentage, Frequency, Duration, Memory };
 
-// Copied metadata; canonical units are C, RPM, V, A, W, J, %, MHz and seconds.
+// Copied metadata; canonical units are C, RPM, V, A, W, J, %, MHz, seconds and MiB.
 // IDs belong to the provider and must be unique and independent of labels.
 struct SensorDescriptor {
     QString id;
@@ -29,6 +29,7 @@ struct SensorSample {
     QDateTime timestamp;
     bool available = false;
     QString error;
+    double reference = std::numeric_limits<double>::quiet_NaN(); // Total RAM in MiB for available-RAM percentage.
     QString detail; // Supplemental state, e.g. no swap or frequency interpretation.
 };
 

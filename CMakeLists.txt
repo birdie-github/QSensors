@@ -46,6 +46,8 @@ qt_add_executable(qsensors
     src/ui/sensorgrid.h
     src/rendering/sensortilerenderer.cpp
     src/rendering/sensortilerenderer.h
+    src/rendering/valueformat.cpp
+    src/rendering/valueformat.h
     src/ui/sensortablemodel.cpp
     src/ui/sensortablemodel.h
 )
@@ -76,6 +78,7 @@ if(QSENSORS_BUILD_TESTS)
     add_executable(qsensors-systemmetrics-test
         tests/systemmetrics_test.cpp
         src/system/systemmetrics.cpp
+        src/rendering/valueformat.cpp
     )
     target_include_directories(qsensors-systemmetrics-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_link_libraries(qsensors-systemmetrics-test PRIVATE Qt6::Core)

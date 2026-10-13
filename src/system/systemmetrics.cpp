@@ -46,6 +46,27 @@ std::optional<CpuCounters> cpuCounters(const QByteArray &contents)
     return {};
 }
 
+QHash<int, double> cpuFrequencies(const QByteArray &contents)
+{
+    QHash<int, double> values;
+    int cpu = -1;
+    for (const auto &line : contents.split('\n')) {
+        if (line.trimmed().isEmpty()) { cpu = -1; continue; }
+        const int colon = line.indexOf(':');
+        if (colon < 0) continue;
+        const auto key = line.left(colon).trimmed();
+        bool ok = false;
+        if (key == "processor") {
+            cpu = line.mid(colon + 1).trimmed().toInt(&ok);
+            if (!ok || cpu < 0) cpu = -1;
+        } else if (key == "cpu MHz" && cpu >= 0) {
+            const double value = line.mid(colon + 1).trimmed().toDouble(&ok);
+            if (ok && std::isfinite(value) && value > 0 && !values.contains(cpu)) values.insert(cpu, value);
+        }
+    }
+    return values;
+}
+
 std::optional<double> cpuActivity(const CpuCounters &previous, const CpuCounters &current)
 {
     quint64 total = 0, idle = 0;
@@ -103,6 +124,8 @@ std::optional<Usage> memoryUsage(const QByteArray &contents, bool swap)
         }
     }
     if (available > total) return {};
+    result.availableMiB = static_cast<double>(available) / 1024.0;
+    result.totalMiB = static_cast<double>(total) / 1024.0;
     result.percent = 100.0 * static_cast<double>(total - available) / static_cast<double>(total);
     return result;
 }
@@ -119,24 +142,6 @@ QString cpuModel(const QByteArray &contents)
         }
     }
     return {};
-}
-
-std::optional<double> meanCpuMHz(const QByteArray &contents)
-{
-    long double sum = 0;
-    quint64 count = 0;
-    for (const auto &line : contents.split('\n')) {
-        const int colon = line.indexOf(':');
-        if (colon < 0 || line.left(colon).trimmed() != "cpu MHz") continue;
-        bool ok = false;
-        const double value = line.mid(colon + 1).trimmed().toDouble(&ok);
-        if (!ok || !std::isfinite(value) || value <= 0) return {};
-        sum += value;
-        ++count;
-    }
-    if (!count) return {};
-    const double mean = static_cast<double>(sum / count);
-    return std::isfinite(mean) ? std::optional<double>(mean) : std::nullopt;
 }
 
 std::optional<double> uptimeSeconds(const QByteArray &contents)

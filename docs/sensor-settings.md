@@ -117,9 +117,12 @@ label=CPU Package
 
 The complete optional sensor keys are `dashboard=false`, `tray=false`, `label=`,
 `multiplier=1`, `offset=0`, `foreground=`, `background=`, `customRange=false`,
-`rangeLower=0`, `rangeUpper=100`. These are their implicit defaults, not lines
+`rangeLower=0`, `rangeUpper=100`, `memoryAsPercent=false`. These are their implicit defaults, not lines
 that must be added. Colors accept Qt color strings, including `#RRGGBB` and
 `#AARRGGBB`. Calibration and range values use canonical units as described above.
+Available RAM exposes a display choice in Settings: automatic MiB/GiB/TiB/PiB
+or percentage of total RAM. Corrections and custom range bounds remain canonical
+MiB in either display mode; changing the choice does not rewrite those values.
 Use the identity emitted for your machine; the hardware identity in this example
 is illustrative. Slashes and colons in identity values are ordinary text.
 

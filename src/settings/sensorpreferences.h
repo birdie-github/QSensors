@@ -27,6 +27,7 @@ struct SensorPreferences {
     double offset = 0; // Canonical units; temperature offsets are Celsius differences.
     QColor foreground; // Invalid means system palette.
     QColor background;
+    bool memoryAsPercent = false; // Available RAM display; canonical correction/range stays MiB.
     bool customRange = false;
     double rangeLower = 0; // Canonical absolute values, never alarm thresholds.
     double rangeUpper = 100;

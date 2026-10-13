@@ -69,6 +69,7 @@ private:
     QPushButton *m_foreground;
     QPushButton *m_background;
     QComboBox *m_temperatureUnit;
+    QComboBox *m_memoryDisplay;
     QCheckBox *m_autostart;
     QLabel *m_identity;
 };

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "rendering/sensortilerenderer.h"
+#include "rendering/valueformat.h"
 
 #include <QFontMetricsF>
 #include <QLocale>
@@ -28,6 +29,7 @@ GaugeRange gaugeRange(SensorKind kind, double value)
     case SensorKind::Percentage: range = {0, 100}; break;
     case SensorKind::Frequency: range = {0, 5000}; break;
     case SensorKind::Duration: range = {0, 86400}; break;
+    case SensorKind::Memory: range = {0, 1024}; break;
     }
     const auto extend = [](double magnitude) {
         if (magnitude == 0)
@@ -87,18 +89,23 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
                                        const SensorPreferences &preferences, TemperatureUnit unit)
 {
     TileReading result;
+    result.unit = descriptor.unit;
     result.available = sample.available && std::isfinite(sample.value) && sample.timestamp.isValid();
     if (!result.available) {
         result.text = QStringLiteral("—");
         return result;
     }
     const QLocale locale;
+    const auto formatted = formatSensorValue(descriptor, sample.value);
+    result.unit = formatted.unit;
     switch (descriptor.kind) {
     case SensorKind::Temperature:
         result.text = locale.toString(sample.value, 'f', unit == TemperatureUnit::Kelvin ? 2 : 1);
         break;
-    case SensorKind::Humidity:
-    case SensorKind::Percentage: result.text = locale.toString(sample.value, 'f', 1); break;
+    case SensorKind::Humidity: result.text = locale.toString(sample.value, 'f', 1); break;
+    case SensorKind::Percentage: result.text = formatted.number; break;
+    case SensorKind::Frequency:
+    case SensorKind::Memory: result.text = formatted.number; break;
     case SensorKind::Fan: result.text = locale.toString(sample.value, 'f', 0); break;
     default: result.text = locale.toString(sample.value, 'g', 6); break;
     }
@@ -109,12 +116,23 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
     const double canonicalValue = temperature ? temperatureFromDisplay(sample.value, unit) : sample.value;
     result.range = preferences.customRange ? GaugeRange{preferences.rangeLower, preferences.rangeUpper}
                                           : gaugeRange(descriptor.kind, canonicalValue);
+    // Memory's canonical unit stays MiB even when its display descriptor is %.
+    if (descriptor.id == QStringLiteral("system/memory/available") && preferences.memoryAsPercent && std::isfinite(sample.reference) && sample.reference > 0 && preferences.customRange) {
+        result.range.lower = result.range.lower / sample.reference * 100;
+        result.range.upper = result.range.upper / sample.reference * 100;
+    }
     if (temperature) {
         result.range.lower = temperatureToDisplay(result.range.lower, unit);
         result.range.upper = temperatureToDisplay(result.range.upper, unit);
     }
     result.lowerText = locale.toString(result.range.lower, 'g', 6);
     result.upperText = locale.toString(result.range.upper, 'g', 6);
+    if (descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory) {
+        const auto lower = formatSensorValue(descriptor, result.range.lower);
+        const auto upper = formatSensorValue(descriptor, result.range.upper);
+        result.lowerText = lower.number + lower.unit;
+        result.upperText = upper.number + upper.unit;
+    }
     const double span = result.range.upper - result.range.lower;
     if (span > 0 && std::isfinite(span))
         result.fraction = std::clamp((sample.value - result.range.lower) / span, 0.0, 1.0);
@@ -144,7 +162,7 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
     fittedText(painter, QRectF(padding, size * (gauge ? 0.07 : 0.20), size - 2 * padding, size * 0.32),
                reading.text, style.valueFont, false);
     fittedText(painter, QRectF(padding, size * (gauge ? 0.36 : 0.52), size - 2 * padding, std::max(9.0, size * 0.13)),
-               descriptor.unit, style.unitFont, true);
+               reading.unit, style.unitFont, true);
 
     if (gauge) {
         const QRectF arc = compact ? QRectF(size * 0.28, size * 0.53, size * 0.44, size * 0.44)

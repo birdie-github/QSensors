@@ -12,6 +12,8 @@ public:
     SensorDiscovery discover() override;
     QList<SensorSample> readBatch(const QStringList &ids) override;
 private:
+    struct Core { int package; int core; QString id; QList<int> threads; };
+    QList<Core> m_cores;
     std::optional<systemmetrics::CpuCounters> m_previousCpu;
 };
 

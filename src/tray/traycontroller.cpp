@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "tray/traycontroller.h"
+#include "rendering/valueformat.h"
 #include "settings/sensorpreferences.h"
 
 #include <QAction>
@@ -25,6 +26,10 @@ namespace {
 
 QString compactValue(const SensorDescriptor &descriptor, double value)
 {
+    if (descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory) {
+        const auto formatted = formatSensorValue(descriptor, value, true);
+        return formatted.number + formatted.unit;
+    }
     QString text;
     switch (descriptor.kind) {
     case SensorKind::Temperature:
@@ -237,7 +242,8 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
     const auto preferences = m_preferences->value(id);
     const QString label = !preferences.label.isEmpty() ? preferences.label
         : descriptor.label.isEmpty() ? id : descriptor.label;
-    const QString value = available ? tr("%1 %2").arg(QLocale().toString(sample.value, 'g', 8), descriptor.unit)
+    const auto formatted = formatSensorValue(descriptor, sample.value);
+    const QString value = available ? tr("%1 %2").arg(formatted.number, formatted.unit)
                                    : tr("Unavailable");
     QString tooltip = tr("%1\n%2\n%3").arg(label, descriptor.device, value);
     if (available && !sample.detail.isEmpty())

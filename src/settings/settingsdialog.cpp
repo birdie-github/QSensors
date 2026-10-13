@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "settings/settingsdialog.h"
+#include "rendering/valueformat.h"
 #include "settings/autostart.h"
 
 #include <QCheckBox>
@@ -112,6 +113,13 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     form->addRow(m_tray);
     m_label = new QLineEdit(m_editor);
     form->addRow(tr("Display name:"), m_label);
+    m_memoryDisplay = new QComboBox(m_editor);
+    m_memoryDisplay->addItem(tr("MiB (automatic MiB/GiB/TiB/PiB)"), false);
+    m_memoryDisplay->addItem(tr("Percentage of total RAM"), true);
+    form->addRow(tr("Available RAM display:"), m_memoryDisplay);
+    connect(m_memoryDisplay, &QComboBox::currentIndexChanged, this, [this](int index) {
+        if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].memoryAsPercent = index == 1;
+    });
     m_label->setToolTip(tr("Rename this sensor on the dashboard, in the table and in tray tooltips. Clear to restore the original name."));
     auto *resetName = new QPushButton(tr("Use original name"), m_editor);
     form->addRow(resetName);
@@ -309,11 +317,15 @@ void SettingsDialog::updateValues()
                 tooltip = sample.error.isEmpty() ? m_readError : sample.error;
                 if (tooltip.isEmpty()) tooltip = tr("No valid reading returned.");
             } else {
-                const auto descriptor = m_catalog.value(id);
-                const QString unit = descriptor.kind == SensorKind::Temperature
-                    ? temperatureUnitText(m_store->temperatureUnit()) : descriptor.unit;
-                text = QLocale().toString(sample.value, 'g', 8);
-                if (!unit.isEmpty()) text += QLatin1Char(' ') + unit;
+                auto descriptor = m_catalog.value(id);
+                if (descriptor.kind == SensorKind::Temperature) descriptor.unit = temperatureUnitText(m_store->temperatureUnit());
+                if (descriptor.kind == SensorKind::Memory && m_store->value(id).memoryAsPercent) {
+                    descriptor.kind = SensorKind::Percentage;
+                    descriptor.unit = QStringLiteral("%");
+                }
+                const auto formatted = formatSensorValue(descriptor, sample.value);
+                text = formatted.number;
+                if (!formatted.unit.isEmpty()) text += QLatin1Char(' ') + formatted.unit;
                 tooltip = tr("Applied calibration and display units. Read at %1.")
                     .arg(QLocale().toString(sample.timestamp.toLocalTime(), QLocale::ShortFormat));
                 if (!sample.detail.isEmpty()) tooltip += QLatin1Char('\n') + sample.detail;
@@ -461,6 +473,9 @@ void SettingsDialog::loadSensor(const QString &id)
     m_identity->setToolTip(id);
     m_label->setText(p.label.isEmpty() ? descriptor.label : p.label);
     m_label->setPlaceholderText(descriptor.label);
+    m_memoryDisplay->setCurrentIndex(p.memoryAsPercent ? 1 : 0);
+    const bool memory = descriptor.kind == SensorKind::Memory || id == QStringLiteral("system/memory/available");
+    static_cast<QFormLayout *>(m_editor->layout())->setRowVisible(m_memoryDisplay, memory);
     m_dashboard->setChecked(p.dashboard);
     m_tray->setChecked(p.tray);
     m_multiplier->setValue(p.multiplier);

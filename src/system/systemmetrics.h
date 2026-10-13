@@ -3,6 +3,8 @@
 
 #include <QByteArray>
 #include <QString>
+#include <QHash>
+#include <QList>
 #include <array>
 #include <optional>
 
@@ -14,12 +16,14 @@ struct CpuCounters {
 struct Usage {
     double percent = 0;
     QString detail;
+    double availableMiB = 0;
+    double totalMiB = 0;
 };
 std::optional<CpuCounters> cpuCounters(const QByteArray &contents);
+QHash<int, double> cpuFrequencies(const QByteArray &contents);
 std::optional<double> cpuActivity(const CpuCounters &previous, const CpuCounters &current);
 std::optional<Usage> memoryUsage(const QByteArray &contents, bool swap);
 QString cpuModel(const QByteArray &contents);
-std::optional<double> meanCpuMHz(const QByteArray &contents);
 std::optional<double> uptimeSeconds(const QByteArray &contents);
 
 } // namespace qsensors::systemmetrics

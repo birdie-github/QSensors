@@ -46,6 +46,10 @@ void SensorPresentation::publish(bool changedCatalog)
                 descriptor.label = p.label;
             if (descriptor.kind == SensorKind::Temperature)
                 descriptor.unit = temperatureUnitText(m_preferences->temperatureUnit());
+            if (descriptor.kind == SensorKind::Memory && p.memoryAsPercent) {
+                descriptor.kind = SensorKind::Percentage;
+                descriptor.unit = QStringLiteral("%");
+            }
             display.descriptors.append(descriptor);
         }
     }
@@ -55,6 +59,11 @@ void SensorPresentation::publish(bool changedCatalog)
             sample.value = sample.value * p.multiplier + p.offset;
             if (m_kinds.contains(sample.id) && m_kinds.value(sample.id) == SensorKind::Temperature)
                 sample.value = temperatureToDisplay(sample.value, m_preferences->temperatureUnit());
+            if (m_kinds.value(sample.id) == SensorKind::Memory && p.memoryAsPercent) {
+                if (std::isfinite(sample.reference) && sample.reference > 0)
+                    sample.value = sample.value / sample.reference * 100;
+                else sample.value = std::numeric_limits<double>::quiet_NaN();
+            }
             if (!std::isfinite(sample.value) || !sample.timestamp.isValid()) {
                 sample.available = false;
                 sample.value = std::numeric_limits<double>::quiet_NaN();

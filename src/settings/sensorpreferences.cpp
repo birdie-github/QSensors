@@ -66,6 +66,7 @@ bool SensorPreferences::operator==(const SensorPreferences &other) const
     return dashboard == other.dashboard && tray == other.tray && label == other.label
         && multiplier == other.multiplier && offset == other.offset
         && foreground == other.foreground && background == other.background
+        && memoryAsPercent == other.memoryAsPercent
         && customRange == other.customRange && rangeLower == other.rangeLower && rangeUpper == other.rangeUpper;
 }
 
@@ -108,6 +109,7 @@ SensorPreferences readPreferences(QSettings &settings)
     p.background = QColor(settings.value(QStringLiteral("background")).toString());
     p.rangeLower = number(settings, QStringLiteral("rangeLower"), 0, 1e12);
     p.rangeUpper = number(settings, QStringLiteral("rangeUpper"), 100, 1e12);
+    p.memoryAsPercent = boolean(settings, QStringLiteral("memoryAsPercent"), false);
     p.customRange = boolean(settings, QStringLiteral("customRange"), false) && p.rangeLower < p.rangeUpper;
     return p;
 }
@@ -192,6 +194,7 @@ bool SensorPreferencesStore::apply(const QHash<QString, SensorPreferences> &valu
         if (p.offset != 0) settings.setValue(QStringLiteral("offset"), p.offset);
         if (p.foreground.isValid()) settings.setValue(QStringLiteral("foreground"), p.foreground.name(QColor::HexArgb));
         if (p.background.isValid()) settings.setValue(QStringLiteral("background"), p.background.name(QColor::HexArgb));
+        if (p.memoryAsPercent) settings.setValue(QStringLiteral("memoryAsPercent"), true);
         if (p.customRange) settings.setValue(QStringLiteral("customRange"), true);
         if (p.rangeLower != 0) settings.setValue(QStringLiteral("rangeLower"), p.rangeLower);
         if (p.rangeUpper != 100) settings.setValue(QStringLiteral("rangeUpper"), p.rangeUpper);

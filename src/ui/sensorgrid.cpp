@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ui/sensorgrid.h"
+#include "rendering/valueformat.h"
 #include "settings/sensorpreferences.h"
 
 #include <QApplication>
@@ -143,6 +144,7 @@ void SensorGrid::applySamples(const QList<SensorSample> &samples)
         const auto reading = SensorTileRenderer::prepare(tile.descriptor, sample, m_preferences->value(tile.descriptor.id), m_preferences->temperatureUnit());
         const bool different = reading.available != tile.reading.available
             || reading.text != tile.reading.text
+            || reading.unit != tile.reading.unit
             || (m_gauges && (reading.fraction != tile.reading.fraction
                 || reading.range.lower != tile.reading.range.lower || reading.range.upper != tile.reading.range.upper));
         tile.sample = sample;
@@ -294,7 +296,8 @@ bool SensorGrid::viewportEvent(QEvent *event)
         if (index >= 0) {
             const auto &tile = m_tiles[m_order[index]];
             const bool valid = tile.reading.available;
-            const QString value = valid ? QStringLiteral("%1 %2").arg(QLocale().toString(tile.sample.value, 'g', 12), tile.descriptor.unit)
+            const auto formatted = formatSensorValue(tile.descriptor, tile.sample.value);
+            const QString value = valid ? QStringLiteral("%1 %2").arg(formatted.number, formatted.unit)
                                         : tr("Unavailable");
             QToolTip::showText(help->globalPos(), tr("%1\n%2\n%3\n%4")
                 .arg(tile.descriptor.label, tile.descriptor.device, value,

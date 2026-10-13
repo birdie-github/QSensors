@@ -5,8 +5,10 @@ with Qt 6 Widgets and modern libsensors. No KDE dependencies.
 
 ## Current status
 
-Phase 7 adds optional system readings: aggregate CPU activity, mean reported CPU
-frequency with CPU model metadata, RAM usage, swap usage and uptime. Hardware and
+Phase 7 adds optional system readings: aggregate CPU usage (including SMT), physical-core average/maximum/per-core
+frequencies with CPU model metadata, RAM usage, available RAM, swap usage and
+uptime. Available RAM supports MiB or percent display; frequency and memory
+readings choose compact units automatically. Hardware and
 system sensors use the same Settings, dashboard and numeric tray selections.
 New sensors default to disabled. Settings groups sensors by source, supports
 renaming and search, and previews live values in resizable columns. Calibration,

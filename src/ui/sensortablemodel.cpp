@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ui/sensortablemodel.h"
+#include "rendering/valueformat.h"
 #include "settings/sensorpreferences.h"
 
 #include <QHash>
@@ -51,8 +52,8 @@ QVariant SensorTableModel::data(const QModelIndex &index, int role) const
     case 2:
         if (!sample.available)
             return tr("Unavailable");
-        return QLocale().toString(sample.value, 'g', 8);
-    case 3: return descriptor.unit;
+        return formatSensorValue(descriptor, sample.value).number;
+    case 3: return sample.available ? formatSensorValue(descriptor, sample.value).unit : descriptor.unit;
     }
     return {};
 }
@@ -106,6 +107,8 @@ void SensorTableModel::applySamples(const QList<SensorSample> &samples)
         }
         const auto &previous = m_samples[row];
         const bool changed = sample.available != previous.available
+            || std::isfinite(sample.reference) != std::isfinite(previous.reference)
+            || (std::isfinite(sample.reference) && sample.reference != previous.reference)
             || sample.detail != previous.detail
             || sample.error != previous.error
             || (sample.available && sample.value != previous.value);

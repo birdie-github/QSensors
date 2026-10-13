@@ -20,6 +20,7 @@ struct GaugeRange {
 struct TileReading {
     bool available = false;
     QString text;
+    QString unit;
     double fraction = 0;
     GaugeRange range;
     QString lowerText;

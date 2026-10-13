@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "system/systemmetrics.h"
+#include "rendering/valueformat.h"
 #include <cmath>
+#include <QLocale>
 #include <iostream>
 #include <stdexcept>
 
@@ -17,6 +19,7 @@ void near(const std::optional<double> &value, double expected, const char *name)
 }
 int main()
 {
+    QLocale::setDefault(QLocale::c());
     try {
         const auto before = cpuCounters("cpu 4294967300 0 0 4294967300 0 0 0 0 100 50\ncpu0 1 2 3 4\n");
         const auto after = cpuCounters("cpu 4294967320 0 0 4294967380 0 0 0 0 120 60\n");
@@ -35,8 +38,27 @@ int main()
         require(!cpuCounters("cpu 1 bad 3 4\n"), "malformed counter");
         require(!cpuCounters("cpu 18446744073709551616 0 0 0\n"), "counter overflow");
         require(!cpuCounters("cpu0 1 2 3 4\n"), "aggregate missing");
+        const auto frequencies = cpuFrequencies("processor : 0\ncpu MHz : 900\n\nprocessor : 1\ncpu MHz : 1200\n");
+        require(frequencies.value(0) == 900 && frequencies.value(1) == 1200, "logical frequency association");
+        qsensors::SensorDescriptor descriptor;
+        descriptor.kind = qsensors::SensorKind::Frequency;
+        auto formatted = qsensors::formatSensorValue(descriptor, 900);
+        require(formatted.number == "900" && formatted.unit == "MHz", "MHz format");
+        formatted = qsensors::formatSensorValue(descriptor, 1200, true);
+        require(formatted.number == "1.2" && formatted.unit == "G", "GHz tray format");
+        descriptor.kind = qsensors::SensorKind::Memory;
+        formatted = qsensors::formatSensorValue(descriptor, 2560);
+        require(formatted.number == "2.5" && formatted.unit == "GiB", "GiB format");
+        formatted = qsensors::formatSensorValue(descriptor, 0.5, true);
+        require(formatted.number == "0" && formatted.unit == "M", "sub-MiB format");
+        formatted = qsensors::formatSensorValue(descriptor, 100);
+        require(formatted.number == "100" && formatted.unit == "MiB", "three-character MiB");
+        for (double value : {0.0, 0.5, 9.94, 9.95, 99.9, 999.0, 1000.0, 1024.0, 2560.0, 1e9}) {
+            require(qsensors::formatSensorValue(descriptor, value).number.size() <= 3, "memory numeric width");
+        }
         const auto available = memoryUsage("MemTotal: 1000 kB\nMemAvailable: 750 kB\n", false);
         require(available && available->percent == 25, "MemAvailable RAM");
+        require(available->availableMiB == 750.0 / 1024 && available->totalMiB == 1000.0 / 1024, "available RAM canonical MiB");
         const auto fallback = memoryUsage("MemTotal: 1000 kB\nMemFree: 100 kB\nBuffers: 100 kB\nCached: 300 kB\nSReclaimable: 100 kB\nShmem: 50 kB\n", false);
         require(fallback && fallback->percent == 45 && !fallback->detail.isEmpty(), "RAM fallback");
         require(!memoryUsage("MemTotal: 1000 kB\n", false), "missing availability");
@@ -49,9 +71,8 @@ int main()
         const auto swap = memoryUsage("SwapTotal: 100 kB\nSwapFree: 25 kB\n", true);
         require(swap && swap->percent == 75, "swap usage");
         require(!memoryUsage("SwapTotal: 100 kB\n", true), "missing swap free");
-        near(meanCpuMHz("cpu MHz : 1000\ncpu MHz : 3000\n"), 2000, "frequency mean");
-        require(!meanCpuMHz("cpu MHz : nan\n"), "nonfinite frequency");
-        require(!meanCpuMHz("model name : CPU\n"), "unsupported frequency");
+        require(cpuFrequencies("processor : 0\ncpu MHz : nan\n").isEmpty(), "nonfinite frequency");
+        require(cpuFrequencies("model name : CPU\n").isEmpty(), "unsupported frequency");
         require(cpuModel("model name : Example CPU\n") == "Example CPU", "static model");
         near(uptimeSeconds("4294967297.25 100.0\n"), 4294967297.25, "large uptime");
         require(!uptimeSeconds("-1 0\n") && !uptimeSeconds("nan 0\n") && !uptimeSeconds("10 bad\n"), "malformed uptime");
