@@ -74,6 +74,7 @@ Dashboard::Dashboard(SensorTableModel *model, QWidget *parent) : QMainWindow(par
     m_tileSize->setMinimumContentsLength(4);
     m_tileSize->setToolTip(tr("Square tile size in logical pixels (48–2048)."));
     m_tileSize->setAccessibleName(tr("Tile size in logical pixels"));
+    toolbar->addWidget(m_tileSize);
     connect(m_tileSize, &QComboBox::currentTextChanged, this, [this](const QString &text) {
         bool valid = false;
         const int size = text.toInt(&valid);
