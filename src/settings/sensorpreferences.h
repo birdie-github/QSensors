@@ -17,7 +17,7 @@ double temperatureDifferenceFromDisplay(double value, TemperatureUnit unit);
 QString temperatureUnitText(TemperatureUnit unit);
 
 struct SensorPreferences {
-    bool dashboard = true;
+    bool dashboard = false;
     bool tray = false;
     QString label;
     double multiplier = 1;

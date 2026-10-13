@@ -6,6 +6,21 @@ Settings now has two resizable pages. General chooses Celsius/Fahrenheit/Kelvin
 for all temperature displays and optionally starts QSensors at desktop login.
 Polling interval and tile size remain in the dashboard toolbar.
 
+New sensors default to disabled for both dashboard and tray. A fresh configuration
+therefore has an empty dashboard. Existing saved selections remain unchanged;
+Disable all sensors clears both selections across the catalog (including search
+results that are hidden), and takes effect on OK. Reset sensor preferences also
+returns that sensor to disabled.
+
+The dialog opens on Sensors at 1120 × 760 logical pixels, bounded to 90% of the
+available screen. The resizable browser groups sensors under collapsible source
+headings, naturally sorts source and display names (Core 2 before Core 18), and
+keeps unavailable sensors in a separate group. Search matches display names,
+original names, sources and stable IDs. Dashboard and tray checkboxes are directly
+available in each sensor row. Display name contains editable text; Use original
+name clears the override. Renames update the row immediately; the next catalog
+refresh or dialog opening orders it by the new name.
+
 Sensors lists the complete discovered catalog before any monitoring selection,
 plus saved missing devices. Choose a sensor to edit independent dashboard/tray
 selection, custom label, multiplier/offset, optional custom gauge bounds and

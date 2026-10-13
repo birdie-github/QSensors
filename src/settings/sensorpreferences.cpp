@@ -113,7 +113,7 @@ SensorPreferencesStore::SensorPreferencesStore(QObject *parent) : QObject(parent
         const QString id = settings.value(QStringLiteral("id")).toString();
         if (!id.isEmpty() && group == groupName(id)) {
             SensorPreferences p;
-            p.dashboard = boolean(settings, QStringLiteral("dashboard"), true);
+            p.dashboard = boolean(settings, QStringLiteral("dashboard"), false);
             p.tray = boolean(settings, QStringLiteral("tray"), false);
             p.label = settings.value(QStringLiteral("label")).toString();
             p.multiplier = number(settings, QStringLiteral("multiplier"), 1, 1e6);

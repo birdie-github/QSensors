@@ -7,7 +7,7 @@
 #include <QDialog>
 #include <QHash>
 
-class QListWidget;
+class QTreeWidget;
 class QLineEdit;
 class QCheckBox;
 class QDoubleSpinBox;
@@ -29,6 +29,8 @@ protected:
 
 private:
     void populate();
+    void filterSensors();
+    void syncCurrentItem();
     void loadSensor(const QString &id);
     void chooseColor(bool background);
     void updateColorButtons();
@@ -43,7 +45,8 @@ private:
     TemperatureUnit m_unit;
     bool m_loading = false;
     bool m_initialAutostart;
-    QListWidget *m_list;
+    QTreeWidget *m_list;
+    QLineEdit *m_search;
     QGroupBox *m_editor;
     QLineEdit *m_label;
     QCheckBox *m_dashboard;
