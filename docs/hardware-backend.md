@@ -59,9 +59,9 @@ the backend's channel map and is discarded before cleanup.
 The GUI schedules at most one worker operation at a time. A single-shot timer
 is armed after completion, so a slow read extends the interval instead of
 queuing overlapping work. Multiple rescan requests coalesce into one follow-up.
-The visible dashboard demands every displayed channel; tray selections add
-background demand, including selected missing IDs for explicit unavailable
-results and recovery. The worker reads the union once. Alarm demand follows
+The tile viewport demands intersecting tiles; table mode demands the full
+catalog. Tray selections add background demand, including selected missing IDs
+for explicit unavailable results and recovery. The worker reads the union once. Alarm demand follows
 in phase 6 without adding competing readers.
 
 Shutdown requests interruption, stops the worker event loop, waits for the
@@ -74,6 +74,7 @@ polling. No thread termination is used.
 ## Validation status
 
 The user confirmed phase 2 displays their real sensors and allows interval
-changes. Phase 3 has only undergone static review and patch-application checks.
+changes. The user also confirmed phase 3 works. Phase 4 has only undergone static review
+and patch-application checks.
 Hardware comparison, slow/failing reads, suspend/resume, removal/reappearance
 and native X11/Wayland tray operation still need targeted hardware testing.

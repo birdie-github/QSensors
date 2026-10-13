@@ -42,6 +42,7 @@ int main(int argc, char *argv[])
     app.setQuitOnLastWindowClosed(false);
     qsensors::SensorTableModel model;
     qsensors::SensorMonitor monitor;
+    monitor.setDashboardIds({});
     qsensors::Dashboard dashboard(&model);
     qsensors::TrayController tray(&dashboard);
     dashboard.setIntervalSeconds(monitor.intervalSeconds());
@@ -77,12 +78,16 @@ int main(int argc, char *argv[])
     QObject::connect(&dashboard, &qsensors::Dashboard::dashboardActiveChanged,
                      &tray, &qsensors::TrayController::setDashboardVisible);
     QObject::connect(&dashboard, &qsensors::Dashboard::dashboardActiveChanged,
-                     &monitor, [&monitor, &model, wasActive = false](bool active) mutable {
-        if (active && !wasActive)
+                     &monitor, [&monitor, &model, &dashboard, wasActive = false](bool active) mutable {
+        if (active && !wasActive) {
             model.applySamples({});
+            dashboard.clearReadings();
+        }
         wasActive = active;
         monitor.setDashboardActive(active);
     });
+    QObject::connect(&dashboard, &qsensors::Dashboard::visibleSensorIdsChanged,
+                     &monitor, &qsensors::SensorMonitor::setDashboardIds);
     QObject::connect(&tray, &qsensors::TrayController::rescanRequested,
                      &monitor, &qsensors::SensorMonitor::rescan);
     QObject::connect(&tray, &qsensors::TrayController::selectionChanged,
@@ -99,6 +104,8 @@ int main(int argc, char *argv[])
             model.setDescriptors(snapshot.descriptors);
         model.applySamples(snapshot.samples);
     });
+    QObject::connect(&monitor, &qsensors::SensorMonitor::snapshotReady,
+                     &dashboard, &qsensors::Dashboard::applySnapshot);
     QObject::connect(&monitor, &qsensors::SensorMonitor::snapshotReady,
                      &tray, &qsensors::TrayController::applySnapshot);
     monitor.setBackgroundIds(tray.selectedIds());

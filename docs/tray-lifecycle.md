@@ -33,10 +33,11 @@ support. Explicit Show/Hide actions remain available through the context menu.
 Closing with a tray host hides the persistent dashboard. File/Tray Quit always
 exits, including from an open Settings window. Selected tray channels keep
 updating in the background; with none selected, hiding/minimizing stops sensor
-polling. Showing restores full dashboard demand and refreshes stale values.
+polling. Showing restores the chosen view's demand and refreshes stale values:
+intersecting tiles, or the complete catalog in table mode.
 Tray and dashboard share one hardware worker; there are no competing readers.
-Settings currently opens with the dashboard visible, so its normal demand also
-covers configuration preview. Alarms will add background demand in phase 6.
+Settings currently opens with the dashboard visible and lists cached catalog
+metadata; it does not require extra preview readings. Alarms will add background demand in phase 6.
 
 If there is no tray host, the dashboard explains it and closing exits. Hide is
 disabled. A small shared, coarse three-second host watchdog detects host loss
@@ -74,8 +75,7 @@ in hardware-backend.md; no thread termination is used.
 
 ## Validation status
 
-The user verified phase 2 discovers their sensors and allows interval changes.
-Phase 3 is statically reviewed and checked for clean patch application, without
-compilation or application execution. Real X11 and native Wayland tray tests,
+The user confirmed phase 3 works. Phase 4 is statically reviewed and checked
+for clean patch application, without compilation or application execution. Real X11 and native Wayland tray tests,
 fractional/high DPI, multiple numeric icons, host restart/loss, activation,
 concurrent launches and stale-endpoint recovery remain pending.

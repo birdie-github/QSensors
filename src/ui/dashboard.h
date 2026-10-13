@@ -2,21 +2,29 @@
 #pragma once
 
 #include <QMainWindow>
+#include "sensors/sensortypes.h"
+#include <QStringList>
 
 class QSpinBox;
 class QAction;
 class QLabel;
 class QCloseEvent;
+class QStackedWidget;
+class QComboBox;
 
 namespace qsensors {
 
 class SensorTableModel;
+class SensorGrid;
 
 class Dashboard final : public QMainWindow {
     Q_OBJECT
 
 public:
     explicit Dashboard(SensorTableModel *model, QWidget *parent = nullptr);
+    ~Dashboard() override;
+    void applySnapshot(const SensorSnapshot &snapshot);
+    void clearReadings();
     void setIntervalSeconds(int seconds);
     void setTrayAvailable(bool available);
     void setActions(QAction *show, QAction *hide, QAction *settings,
@@ -26,6 +34,7 @@ signals:
     void quitRequested();
     void intervalChanged(int seconds);
     void dashboardActiveChanged(bool active);
+    void visibleSensorIdsChanged(const QStringList &ids);
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -34,7 +43,14 @@ protected:
     void changeEvent(QEvent *event) override;
 
 private:
+    void updateVisibleIds();
+    void saveWindowGeometry();
     QSpinBox *m_interval;
+    SensorGrid *m_grid;
+    QStackedWidget *m_stack;
+    QComboBox *m_tileSize;
+    QAction *m_tableView;
+    QStringList m_catalogIds;
     QLabel *m_trayWarning;
     bool m_trayAvailable = false;
 };

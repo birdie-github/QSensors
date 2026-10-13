@@ -32,6 +32,10 @@ qt_add_executable(qsensors
     src/sensors/sensormonitor.h
     src/ui/dashboard.cpp
     src/ui/dashboard.h
+    src/ui/sensorgrid.cpp
+    src/ui/sensorgrid.h
+    src/rendering/sensortilerenderer.cpp
+    src/rendering/sensortilerenderer.h
     src/ui/sensortablemodel.cpp
     src/ui/sensortablemodel.h
 )

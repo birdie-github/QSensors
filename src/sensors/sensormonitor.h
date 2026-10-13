@@ -20,6 +20,7 @@ public:
     ~SensorMonitor() override;
     int intervalSeconds() const { return m_intervalSeconds; }
     void setDashboardActive(bool active);
+    void setDashboardIds(QStringList ids);
     void setBackgroundIds(QStringList ids);
     void setIntervalSeconds(int seconds);
     void rescan();
@@ -41,6 +42,8 @@ private:
     QTimer m_timer;
     QStringList m_ids;
     QStringList m_backgroundIds;
+    QStringList m_dashboardIds;
+    bool m_dashboardIdsExplicit = false;
     bool m_active = false;
     bool m_busy = false;
     bool m_demandChanged = false;

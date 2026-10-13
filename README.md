@@ -5,23 +5,23 @@ with Qt 6 Widgets and modern libsensors. No KDE dependencies.
 
 ## Current status
 
-Phase 3 adds independently selectable numeric tray icons, shared menus,
-close-to-tray behavior, host recovery and single-instance activation. Real
-libsensors channels use the serialized worker introduced in phase 2.
+Phase 4 adds scalable QPainter vector tiles with optional gauges, a scrollable
+viewport and persistent drag/keyboard ordering. Tiles default to 128 logical
+pixels; the toolbar accepts 48–2048, with presets under View. **View → Table
+View** retains the existing sensor table.
 
-Use **Settings** to select tray sensors and **Sensors → Rescan** (F5) after
-hardware changes. The toolbar controls the saved update interval (1–3600
-seconds, default 5). Hidden/minimized dashboards poll only tray selections;
-with none selected they stop polling. Closing hides when a tray host exists;
-**Quit** exits. Without a tray host the dashboard stays recoverable and closing
-exits. Full sensor settings, scalable tiles and alarms follow in later phases.
+Use **Settings** to select numeric tray sensors and **Sensors → Rescan** (F5)
+after hardware changes. The saved interval is 1–3600 seconds (default 5).
+Tile mode polls visible tiles plus tray selections; table mode polls the whole
+catalog. Closing hides when a tray host exists; **Quit** exits. Without a tray
+host the dashboard stays recoverable and closing exits. Full sensor settings
+and alarms follow in later phases.
 
-The minimum target is **Qt 6.8**. The user verified phase 2 shows real sensors
-and allows interval changes; their exact Qt version was not recorded. Phase 3
-has only been statically reviewed, without configuring, compiling or running it.
-Native X11/Wayland tray validation remains pending. See
+The minimum target is **Qt 6.8**. The user confirmed phase 3 works; their exact
+Qt version was not recorded. Phase 4 has only been statically reviewed, without
+configuring, compiling or running it. See [vector-dashboard.md](docs/vector-dashboard.md),
 [hardware-backend.md](docs/hardware-backend.md) and
-[tray-lifecycle.md](docs/tray-lifecycle.md) for architecture and limitations.
+[tray-lifecycle.md](docs/tray-lifecycle.md) for controls, architecture and limitations.
 
 ## Prerequisites
 
@@ -64,8 +64,9 @@ lists installed files; no custom uninstaller or privileged helper is provided.
 - `src/sensors`: libsensors backend, copied descriptors/samples and serialized
   worker/demand scheduler.
 - `src/tray`: shared actions, numeric icons, host recovery and selection dialog.
-- `src/ui`: persistent dashboard and table model. The model rejects missing,
+- `src/ui`: persistent dashboard, virtual tile grid and table model. The model rejects missing,
   non-finite or invalid-timestamp readings and does not present stale values.
+- `src/rendering`: vector tile geometry/fonts, type-aware display ranges and formatting.
 - `resources`: embedded PNG icon resolutions and desktop integration.
 - `cmake`: libsensors discovery without requiring a vendor package file.
 
@@ -75,7 +76,7 @@ snapshots cross to the UI. A single completion-driven timer prevents overlap.
 Add rendering, tray, settings and alarm modules when their phases need them;
 there are no placeholder service layers or unused module trees.
 
-Widgets will use QPainter vector primitives for dashboard tiles; the small PNG
+Widgets use QPainter vector primitives for dashboard tiles; the small PNG
 application icons are unrelated to tile rendering. Vulkan acceleration is not
 promised. Tray support will require a compatible desktop host; libsensors/hwmon
 disk-temperature coverage will not include every SATA or USB disk.
