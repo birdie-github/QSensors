@@ -35,3 +35,12 @@ binary's dynamic dependencies because no API calls are made yet.
 
 Qt 6.8 is the declared minimum target, not a tested compatibility claim.
 No configure/build or runtime validation was performed for this patch.
+
+## Uptime presentation reference
+
+Inspected Miguel Novas's GPL-2.0-or-later `uptimepanel.cpp`, `qlcdstring.cpp` and
+`qlcdraw.cpp` in KSensors 0.7.3 for the HH:MM layout, red foreground, darkRed
+shadow and one-pixel shadow offset. QSensors follows that presentation behavior;
+its normalized vector segment geometry and formatter are new implementations.
+No source listings or glyph bitmap tables were copied. The days layout is a new
+requested behavior beyond the original uptime panel.

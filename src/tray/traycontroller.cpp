@@ -165,6 +165,7 @@ void TrayController::setDashboardVisible(bool visible)
 void TrayController::setSelectedIds(QStringList ids)
 {
     ids.removeAll(QString());
+    ids.erase(std::remove_if(ids.begin(), ids.end(), [](const QString &id) { return !sensorSupportsTray(id); }), ids.end());
     ids.removeDuplicates();
     std::sort(ids.begin(), ids.end());
     if (ids == m_selected)

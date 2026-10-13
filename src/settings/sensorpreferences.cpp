@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "settings/sensorpreferences.h"
+#include "sensors/sensortypes.h"
 
 #include <QSettings>
 #include <QUrl>
@@ -134,7 +135,11 @@ SensorPreferencesStore::SensorPreferencesStore(QObject *parent) : QObject(parent
         if (!group.startsWith(QStringLiteral("Sensor-"))) continue;
         settings.beginGroup(group);
         const QString id = sensorInternalId(settings.value(QStringLiteral("id")).toString());
-        if (!id.isEmpty()) m_values.insert(id, readPreferences(settings));
+        if (!id.isEmpty()) {
+            auto p = readPreferences(settings);
+            if (!sensorSupportsTray(id)) p.tray = false;
+            m_values.insert(id, p);
+        }
         settings.endGroup();
     }
     for (auto it = m_values.begin(); it != m_values.end();) {
@@ -147,7 +152,7 @@ QStringList SensorPreferencesStore::trayIds() const
 {
     QStringList ids;
     for (auto it = m_values.cbegin(); it != m_values.cend(); ++it) {
-        if (it->tray)
+        if (it->tray && sensorSupportsTray(it.key()))
             ids.append(it.key());
     }
     std::sort(ids.begin(), ids.end());
@@ -170,8 +175,10 @@ bool SensorPreferencesStore::apply(const QHash<QString, SensorPreferences> &valu
     // Merge missing devices, then discard sensors that have no overrides.
     auto merged = m_values;
     for (auto it = values.cbegin(); it != values.cend(); ++it) {
-        if (it.value() == SensorPreferences{}) merged.remove(it.key());
-        else merged.insert(it.key(), it.value());
+        auto p = it.value();
+        if (!sensorSupportsTray(it.key())) p.tray = false;
+        if (p == SensorPreferences{}) merged.remove(it.key());
+        else merged.insert(it.key(), p);
     }
     QSettings settings;
     for (const auto &group : settings.childGroups()) {

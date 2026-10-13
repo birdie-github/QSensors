@@ -145,6 +145,8 @@ void SensorGrid::applySamples(const QList<SensorSample> &samples)
         const bool different = reading.available != tile.reading.available
             || reading.text != tile.reading.text
             || reading.unit != tile.reading.unit
+            || reading.days != tile.reading.days
+            || reading.valueColor != tile.reading.valueColor
             || (m_gauges && (reading.fraction != tile.reading.fraction
                 || reading.range.lower != tile.reading.range.lower || reading.range.upper != tile.reading.range.upper));
         tile.sample = sample;

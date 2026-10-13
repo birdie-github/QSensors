@@ -15,7 +15,7 @@ IDs contain package and kernel core IDs, independently of display names.
 | RAM usage | `(MemTotal - MemAvailable) / MemTotal * 100`, with the fallback below. |
 | Available RAM | MemAvailable in canonical MiB, or as a percentage of MemTotal after optional calibration. |
 | Swap usage | `(SwapTotal - SwapFree) / SwapTotal * 100`; no swap gives zero plus an explicit state in Settings/tooltips. |
-| Uptime | First `/proc/uptime` field, in seconds, without 32-bit integer conversions. |
+| Uptime | Dashboard-only clock from the first `/proc/uptime` field, without 32-bit integer conversions. |
 
 ## Physical-core frequencies
 
@@ -78,6 +78,30 @@ Calibration and custom bounds for Available RAM remain MiB even in percentage
 mode. Percentage conversion uses the total from the same meminfo snapshot.
 Changing display mode never compounds calibration or rewrites canonical values.
 
+## Dashboard-only uptime
+
+Uptime cannot be selected for a tray icon. The centralized eligibility rule is
+applied in Settings, preference loading/saving, and the tray controller itself;
+manual `tray=true` for uptime is ignored. No uptime background polling is caused
+by tray selection. Settings preview still requests it temporarily, as usual.
+
+Below 100 hours, the tile has a small digital HH:MM legend, a large digital time,
+and a small digital UPTIME footer. From 100 hours onward it omits the top legend,
+shows X days and the remaining HH:MM underneath, and retains the UPTIME footer.
+The cutoff interprets 99:59 as hours:minutes; exactly 100 hours is 4 days / 04:00.
+The footer is fixed UPTIME; a custom sensor name still applies in Settings/table
+and tooltips. Settings and the table also display the formatted time.
+
+The readout defaults to red with an offset dark-red shadow. Its existing sensor
+foreground setting becomes Readout color; the shadow is derived by darkening
+that color. Reset restores red. Small legends are black on light tiles and white
+on dark tiles for contrast. The renderer uses independently implemented vector
+segment glyphs rather than a bundled font, enlarged bitmap or a per-tile widget.
+All drawing remains in the grid paint event; paths are shared across sizes, with
+no new timer. Changes in seconds do not repaint an otherwise unchanged tile.
+Days are formatted without a narrowing integer cast, so large uptimes do not
+wrap at 32 bits; unavailable/invalid data shows a dash.
+
 ## Work, parsing and verification
 
 One serialized worker owns both providers. Hardware failure does not suppress
@@ -119,6 +143,10 @@ Manual checks:
 - Toggle Available RAM between MiB and percentage, including with calibration
   and custom ranges; Apply, restart and confirm persistence.
 - Compare Available RAM with `/proc/meminfo`; sub-MiB values display zero.
+- Check uptime at 48/128/512/2048 logical pixels, reset/change readout color,
+  and ensure no uptime tray checkbox/icon exists, even with `tray=true` in the INI.
+  Parser/format fixtures cover 99:59 and 100-hour boundaries; exercising them
+  visually still needs a local test environment.
 - Deselect all system readings and close Settings; periodic system reads stop.
 
 Reference definitions:

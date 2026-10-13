@@ -72,6 +72,7 @@ private:
     QComboBox *m_memoryDisplay;
     QCheckBox *m_autostart;
     QLabel *m_identity;
+    QLabel *m_foregroundLabel;
 };
 
 } // namespace qsensors

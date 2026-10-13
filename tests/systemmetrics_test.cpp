@@ -45,6 +45,15 @@ int main()
         const auto limits = frequencyLimits({5200, 3600, 2800});
         require(limits && limits->maximum == 5200 && std::abs(limits->average - 11600.0 / 3) < 1e-9, "heterogeneous core normalization");
         require(!frequencyLimits({}) && !frequencyLimits({5200, std::numeric_limits<double>::quiet_NaN()}), "incomplete limits not guessed");
+        auto uptime = qsensors::formatUptime(99 * 3600 + 59 * 60 + 59);
+        require(uptime.time == "99:59" && uptime.days.isEmpty(), "uptime before day layout");
+        uptime = qsensors::formatUptime(100 * 3600);
+        require(uptime.time == "04:00" && uptime.days == "4 days", "uptime day layout");
+        uptime = qsensors::formatUptime(4294967297.0);
+        require(!uptime.days.isEmpty() && uptime.time.size() == 5, "large uptime layout");
+        require(qsensors::formatUptime(-1).time == QStringLiteral("—"), "invalid uptime layout");
+        require(!qsensors::sensorSupportsTray(QStringLiteral("system/uptime")), "uptime dashboard only");
+        require(qsensors::sensorSupportsTray(QStringLiteral("system/cpu/activity")), "ordinary sensor tray eligibility");
         qsensors::SensorDescriptor descriptor;
         descriptor.kind = qsensors::SensorKind::Frequency;
         auto formatted = qsensors::formatSensorValue(descriptor, 900);

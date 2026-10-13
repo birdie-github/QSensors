@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "rendering/sensortilerenderer.h"
 #include "rendering/valueformat.h"
+#include "rendering/digitaltext.h"
 
 #include <QFontMetricsF>
 #include <QLocale>
@@ -96,6 +97,15 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
         result.text = QStringLiteral("—");
         return result;
     }
+    if (descriptor.id == QStringLiteral("system/uptime")) {
+        const auto uptime = formatUptime(sample.value);
+        result.available = sample.value >= 0;
+        result.text = uptime.time;
+        result.days = uptime.days;
+        result.unit.clear();
+        result.valueColor = preferences.foreground.isValid() ? preferences.foreground : QColor(Qt::red);
+        return result;
+    }
     const QLocale locale;
     const auto formatted = formatSensorValue(descriptor, sample.value);
     result.unit = formatted.unit;
@@ -164,6 +174,27 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
     const QColor textColor = palette.color(reading.available ? QPalette::Active : QPalette::Disabled,
                                           QPalette::Text);
     painter.setPen(textColor);
+    if (descriptor.id == QStringLiteral("system/uptime")) {
+        // Small legends default to black; invert on dark tile backgrounds for readability.
+        const QColor legend = palette.color(QPalette::Base).lightness() >= 128 ? QColor(Qt::black) : QColor(Qt::white);
+        const QColor base = reading.available ? (reading.valueColor.isValid() ? reading.valueColor : QColor(Qt::red))
+                                             : palette.color(QPalette::Disabled, QPalette::Text);
+        if (reading.days.isEmpty()) {
+            drawDigitalText(painter, QRectF(padding, size * .08, size - 2 * padding, size * .13), QStringLiteral("HH:MM"), legend);
+            drawDigitalText(painter, QRectF(padding, size * .29, size - 2 * padding, size * .40), reading.text, base, true);
+        } else {
+            const QRectF daysRect(padding, size * .15, size - 2 * padding, size * .23);
+            const qreal offset = std::max(.6, size * .007);
+            painter.setPen(base.darker(200));
+            fittedText(painter, daysRect.translated(offset, offset), reading.days, style.valueFont, false);
+            painter.setPen(base);
+            fittedText(painter, daysRect, reading.days, style.valueFont, false);
+            drawDigitalText(painter, QRectF(padding, size * .44, size - 2 * padding, size * .29), reading.text, base, true);
+        }
+        drawDigitalText(painter, QRectF(padding, size * .83, size - 2 * padding, size * .10), QStringLiteral("UPTIME"), legend);
+        painter.restore();
+        return;
+    }
     const bool compact = style.size < 96;
     fittedText(painter, QRectF(padding, size * (gauge ? 0.07 : 0.20), size - 2 * padding, size * 0.32),
                reading.text, style.valueFont, false);

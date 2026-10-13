@@ -21,6 +21,8 @@ struct TileReading {
     bool available = false;
     QString text;
     QString unit;
+    QString days;
+    QColor valueColor;
     double fraction = 0;
     GaugeRange range;
     QString lowerText;

@@ -17,8 +17,24 @@ QString compact(double value)
     return QLocale().toString(std::clamp(value, -limit, limit), 'f', decimals);
 }
 }
+UptimeValue formatUptime(double seconds)
+{
+    if (!std::isfinite(seconds) || seconds < 0) return {QStringLiteral("—"), {}};
+    const bool days = seconds >= 100.0 * 3600;
+    const double remaining = days ? std::fmod(seconds, 86400.0) : seconds;
+    const int hours = static_cast<int>(remaining / 3600);
+    const int minutes = static_cast<int>(std::fmod(remaining, 3600.0) / 60);
+    UptimeValue result;
+    result.time = QStringLiteral("%1:%2").arg(hours, 2, 10, QLatin1Char('0')).arg(minutes, 2, 10, QLatin1Char('0'));
+    if (days) result.days = QLocale().toString(std::floor(seconds / 86400.0), 'f', 0) + QStringLiteral(" days");
+    return result;
+}
 FormattedValue formatSensorValue(const SensorDescriptor &descriptor, double value, bool tray)
 {
+    if (descriptor.id == QStringLiteral("system/uptime")) {
+        const auto uptime = formatUptime(value);
+        return {uptime.days.isEmpty() ? uptime.time : uptime.days + QLatin1Char(' ') + uptime.time, {}};
+    }
     if (descriptor.kind == SensorKind::Frequency) {
         const bool giga = std::abs(value) >= 1000;
         return {compact(giga ? value / 1000 : value), tray ? (giga ? QStringLiteral("G") : QStringLiteral("M"))

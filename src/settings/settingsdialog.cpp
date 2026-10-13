@@ -159,7 +159,8 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     auto *bgLayout = new QHBoxLayout;
     bgLayout->addWidget(m_background, 1);
     bgLayout->addWidget(resetBackground);
-    form->addRow(tr("Text / tray color:"), fgLayout);
+    m_foregroundLabel = new QLabel(tr("Text / tray color:"), m_editor);
+    form->addRow(m_foregroundLabel, fgLayout);
     form->addRow(tr("Tile background:"), bgLayout);
     auto *defaults = new QPushButton(tr("Reset sensor preferences"), m_editor);
     form->addRow(defaults);
@@ -179,7 +180,7 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     });
     connect(m_list, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *item, int column) {
         const QString id = item->data(0, Qt::UserRole).toString();
-        if (id.isEmpty() || (column != 1 && column != 2))
+        if (id.isEmpty() || (column != 1 && column != 2) || (column == 2 && !sensorSupportsTray(id)))
             return;
         auto &p = m_draft[id];
         if (column == 1) p.dashboard = item->checkState(1) == Qt::Checked;
@@ -398,7 +399,8 @@ void SettingsDialog::populate()
         item->setData(0, Qt::UserRole, id);
         item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
         item->setCheckState(1, p.dashboard ? Qt::Checked : Qt::Unchecked);
-        item->setCheckState(2, p.tray ? Qt::Checked : Qt::Unchecked);
+        if (sensorSupportsTray(id)) item->setCheckState(2, p.tray ? Qt::Checked : Qt::Unchecked);
+        else { item->setText(2, tr("—")); item->setToolTip(2, tr("Dashboard only")); }
         item->setToolTip(0, tr("Original name: %1\nSource: %2\n%3").arg(descriptor.label, source, id));
         if (!first) first = item;
         if (id == previous) selected = item;
@@ -439,7 +441,8 @@ void SettingsDialog::syncCurrentItem()
     const QString name = p.label.isEmpty() ? original : p.label;
     item->setText(0, name.isEmpty() ? m_currentId : name);
     item->setCheckState(1, p.dashboard ? Qt::Checked : Qt::Unchecked);
-    item->setCheckState(2, p.tray ? Qt::Checked : Qt::Unchecked);
+    if (sensorSupportsTray(m_currentId)) item->setCheckState(2, p.tray ? Qt::Checked : Qt::Unchecked);
+    else item->setData(2, Qt::CheckStateRole, QVariant());
 }
 
 bool SettingsDialog::currentIsTemperature() const
@@ -477,7 +480,10 @@ void SettingsDialog::loadSensor(const QString &id)
     const bool memory = descriptor.kind == SensorKind::Memory || id == QStringLiteral("system/memory/available");
     static_cast<QFormLayout *>(m_editor->layout())->setRowVisible(m_memoryDisplay, memory);
     m_dashboard->setChecked(p.dashboard);
-    m_tray->setChecked(p.tray);
+    m_tray->setChecked(p.tray && sensorSupportsTray(id));
+    m_tray->setEnabled(sensorSupportsTray(id));
+    m_foregroundLabel->setText(sensorSupportsTray(id) ? tr("Text / tray color:") : tr("Readout color:"));
+    m_tray->setToolTip(sensorSupportsTray(id) ? QString() : tr("This sensor is dashboard only."));
     m_multiplier->setValue(p.multiplier);
     const QString unit = currentIsTemperature() ? temperatureUnitText(m_unit) : descriptor.unit;
     m_offset->setSuffix(unit.isEmpty() ? QString() : QLatin1Char(' ') + unit);
@@ -527,6 +533,10 @@ void SettingsDialog::updateColorButtons()
             .arg(color.name(), color.lightness() > 128 ? QStringLiteral("black") : QStringLiteral("white")) : QString());
     };
     update(m_foreground, p.foreground);
+    if (m_currentId == QStringLiteral("system/uptime") && !p.foreground.isValid()) {
+        m_foreground->setText(tr("Default (red)"));
+        m_foreground->setStyleSheet(QStringLiteral("background-color: #ff0000; color: white;"));
+    }
     update(m_background, p.background);
 }
 

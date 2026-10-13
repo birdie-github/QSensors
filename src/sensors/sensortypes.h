@@ -10,6 +10,9 @@
 
 namespace qsensors {
 
+// Central policy for known dashboard-only readings, also enforced for hand-edited settings.
+inline bool sensorSupportsTray(const QString &id) { return id != QStringLiteral("system/uptime"); }
+
 enum class SensorKind { Temperature, Fan, Voltage, Current, Power, Energy, Humidity, Percentage, Frequency, Duration, Memory };
 
 // Copied metadata; canonical units are C, RPM, V, A, W, J, %, MHz, seconds and MiB.
