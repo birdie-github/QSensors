@@ -43,7 +43,8 @@ SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
     const int size = settings.value(QStringLiteral("Dashboard/tileSize"), 128).toInt(&valid);
     m_style = SensorTileRenderer::style(valid && size >= 48 && size <= 2048 ? size : 128, font());
     m_gauges = settings.value(QStringLiteral("Dashboard/gauges"), true).toBool();
-    m_savedOrder = settings.value(QStringLiteral("Dashboard/order")).toStringList();
+    for (const auto &id : settings.value(QStringLiteral("Dashboard/sensorOrder")).toStringList())
+        m_savedOrder.append(sensorInternalId(id));
     m_savedOrder.removeAll(QString());
     m_savedOrder.removeDuplicates();
     m_autoScroll.setInterval(75);
@@ -85,7 +86,11 @@ void SensorGrid::setDescriptors(const QList<SensorDescriptor> &descriptors)
 {
     QHash<QString, Tile> tiles;
     tiles.reserve(descriptors.size());
-    bool newIds = false;
+    const auto oldSize = m_savedOrder.size();
+    m_savedOrder.erase(std::remove_if(m_savedOrder.begin(), m_savedOrder.end(), [this](const QString &id) {
+        return !m_preferences->value(id).dashboard;
+    }), m_savedOrder.end());
+    bool newIds = oldSize != m_savedOrder.size();
     for (const auto &descriptor : descriptors) {
         Tile tile = m_tiles.value(descriptor.id);
         tile.descriptor = descriptor;
@@ -98,8 +103,17 @@ void SensorGrid::setDescriptors(const QList<SensorDescriptor> &descriptors)
     }
     m_tiles = tiles;
     if (newIds)
-        QSettings().setValue(QStringLiteral("Dashboard/order"), m_savedOrder);
+        saveOrder();
     rebuildOrder();
+}
+
+void SensorGrid::saveOrder()
+{
+    QStringList ids;
+    for (const auto &id : m_savedOrder) ids.append(sensorConfigId(id));
+    QSettings settings;
+    if (ids.isEmpty()) settings.remove(QStringLiteral("Dashboard/sensorOrder"));
+    else settings.setValue(QStringLiteral("Dashboard/sensorOrder"), ids);
 }
 
 void SensorGrid::rebuildOrder()
@@ -459,7 +473,7 @@ void SensorGrid::moveTile(const QString &source, const QString &target, bool aft
     m_savedOrder.removeAll(source);
     const int index = m_savedOrder.indexOf(target);
     m_savedOrder.insert(index + (after ? 1 : 0), source);
-    QSettings().setValue(QStringLiteral("Dashboard/order"), m_savedOrder);
+    saveOrder();
     m_selected = source;
     rebuildOrder();
 }

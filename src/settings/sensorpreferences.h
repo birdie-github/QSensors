@@ -15,6 +15,9 @@ double temperatureFromDisplay(double value, TemperatureUnit unit);
 double temperatureDifferenceToDisplay(double celsius, TemperatureUnit unit);
 double temperatureDifferenceFromDisplay(double value, TemperatureUnit unit);
 QString temperatureUnitText(TemperatureUnit unit);
+// The file stores readable identities; runtime IDs retain provider encoding.
+QString sensorConfigId(const QString &id);
+QString sensorInternalId(const QString &id);
 
 struct SensorPreferences {
     bool dashboard = false;

@@ -87,12 +87,50 @@ continue to use Qt's palette; no application theme engine is added.
 
 ## Persistence and demand
 
-QSettings stores per-sensor preferences under `Sensors/<escaped stable ID>` with
-the exact ID also retained as a value. Labels never identify groups. Existing
-`Tray/sensors` selections are preserved; the legacy selection list is kept in
-sync for continuity. Global unit is `Display/temperatureUnit` (0=C, 1=F, 2=K).
-Tile size/order/gauges/view/geometry and polling settings keep their existing
-keys. Preferences are written on OK, not on measurements.
+QSettings stores only non-default sensor preferences in separate top-level
+`[Sensor-001]`, `[Sensor-002]`, ... sections. Each section has one readable `id`
+value; the remaining keys are only overrides. Labels never identify sensors.
+Resetting all preferences removes that sensor's section. A disabled sensor with
+a custom label, color or calibration still has an override and is retained.
+Missing devices retain their customizations until reset.
+
+The format is intentionally new: there is no old-settings reader or migration.
+Close QSensors and remove or rename the previous configuration before first use.
+Edit the new file while QSensors is stopped. Qt may reorder keys/sections and
+rewrite comments when saving; this is an editable settings file, not a comment-
+preserving document. Sensor section names are regenerated on OK; identity comes
+from `id`, not the section number. Duplicate identity sections should be avoided.
+
+Example (all omitted options use defaults):
+
+```ini
+[Sensor-001]
+id=system/cpu/activity
+dashboard=true
+label=CPU
+
+[Sensor-002]
+id=libsensors/coretemp:1:0:/sys/devices/platform/coretemp.0/temp1_input
+tray=true
+label=CPU Package
+```
+
+The complete optional sensor keys are `dashboard=false`, `tray=false`, `label=`,
+`multiplier=1`, `offset=0`, `foreground=`, `background=`, `customRange=false`,
+`rangeLower=0`, `rangeUpper=100`. These are their implicit defaults, not lines
+that must be added. Colors accept Qt color strings, including `#RRGGBB` and
+`#AARRGGBB`. Calibration and range values use canonical units as described above.
+Use the identity emitted for your machine; the hardware identity in this example
+is illustrative. Slashes and colons in identity values are ordinary text.
+
+`[Display] temperatureUnit` accepts `Celsius` (default), `Fahrenheit` or `Kelvin`.
+`[Dashboard]` uses plain `width`, `height`, `x`, `y`, and `maximized` values;
+X11 supports position restoration while Wayland controls placement. `sensorOrder`
+is a Qt INI string list of readable identities for dashboard selections only.
+Deselecting a dashboard sensor removes its saved position. Tile size, gauges and view remain
+`tileSize`, `gauges` and `tableView`. `[Monitoring] intervalSeconds` is unchanged.
+Sensor preferences are written on OK, not on measurements. Opening Settings and
+pressing OK without modifications does not dump the discovered catalog.
 
 Only selected dashboard sensors are exposed by either dashboard view. Tiles
 request those intersecting the viewport, table mode requests the selected

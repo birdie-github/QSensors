@@ -42,8 +42,8 @@ only for tray selections. With no selections they pause; an in-flight batch
 may finish after hiding. Newly available rows appear after rescan, removed rows
 leave the view, and the application does not erase sensor preferences on rescan.
 Per-sensor display preferences are implemented in phase 5; alarms follow in phase 6.
-`Monitoring/intervalSeconds` (1–3600, default 5) and `Tray/sensors` selections
-are currently saved.
+`Monitoring/intervalSeconds` (1–3600, default 5) and non-default sensor
+preferences in `[Sensor-NNN]` sections are saved.
 
 Disk temperatures are available when a kernel driver exposes them to
 hwmon/libsensors. This does not cover every SATA or USB disk; privileged SMART

@@ -53,6 +53,7 @@ private:
         TileReading reading;
     };
     void rebuildOrder();
+    void saveOrder();
     void updateLayout();
     void notifyVisibleIds();
     QRect tileRect(int index) const;

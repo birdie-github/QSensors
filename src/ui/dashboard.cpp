@@ -120,7 +120,27 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     m_trayWarning->setWordWrap(true);
     m_trayWarning->setToolTip(tr("A compatible system tray host is required for background operation."));
     statusBar()->addPermanentWidget(m_trayWarning);
-    restoreGeometry(QSettings().value(QStringLiteral("Dashboard/windowGeometry")).toByteArray());
+    QSettings settings;
+    if (settings.contains(QStringLiteral("Dashboard/width"))) {
+        bool widthOk = false, heightOk = false;
+        const int width = settings.value(QStringLiteral("Dashboard/width")).toInt(&widthOk);
+        const int height = settings.value(QStringLiteral("Dashboard/height")).toInt(&heightOk);
+        if (widthOk && heightOk && width > 0 && height > 0) resize(width, height);
+        // Global positioning is supported on X11; Wayland chooses placement.
+        if (QGuiApplication::platformName() == QStringLiteral("xcb")) {
+            bool xOk = false, yOk = false;
+            const int x = settings.value(QStringLiteral("Dashboard/x")).toInt(&xOk);
+            const int y = settings.value(QStringLiteral("Dashboard/y")).toInt(&yOk);
+            if (xOk && yOk) {
+                const QPoint position(x, y);
+                for (const auto *display : QGuiApplication::screens()) {
+                    if (display->availableGeometry().contains(position)) { move(position); break; }
+                }
+            }
+        }
+        if (settings.value(QStringLiteral("Dashboard/maximized"), false).toBool())
+            setWindowState(windowState() | Qt::WindowMaximized);
+    }
     if (const auto *currentScreen = screen()) {
         const QSize available = currentScreen->availableGeometry().size();
         resize(size().boundedTo(available));
@@ -134,7 +154,19 @@ Dashboard::~Dashboard()
 
 void Dashboard::saveWindowGeometry()
 {
-    QSettings().setValue(QStringLiteral("Dashboard/windowGeometry"), saveGeometry());
+    QSettings settings;
+    const QRect normal = (isMaximized() || isMinimized()) ? normalGeometry() : geometry();
+    if (!normal.isValid()) return;
+    settings.setValue(QStringLiteral("Dashboard/width"), normal.width());
+    settings.setValue(QStringLiteral("Dashboard/height"), normal.height());
+    if (QGuiApplication::platformName() == QStringLiteral("xcb")) {
+        // move() on a top-level widget accepts the frame position.
+        const QPoint position = (isMaximized() || isMinimized()) ? normal.topLeft() : pos();
+        settings.setValue(QStringLiteral("Dashboard/x"), position.x());
+        settings.setValue(QStringLiteral("Dashboard/y"), position.y());
+    }
+    if (isMaximized()) settings.setValue(QStringLiteral("Dashboard/maximized"), true);
+    else settings.remove(QStringLiteral("Dashboard/maximized"));
 }
 
 void Dashboard::applySnapshot(const SensorSnapshot &snapshot)

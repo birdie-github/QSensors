@@ -67,14 +67,15 @@ introduced. A newly exposed tile can show unavailable briefly until its batch
 returns. An already in-flight old-demand batch may finish; demand changes are
 coalesced for the next batch.
 
-QSettings saves `Dashboard/tileSize`, `Dashboard/gauges`, `Dashboard/order`,
-`Dashboard/tableView` and `Dashboard/windowGeometry`. Order uses stable sensor
-IDs, retains missing IDs, and appends newly discovered IDs. Resizing/wrapping
+QSettings saves `Dashboard/tileSize`, `Dashboard/gauges`, `Dashboard/sensorOrder`,
+`Dashboard/tableView` and plain `Dashboard/width`, `height`, `x`, `y`, `maximized`. Order uses stable sensor
+IDs, retains missing selected IDs, and appends newly selected IDs. Deselecting
+a dashboard sensor removes its saved position; re-enabling it appends it. Resizing/wrapping
 changes grid columns without changing that order. Missing channels return to
 their saved relative positions when rediscovered. Settings are never written
 on measurements.
 
-Qt saveGeometry/restoreGeometry retain supported window geometry, with restored
+Plain numeric settings retain supported window size and X11 position, with restored
 size bounded to the current screen's available area. Exact global positioning
 and virtual-desktop restoration are not required on Wayland. The application
 has no custom top-level window dragging in this phase.

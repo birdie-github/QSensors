@@ -46,6 +46,21 @@ QString temperatureUnitText(TemperatureUnit unit)
     }
 }
 
+QString sensorConfigId(const QString &id)
+{
+    return QUrl::fromPercentEncoding(id.toUtf8());
+}
+
+QString sensorInternalId(const QString &id)
+{
+    const QString prefix = QStringLiteral("libsensors/");
+    if (!id.startsWith(prefix)) return id;
+    const int slash = id.lastIndexOf(QLatin1Char('/'));
+    if (slash <= prefix.size() || slash == id.size() - 1) return {};
+    return prefix + QString::fromLatin1(QUrl::toPercentEncoding(id.mid(prefix.size(), slash - prefix.size())))
+        + QLatin1Char('/') + QString::fromLatin1(QUrl::toPercentEncoding(id.mid(slash + 1)));
+}
+
 bool SensorPreferences::operator==(const SensorPreferences &other) const
 {
     return dashboard == other.dashboard && tray == other.tray && label == other.label
@@ -64,11 +79,6 @@ QColor dashboardTextColor(const SensorPreferences &preferences, const QColor &sy
 }
 
 namespace {
-QString groupName(const QString &id)
-{
-    return QString::fromLatin1(QUrl::toPercentEncoding(id));
-}
-
 bool boolean(QSettings &settings, const QString &key, bool fallback)
 {
     const QString value = settings.value(key, fallback).toString().trimmed().toLower();
@@ -86,6 +96,22 @@ double number(QSettings &settings, const QString &key, double fallback, double l
     return valid && std::isfinite(value) && std::abs(value) <= limit ? value : fallback;
 }
 
+SensorPreferences readPreferences(QSettings &settings)
+{
+    SensorPreferences p;
+    p.dashboard = boolean(settings, QStringLiteral("dashboard"), false);
+    p.tray = boolean(settings, QStringLiteral("tray"), false);
+    p.label = settings.value(QStringLiteral("label")).toString();
+    p.multiplier = number(settings, QStringLiteral("multiplier"), 1, 1e6);
+    p.offset = number(settings, QStringLiteral("offset"), 0, 1e12);
+    p.foreground = QColor(settings.value(QStringLiteral("foreground")).toString());
+    p.background = QColor(settings.value(QStringLiteral("background")).toString());
+    p.rangeLower = number(settings, QStringLiteral("rangeLower"), 0, 1e12);
+    p.rangeUpper = number(settings, QStringLiteral("rangeUpper"), 100, 1e12);
+    p.customRange = boolean(settings, QStringLiteral("customRange"), false) && p.rangeLower < p.rangeUpper;
+    return p;
+}
+
 bool validPreferences(const SensorPreferences &p)
 {
     return std::isfinite(p.multiplier) && std::abs(p.multiplier) <= 1e6
@@ -99,33 +125,19 @@ bool validPreferences(const SensorPreferences &p)
 SensorPreferencesStore::SensorPreferencesStore(QObject *parent) : QObject(parent)
 {
     QSettings settings;
-    const int unit = settings.value(QStringLiteral("Display/temperatureUnit"), 0).toInt();
-    if (unit >= 0 && unit <= 2)
-        m_unit = static_cast<TemperatureUnit>(unit);
-    // Preserve selections made by the phase-3 dialog, including absent devices.
-    for (const auto &id : settings.value(QStringLiteral("Tray/sensors")).toStringList()) {
-        if (!id.isEmpty())
-            m_values[id].tray = true;
-    }
-    settings.beginGroup(QStringLiteral("Sensors"));
+    const QString unit = settings.value(QStringLiteral("Display/temperatureUnit"), QStringLiteral("Celsius")).toString().toLower();
+    if (unit == QStringLiteral("fahrenheit")) m_unit = TemperatureUnit::Fahrenheit;
+    else if (unit == QStringLiteral("kelvin")) m_unit = TemperatureUnit::Kelvin;
     for (const auto &group : settings.childGroups()) {
+        if (!group.startsWith(QStringLiteral("Sensor-"))) continue;
         settings.beginGroup(group);
-        const QString id = settings.value(QStringLiteral("id")).toString();
-        if (!id.isEmpty() && group == groupName(id)) {
-            SensorPreferences p;
-            p.dashboard = boolean(settings, QStringLiteral("dashboard"), false);
-            p.tray = boolean(settings, QStringLiteral("tray"), false);
-            p.label = settings.value(QStringLiteral("label")).toString();
-            p.multiplier = number(settings, QStringLiteral("multiplier"), 1, 1e6);
-            p.offset = number(settings, QStringLiteral("offset"), 0, 1e12);
-            p.foreground = QColor(settings.value(QStringLiteral("foreground")).toString());
-            p.background = QColor(settings.value(QStringLiteral("background")).toString());
-            p.rangeLower = number(settings, QStringLiteral("rangeLower"), 0, 1e12);
-            p.rangeUpper = number(settings, QStringLiteral("rangeUpper"), 100, 1e12);
-            p.customRange = boolean(settings, QStringLiteral("customRange"), false) && p.rangeLower < p.rangeUpper;
-            m_values.insert(id, p);
-        }
+        const QString id = sensorInternalId(settings.value(QStringLiteral("id")).toString());
+        if (!id.isEmpty()) m_values.insert(id, readPreferences(settings));
         settings.endGroup();
+    }
+    for (auto it = m_values.begin(); it != m_values.end();) {
+        if (it.value() == SensorPreferences{}) it = m_values.erase(it);
+        else ++it;
     }
 }
 
@@ -153,45 +165,38 @@ bool SensorPreferencesStore::apply(const QHash<QString, SensorPreferences> &valu
             return false;
         }
     }
-    QSettings settings;
-    bool modified = unit != m_unit;
-    if (modified)
-        settings.setValue(QStringLiteral("Display/temperatureUnit"), static_cast<int>(unit));
-    settings.beginGroup(QStringLiteral("Sensors"));
+    // Merge missing devices, then discard sensors that have no overrides.
+    auto merged = m_values;
     for (auto it = values.cbegin(); it != values.cend(); ++it) {
-        if (m_values.contains(it.key()) && m_values.value(it.key()) == it.value())
-            continue;
-        const auto &p = it.value();
-        modified = true;
-        settings.beginGroup(groupName(it.key()));
-        settings.setValue(QStringLiteral("id"), it.key());
-        settings.setValue(QStringLiteral("dashboard"), p.dashboard);
-        settings.setValue(QStringLiteral("tray"), p.tray);
-        settings.setValue(QStringLiteral("label"), p.label);
-        settings.setValue(QStringLiteral("multiplier"), p.multiplier);
-        settings.setValue(QStringLiteral("offset"), p.offset);
-        settings.setValue(QStringLiteral("foreground"), p.foreground.isValid() ? p.foreground.name(QColor::HexArgb) : QString());
-        settings.setValue(QStringLiteral("background"), p.background.isValid() ? p.background.name(QColor::HexArgb) : QString());
-        settings.setValue(QStringLiteral("customRange"), p.customRange);
-        settings.setValue(QStringLiteral("rangeLower"), p.rangeLower);
-        settings.setValue(QStringLiteral("rangeUpper"), p.rangeUpper);
+        if (it.value() == SensorPreferences{}) merged.remove(it.key());
+        else merged.insert(it.key(), it.value());
+    }
+    QSettings settings;
+    for (const auto &group : settings.childGroups()) {
+        if (group.startsWith(QStringLiteral("Sensor-"))) settings.remove(group);
+    }
+    if (unit == TemperatureUnit::Celsius) settings.remove(QStringLiteral("Display/temperatureUnit"));
+    else settings.setValue(QStringLiteral("Display/temperatureUnit"), unit == TemperatureUnit::Fahrenheit
+        ? QStringLiteral("Fahrenheit") : QStringLiteral("Kelvin"));
+    QStringList ids = merged.keys();
+    std::sort(ids.begin(), ids.end());
+    int index = 0;
+    for (const auto &id : ids) {
+        const auto p = merged.value(id);
+        settings.beginGroup(QStringLiteral("Sensor-%1").arg(++index, 3, 10, QLatin1Char('0')));
+        settings.setValue(QStringLiteral("id"), sensorConfigId(id));
+        if (p.dashboard) settings.setValue(QStringLiteral("dashboard"), true);
+        if (p.tray) settings.setValue(QStringLiteral("tray"), true);
+        if (!p.label.isEmpty()) settings.setValue(QStringLiteral("label"), p.label);
+        if (p.multiplier != 1) settings.setValue(QStringLiteral("multiplier"), p.multiplier);
+        if (p.offset != 0) settings.setValue(QStringLiteral("offset"), p.offset);
+        if (p.foreground.isValid()) settings.setValue(QStringLiteral("foreground"), p.foreground.name(QColor::HexArgb));
+        if (p.background.isValid()) settings.setValue(QStringLiteral("background"), p.background.name(QColor::HexArgb));
+        if (p.customRange) settings.setValue(QStringLiteral("customRange"), true);
+        if (p.rangeLower != 0) settings.setValue(QStringLiteral("rangeLower"), p.rangeLower);
+        if (p.rangeUpper != 100) settings.setValue(QStringLiteral("rangeUpper"), p.rangeUpper);
         settings.endGroup();
     }
-    settings.endGroup();
-    if (!modified)
-        return true;
-    // Merge rather than remove preferences for absent devices, but do not
-    // change the active store until persistence succeeds.
-    auto merged = m_values;
-    for (auto it = values.cbegin(); it != values.cend(); ++it)
-        merged.insert(it.key(), it.value());
-    QStringList selected;
-    for (auto it = merged.cbegin(); it != merged.cend(); ++it) {
-        if (it->tray)
-            selected.append(it.key());
-    }
-    std::sort(selected.begin(), selected.end());
-    settings.setValue(QStringLiteral("Tray/sensors"), selected);
     settings.sync();
     if (settings.status() != QSettings::NoError) {
         error = tr("The new settings could not be saved. Check configuration-directory permissions.");

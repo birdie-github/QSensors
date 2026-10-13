@@ -5,7 +5,7 @@
 The dashboard opens on startup. Settings (from File, the toolbar or any tray
 icon) selects dashboard/tray sensors and configures labels, calibration,
 units, ranges and colors. Alarm controls follow in phase 6. Changes apply on OK, Cancel leaves
-selections unchanged, and selections are stored as stable IDs in `Tray/sensors`.
+selections unchanged, and selections are stored with readable stable IDs in `[Sensor-NNN]` sections.
 An open Settings window preserves unapplied checkboxes across a rescan.
 Temporarily missing selected sensors remain checked until explicitly removed.
 
