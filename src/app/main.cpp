@@ -130,10 +130,22 @@ int main(int argc, char *argv[])
         if (settingsDialog)
             settingsDialog->updateCatalog(catalog);
     });
+    QObject::connect(&presentation, &qsensors::SensorPresentation::snapshotReady, &dashboard,
+                     [&settingsDialog](const qsensors::SensorSnapshot &snapshot) {
+        if (settingsDialog)
+            settingsDialog->applySnapshot(snapshot);
+    });
     QObject::connect(&tray, &qsensors::TrayController::settingsRequested, &dashboard,
-                     [&dashboard, &preferences, &rawCatalog, &settingsDialog] {
-        if (!settingsDialog)
+                     [&dashboard, &preferences, &rawCatalog, &settingsDialog, &monitor] {
+        if (!settingsDialog) {
             settingsDialog = new qsensors::SettingsDialog(&preferences, rawCatalog, &dashboard);
+            QObject::connect(settingsDialog.data(), &qsensors::SettingsDialog::previewIdsChanged,
+                             &monitor, &qsensors::SensorMonitor::setPreviewIds);
+            // Also release demand if Quit deletes the dialog without a hide event.
+            QObject::connect(settingsDialog.data(), &QObject::destroyed, &monitor, [&monitor] {
+                monitor.setPreviewIds({});
+            });
+        }
         settingsDialog->show();
         settingsDialog->raise();
         settingsDialog->activateWindow();

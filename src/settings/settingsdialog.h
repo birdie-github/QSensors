@@ -23,12 +23,20 @@ class SettingsDialog final : public QDialog {
 public:
     SettingsDialog(SensorPreferencesStore *store, const QList<SensorDescriptor> &catalog, QWidget *parent);
     void updateCatalog(const QList<SensorDescriptor> &catalog);
+    void applySnapshot(const SensorSnapshot &snapshot);
+
+signals:
+    void previewIdsChanged(const QStringList &ids);
 
 protected:
     void accept() override;
+    void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
 
 private:
     void populate();
+    void updateValues();
+    void requestPreview();
     void filterSensors();
     void syncCurrentItem();
     void loadSensor(const QString &id);
@@ -41,6 +49,8 @@ private:
     SensorPreferencesStore *m_store;
     QHash<QString, SensorPreferences> m_draft;
     QHash<QString, SensorDescriptor> m_catalog;
+    QHash<QString, SensorSample> m_samples;
+    QString m_readError;
     QString m_currentId;
     TemperatureUnit m_unit;
     bool m_loading = false;

@@ -109,16 +109,34 @@ void SensorMonitor::setBackgroundIds(QStringList ids)
         request();
 }
 
+void SensorMonitor::setPreviewIds(QStringList ids)
+{
+    ids.removeAll(QString());
+    ids.removeDuplicates();
+    std::sort(ids.begin(), ids.end());
+    if (ids == m_previewIds)
+        return;
+    m_previewIds = ids;
+    m_demandChanged = true;
+    m_timer.stop();
+    if (hasDemand())
+        request();
+}
+
 bool SensorMonitor::hasDemand() const
 {
     return (m_active && (!m_dashboardIdsExplicit || !m_dashboardIds.isEmpty() || m_ids.isEmpty()))
-        || !m_backgroundIds.isEmpty();
+        || !m_backgroundIds.isEmpty() || !m_previewIds.isEmpty();
 }
 
 QStringList SensorMonitor::demandedIds() const
 {
     QStringList ids = m_active ? (m_dashboardIdsExplicit ? m_dashboardIds : m_ids) : QStringList();
     for (const auto &id : m_backgroundIds) {
+        if (!ids.contains(id))
+            ids.append(id);
+    }
+    for (const auto &id : m_previewIds) {
         if (!ids.contains(id))
             ids.append(id);
     }
@@ -161,7 +179,7 @@ void SensorMonitor::request()
     if (discover)
         emit statusChanged(tr("Scanning sensors…"));
     emit collectRequested(discover, discover && m_active && !m_dashboardIdsExplicit,
-                          discover ? m_backgroundIds : demandedIds());
+                          demandedIds());
 }
 
 void SensorMonitor::completed(const SensorSnapshot &snapshot)

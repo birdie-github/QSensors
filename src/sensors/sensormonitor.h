@@ -22,6 +22,7 @@ public:
     void setDashboardActive(bool active);
     void setDashboardIds(QStringList ids);
     void setBackgroundIds(QStringList ids);
+    void setPreviewIds(QStringList ids);
     void setIntervalSeconds(int seconds);
     void rescan();
 
@@ -42,6 +43,7 @@ private:
     QTimer m_timer;
     QStringList m_ids;
     QStringList m_backgroundIds;
+    QStringList m_previewIds;
     QStringList m_dashboardIds;
     bool m_dashboardIdsExplicit = false;
     bool m_active = false;

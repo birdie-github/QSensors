@@ -19,6 +19,10 @@
 #include <QLocale>
 #include <QScreen>
 #include <QSignalBlocker>
+#include <QShowEvent>
+#include <QHideEvent>
+
+#include <cmath>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
@@ -68,12 +72,16 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     m_search->setClearButtonEnabled(true);
     browserLayout->addWidget(m_search);
     m_list = new QTreeWidget(browser);
-    m_list->setHeaderLabels({tr("Source / sensor"), tr("Dashboard"), tr("Tray")});
+    m_list->setHeaderLabels({tr("Source / sensor"), tr("Dashboard"), tr("Tray"), tr("Value")});
     m_list->setUniformRowHeights(true);
     m_list->setAlternatingRowColors(true);
-    m_list->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    m_list->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    m_list->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_list->header()->setSectionResizeMode(QHeaderView::Interactive);
+    m_list->header()->setStretchLastSection(false);
+    m_list->header()->setMinimumSectionSize(48);
+    m_list->setColumnWidth(0, 240);
+    m_list->setColumnWidth(1, 105);
+    m_list->setColumnWidth(2, 60);
+    m_list->setColumnWidth(3, 130);
     browserLayout->addWidget(m_list);
     auto *disableAll = new QPushButton(tr("Disable all sensors"), browser);
     disableAll->setToolTip(tr("Clear dashboard and tray selections, including sensors hidden by search. Changes take effect on OK."));
@@ -150,7 +158,7 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     scroll->setWidget(m_editor);
     sensors->setStretchFactor(0, 1);
     sensors->setStretchFactor(1, 1);
-    sensors->setSizes({460, 600});
+    sensors->setSizes({600, 460});
     tabs->addTab(sensors, tr("Sensors"));
     tabs->setCurrentWidget(sensors);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -241,7 +249,79 @@ void SettingsDialog::updateCatalog(const QList<SensorDescriptor> &catalog)
     m_catalog.clear();
     for (const auto &descriptor : catalog)
         m_catalog.insert(descriptor.id, descriptor);
+    m_samples.clear();
     populate();
+    if (isVisible())
+        requestPreview();
+}
+
+void SettingsDialog::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    m_samples.clear();
+    m_readError.clear();
+    updateValues();
+    requestPreview();
+}
+
+void SettingsDialog::hideEvent(QHideEvent *event)
+{
+    emit previewIdsChanged({});
+    QDialog::hideEvent(event);
+}
+
+void SettingsDialog::requestPreview()
+{
+    emit previewIdsChanged(m_catalog.keys());
+}
+
+void SettingsDialog::applySnapshot(const SensorSnapshot &snapshot)
+{
+    if (!isVisible())
+        return;
+    // Values are already calibrated and converted by SensorPresentation.
+    // Replacing the batch prevents a missing/failed reading from looking current.
+    m_samples.clear();
+    for (const auto &sample : snapshot.samples)
+        m_samples.insert(sample.id, sample);
+    m_readError = snapshot.error;
+    updateValues();
+}
+
+void SettingsDialog::updateValues()
+{
+    const QSignalBlocker blocker(m_list);
+    for (int i = 0; i < m_list->topLevelItemCount(); ++i) {
+        const auto *group = m_list->topLevelItem(i);
+        for (int j = 0; j < group->childCount(); ++j) {
+            auto *item = group->child(j);
+            const QString id = item->data(0, Qt::UserRole).toString();
+            const auto sample = m_samples.value(id);
+            QString text;
+            QString tooltip;
+            if (!m_catalog.contains(id)) {
+                text = tr("Unavailable");
+                tooltip = tr("This sensor is not currently detected.");
+            } else if (!m_samples.contains(id) && m_readError.isEmpty()) {
+                text = tr("Waiting…");
+            } else if (!sample.available || !std::isfinite(sample.value) || !sample.timestamp.isValid()) {
+                text = tr("Unavailable");
+                tooltip = sample.error.isEmpty() ? m_readError : sample.error;
+                if (tooltip.isEmpty()) tooltip = tr("No valid reading returned.");
+            } else {
+                const auto descriptor = m_catalog.value(id);
+                const QString unit = descriptor.kind == SensorKind::Temperature
+                    ? temperatureUnitText(m_store->temperatureUnit()) : descriptor.unit;
+                text = QLocale().toString(sample.value, 'g', 8);
+                if (!unit.isEmpty()) text += QLatin1Char(' ') + unit;
+                tooltip = tr("Applied calibration and display units. Read at %1.")
+                    .arg(QLocale().toString(sample.timestamp.toLocalTime(), QLocale::ShortFormat));
+            }
+            item->setText(3, text);
+            item->setToolTip(3, tooltip);
+            item->setTextAlignment(3, Qt::AlignRight | Qt::AlignVCenter);
+        }
+    }
 }
 
 void SettingsDialog::populate()
@@ -312,6 +392,7 @@ void SettingsDialog::populate()
     const auto *current = m_list->currentItem();
     loadSensor(current ? current->data(0, Qt::UserRole).toString() : QString());
     filterSensors();
+    updateValues();
 }
 
 void SettingsDialog::filterSensors()

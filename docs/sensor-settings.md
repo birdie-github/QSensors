@@ -17,7 +17,11 @@ available screen. The resizable browser groups sensors under collapsible source
 headings, naturally sorts source and display names (Core 2 before Core 18), and
 keeps unavailable sensors in a separate group. Search matches display names,
 original names, sources and stable IDs. Dashboard and tray checkboxes are directly
-available in each sensor row. Display name contains editable text; Use original
+available in each sensor row. The Value column shows live readings with applied
+calibration and display units; unapplied edits do not change the preview. All
+columns can be resized by dragging their header boundaries, including the last
+column. Reading updates and rescans leave those widths unchanged. Double-click a
+boundary to fit its contents. Display name contains editable text; Use original
 name clears the override. Renames update the row immediately; the next catalog
 refresh or dialog opening orders it by the new name.
 
@@ -36,6 +40,12 @@ because hardware is absent. Duplicate labels are independent because IDs are
 used for persistence. The empty tile view explains how to select sensors.
 The table and tiles use the same dashboard selection. Tray selection stays
 independent and works when the dashboard is hidden.
+
+While Settings is visible, its value preview temporarily requests every detected
+sensor through the existing worker at the configured update interval. Closing it
+releases that demand, leaving dashboard/tray selections unchanged. Missing or
+failed readings show Unavailable, with error details in a tooltip; readings that
+have not arrived yet show Waiting. No last-good value is retained after failure.
 
 Alarm limits/actions, hysteresis and reference-based alarm presets are added
 with the working phase-6 alarm engine. This page's gauge bounds are display-only
