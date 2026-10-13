@@ -14,6 +14,8 @@
 #include <QSettings>
 #include <QSet>
 #include <QToolTip>
+#include <QWindow>
+#include <QGuiApplication>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -60,6 +62,21 @@ SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
         if (oldScroll == QPoint(horizontalScrollBar()->value(), verticalScrollBar()->value()) && oldBounds == m_bounds) m_autoScroll.stop();
     });
 }
+QSize SensorGrid::fieldSize() const
+{
+    const int stride = tileSize() + m_gap;
+    return QSize(m_gap + m_bounds.width() * stride, m_gap + m_bounds.height() * stride);
+}
+void SensorGrid::setCompactView(bool compact)
+{
+    finishDrag(false);
+    m_windowPressed = false;
+    m_compact = compact;
+    setFrameShape(compact ? QFrame::NoFrame : QFrame::StyledPanel);
+    horizontalScrollBar()->setValue(0);
+    verticalScrollBar()->setValue(0);
+    updateLayout();
+}
 void SensorGrid::setTileSize(int size)
 {
     size = std::clamp(size, 48, 2048);
@@ -69,6 +86,7 @@ void SensorGrid::setTileSize(int size)
     QSettings().setValue(QStringLiteral("Dashboard/tileSize"), size);
     updateLayout();
     ensureVisible(m_order.indexOf(m_selected));
+    emit fieldSizeChanged();
 }
 void SensorGrid::setGaugesVisible(bool visible)
 {
@@ -148,6 +166,7 @@ void SensorGrid::setDescriptors(const QList<SensorDescriptor> &descriptors)
     if (removed) trimBounds();
     if (changed) saveLayout();
     updateLayout();
+    emit fieldSizeChanged();
 }
 void SensorGrid::saveLayout()
 {
@@ -384,6 +403,13 @@ void SensorGrid::ensureVisible(int index)
 }
 void SensorGrid::mousePressEvent(QMouseEvent *event)
 {
+    if (event->button() == Qt::LeftButton && m_compact) {
+        m_windowGrabOffset = event->globalPosition().toPoint() - window()->pos();
+        // Start while the initiating press is active, as required by Wayland.
+        const bool nativeMove = window()->windowHandle() && window()->windowHandle()->startSystemMove();
+        m_windowPressed = !nativeMove && QGuiApplication::platformName() == QStringLiteral("xcb");
+        event->accept(); return;
+    }
     if (event->button() == Qt::LeftButton) {
         const int index = indexAt(event->position().toPoint());
         if (index >= 0) {
@@ -396,6 +422,11 @@ void SensorGrid::mousePressEvent(QMouseEvent *event)
 }
 void SensorGrid::mouseMoveEvent(QMouseEvent *event)
 {
+    if (m_compact) {
+        if (m_windowPressed && (event->buttons() & Qt::LeftButton))
+            window()->move(event->globalPosition().toPoint() - m_windowGrabOffset);
+        event->accept(); return;
+    }
     if ((event->buttons() & Qt::LeftButton) && !m_pressed.isEmpty()) {
         if (!m_dragging && (event->position().toPoint() - m_pressPosition).manhattanLength() >= QApplication::startDragDistance()) {
             m_beforeDrag = m_bounds;
@@ -440,7 +471,10 @@ void SensorGrid::finishDrag(bool commit)
 }
 void SensorGrid::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton) { finishDrag(true); event->accept(); return; }
+    if (event->button() == Qt::LeftButton) {
+        m_windowPressed = false;
+        finishDrag(!m_compact); event->accept(); return;
+    }
     QAbstractScrollArea::mouseReleaseEvent(event);
 }
 void SensorGrid::mouseDoubleClickEvent(QMouseEvent *event)
@@ -453,24 +487,22 @@ void SensorGrid::mouseDoubleClickEvent(QMouseEvent *event)
 void SensorGrid::contextMenuEvent(QContextMenuEvent *event)
 {
     int index = event->reason() == QContextMenuEvent::Keyboard ? m_order.indexOf(m_selected) : indexAt(event->pos());
-    if (index < 0) return;
-    const QRect rect = tileRect(index);
-    const QString id = m_order[index];
-    const bool bottomTitle = event->pos().y() >= rect.top() + tileSize() * .8;
-    const bool uptimeTitle = id == QStringLiteral("system/uptime") && m_tiles.value(id).reading.days.isEmpty()
-        && event->pos().y() <= rect.top() + tileSize() * .25;
-    if (event->reason() != QContextMenuEvent::Keyboard && !bottomTitle && !uptimeTitle) return;
+    finishDrag(false);
+    const QString id = index >= 0 ? m_order[index] : QString();
     auto *menu = new QMenu(this);
     menu->setAttribute(Qt::WA_DeleteOnClose);
-    connect(menu->addAction(tr("Configure")), &QAction::triggered, this, [this,id] { emit configureRequested(id); });
-    connect(menu->addAction(tr("Delete")), &QAction::triggered, this, [this,id] { emit deleteRequested(id); });
-    connect(menu->addAction(tr("Show/Hide Main Window")), &QAction::triggered, this, &SensorGrid::controlsToggleRequested);
-    menu->popup(event->reason() == QContextMenuEvent::Keyboard ? viewport()->mapToGlobal(rect.center()) : event->globalPos());
+    if (!id.isEmpty()) {
+        connect(menu->addAction(tr("Configure")), &QAction::triggered, this, [this,id] { emit configureRequested(id); });
+        connect(menu->addAction(tr("Delete")), &QAction::triggered, this, [this,id] { emit deleteRequested(id); });
+    }
+    connect(menu->addAction(m_compact ? tr("Show controls") : tr("Hide controls")), &QAction::triggered, this, &SensorGrid::controlsToggleRequested);
+    const QPoint anchor = index >= 0 ? tileRect(index).center() : viewport()->rect().center();
+    menu->popup(event->reason() == QContextMenuEvent::Keyboard ? viewport()->mapToGlobal(anchor) : event->globalPos());
     event->accept();
 }
 void SensorGrid::moveTile(const QString &id, const QPoint &cell)
 {
-    if (!m_tiles.contains(id)) return;
+    if (m_compact || !m_tiles.contains(id)) return;
     const QPoint old = m_positions.value(id);
     QRect occupied(cell, QSize(1, 1));
     for (auto it = m_positions.cbegin(); it != m_positions.cend(); ++it) {

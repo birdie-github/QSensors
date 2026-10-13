@@ -15,6 +15,8 @@ public:
     explicit SensorGrid(SensorPreferencesStore *preferences, QWidget *parent = nullptr);
     int tileSize() const { return m_style.size; }
     bool gaugesVisible() const { return m_gauges; }
+    QSize fieldSize() const;
+    void setCompactView(bool compact);
     void setTileSize(int size);
     void setGaugesVisible(bool visible);
     void setDescriptors(const QList<SensorDescriptor> &descriptors);
@@ -26,6 +28,7 @@ signals:
     void deleteRequested(const QString &id);
     void controlsToggleRequested();
     void layoutSaveFailed(const QString &error);
+    void fieldSizeChanged();
 protected:
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -66,6 +69,9 @@ private:
     QRect m_bounds{0, 0, 1, 1};
     TileStyle m_style;
     bool m_gauges = true;
+    bool m_compact = false;
+    bool m_windowPressed = false;
+    QPoint m_windowGrabOffset;
     bool m_updatingLayout = false;
     bool m_dragging = false;
     bool m_layoutDirty = false;

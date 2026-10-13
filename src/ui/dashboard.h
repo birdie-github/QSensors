@@ -49,6 +49,7 @@ private:
     void updateVisibleIds();
     void saveWindowGeometry();
     void setControlsVisible(bool visible);
+    void fitCompactView();
     SensorPreferencesStore *m_preferences;
     QSpinBox *m_interval;
     SensorGrid *m_grid;
@@ -59,6 +60,10 @@ private:
     QStringList m_catalogIds;
     QLabel *m_trayWarning;
     bool m_trayAvailable = false;
+    bool m_compact = false;
+    QRect m_expandedGeometry;
+    Qt::WindowStates m_expandedState;
+    Qt::WindowFlags m_expandedFlags;
 };
 
 } // namespace qsensors

@@ -41,19 +41,28 @@ tile one cell and expands the field if necessary. The selected tile scrolls into
 reach. Layout extents are checked against integer pixel-coordinate capacity at
 the maximum supported tile size; empty cells are never individually allocated.
 
-Double-click empty space (including gutters between tiles) to show/hide the main
-window controls: menu, toolbar and status bar. The dashboard and window frame
-remain visible. The state is saved. **Ctrl+Shift+M** restores/toggles controls even
-in table mode. **View → Show Main Window Controls** exposes the same action.
+Double-click empty space (including gutters between tiles) to toggle controls.
+Hiding controls switches to a frameless, always-on-top window sized to the tile
+field. The menu, toolbar, status bar and table view are hidden. This view has a
+fixed size and disables mouse and keyboard tile rearrangement. Left-dragging a
+tile or empty space requests native window movement through Qt; X11 also has a
+manual movement fallback. Wayland movement and stacking are compositor-managed.
+Fields larger than the screen are bounded to its available area and scroll;
+normal fields fit completely without scrollbars. Tile size or sensor selection
+changes refit the compact window. Showing controls restores the previous normal
+window geometry, maximized state and chosen tile/table view. The controls state
+is saved; compact dimensions do not overwrite the normal window dimensions.
+**Ctrl+Shift+M** toggles controls even in table mode.
 
-Right-click a tile's title/footer for Configure, Delete and Show/Hide Main Window.
-The uptime tile also accepts its top HH:MM legend. Keyboard context menus work
-on the selected tile. Configure opens Settings at that sensor. Delete clears
-only its dashboard selection: labels, colors, calibration, ranges and any tray
-selection remain. Its cell becomes available, without compacting other tiles.
-Re-enabling fills the first empty cell rather than recovering its old position.
-Deleting while Settings is open updates that draft's dashboard checkbox without
-throwing away other edits, so OK cannot accidentally restore the deleted tile.
+Right-click anywhere on a sensor tile for Configure, Delete and Hide/Show controls.
+Empty cells and gutters offer only Hide/Show controls. Both menus work in compact
+view; keyboard context menus work on the selected tile. Configure opens Settings
+at that sensor. Delete clears only its dashboard selection: labels, colors,
+calibration, ranges and any tray selection remain. Its cell becomes available,
+without compacting other tiles. Re-enabling fills the first empty cell rather
+than recovering its old position. Deleting while Settings is open updates that
+draft's dashboard checkbox without throwing away other edits, so OK cannot
+accidentally restore the deleted tile.
 
 Settings chooses which discovered channels appear on the dashboard; table mode
 uses the same selection. Full Unicode labels, device names, values and units
@@ -125,8 +134,7 @@ request readings; canvas growth creates no monitoring demand itself.
 
 Plain numeric settings retain supported window size and X11 position, with restored
 size bounded to the current screen's available area. Exact global positioning
-and virtual-desktop restoration are not required on Wayland. The application
-has no custom top-level window dragging in this phase.
+and virtual-desktop restoration are not required on Wayland. Compact dragging requests native system movement, with a fallback only on X11.
 
 ## Validation
 

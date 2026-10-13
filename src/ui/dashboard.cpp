@@ -27,6 +27,7 @@
 #include <QTableView>
 #include <QToolBar>
 #include <QSystemTrayIcon>
+#include <QTimer>
 
 namespace qsensors {
 
@@ -60,6 +61,7 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     addAction(m_controlsAction);
     connect(m_controlsAction, &QAction::toggled, this, &Dashboard::setControlsVisible);
     connect(m_grid, &SensorGrid::controlsToggleRequested, this, [this] { m_controlsAction->toggle(); });
+    connect(m_grid, &SensorGrid::fieldSizeChanged, this, &Dashboard::fitCompactView);
     connect(m_grid, &SensorGrid::configureRequested, this, &Dashboard::sensorConfigureRequested);
     connect(m_grid, &SensorGrid::layoutSaveFailed, this, [this](const QString &error) {
         QMessageBox::warning(this, tr("Save dashboard layout"), error);
@@ -133,7 +135,7 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     connect(m_grid, &SensorGrid::visibleIdsChanged, this, [this] { updateVisibleIds(); });
     connect(m_tableView, &QAction::toggled, this, [this](bool table) {
         QSettings().setValue(QStringLiteral("Dashboard/tableView"), table);
-        m_stack->setCurrentIndex(table ? 2 : 1);
+        if (!m_compact) m_stack->setCurrentIndex(table ? 2 : 1);
         m_tileSize->setEnabled(!table);
         updateVisibleIds();
     });
@@ -144,7 +146,8 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     m_trayWarning->setToolTip(tr("A compatible system tray host is required for background operation."));
     statusBar()->addPermanentWidget(m_trayWarning);
     QSettings settings;
-    setControlsVisible(settings.value(QStringLiteral("Dashboard/controlsVisible"), true).toBool());
+    m_controlsAction->setChecked(true);
+    const bool controlsVisible = settings.value(QStringLiteral("Dashboard/controlsVisible"), true).toBool();
     if (settings.contains(QStringLiteral("Dashboard/width"))) {
         bool widthOk = false, heightOk = false;
         const int width = settings.value(QStringLiteral("Dashboard/width")).toInt(&widthOk);
@@ -169,6 +172,7 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
         const QSize available = currentScreen->availableGeometry().size();
         resize(size().boundedTo(available));
     }
+    if (!controlsVisible) QTimer::singleShot(0, this, [this] { setControlsVisible(false); });
 }
 
 Dashboard::~Dashboard()
@@ -180,16 +184,59 @@ void Dashboard::setControlsVisible(bool visible)
 {
     const QSignalBlocker blocker(m_controlsAction);
     m_controlsAction->setChecked(visible);
+    if (m_compact == !visible) return;
+    const bool wasVisible = isVisible();
+    if (!visible) {
+        saveWindowGeometry();
+        m_expandedGeometry = (isMaximized() || isMinimized()) ? normalGeometry() : geometry();
+        m_expandedState = windowState() & ~Qt::WindowMinimized;
+        m_expandedFlags = windowFlags();
+        // Remove the stack so hidden table/placeholder minimum sizes cannot enlarge the field.
+        takeCentralWidget();
+        m_stack->hide();
+        m_grid->setParent(this);
+        setCentralWidget(m_grid);
+        m_compact = true;
+        m_grid->setCompactView(true);
+        setWindowState(Qt::WindowNoState);
+        setWindowFlags(m_expandedFlags | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    } else {
+        m_compact = false;
+        setMinimumSize(0, 0);
+        setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+        takeCentralWidget();
+        m_grid->setCompactView(false);
+        m_stack->insertWidget(1, m_grid);
+        setCentralWidget(m_stack);
+        m_stack->setCurrentIndex(m_tableView->isChecked() ? 2 : 1);
+        setWindowFlags(m_expandedFlags);
+        setGeometry(m_expandedGeometry);
+        setWindowState(m_expandedState);
+    }
     menuBar()->setVisible(visible);
     if (auto *toolbar = findChild<QToolBar *>(QStringLiteral("sensorsToolbar"))) toolbar->setVisible(visible);
     statusBar()->setVisible(visible);
     QSettings().setValue(QStringLiteral("Dashboard/controlsVisible"), visible);
+    fitCompactView();
+    if (wasVisible) show();
+    updateVisibleIds();
+}
+
+void Dashboard::fitCompactView()
+{
+    if (!m_compact) return;
+    QSize field = m_grid->fieldSize();
+    // QWidget dimensions are bounded; oversized fields retain scrollbars.
+    field = field.boundedTo(QSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX));
+    if (const auto *display = screen()) field = field.boundedTo(display->availableGeometry().size());
+    setFixedSize(field);
 }
 
 void Dashboard::saveWindowGeometry()
 {
     QSettings settings;
-    const QRect normal = (isMaximized() || isMinimized()) ? normalGeometry() : geometry();
+    const QRect normal = m_compact ? m_expandedGeometry
+        : (isMaximized() || isMinimized()) ? normalGeometry() : geometry();
     if (!normal.isValid()) return;
     settings.setValue(QStringLiteral("Dashboard/width"), normal.width());
     settings.setValue(QStringLiteral("Dashboard/height"), normal.height());
@@ -199,7 +246,7 @@ void Dashboard::saveWindowGeometry()
         settings.setValue(QStringLiteral("Dashboard/x"), position.x());
         settings.setValue(QStringLiteral("Dashboard/y"), position.y());
     }
-    if (isMaximized()) settings.setValue(QStringLiteral("Dashboard/maximized"), true);
+    if (m_compact ? bool(m_expandedState & Qt::WindowMaximized) : isMaximized()) settings.setValue(QStringLiteral("Dashboard/maximized"), true);
     else settings.remove(QStringLiteral("Dashboard/maximized"));
 }
 
@@ -215,7 +262,7 @@ void Dashboard::applySnapshot(const SensorSnapshot &snapshot)
             }
         }
         m_grid->setDescriptors(selected);
-        m_stack->setCurrentIndex(snapshot.descriptors.isEmpty() ? 0 : m_tableView->isChecked() ? 2 : 1);
+        if (!m_compact) m_stack->setCurrentIndex(snapshot.descriptors.isEmpty() ? 0 : m_tableView->isChecked() ? 2 : 1);
     }
     m_grid->applySamples(snapshot.samples);
     updateVisibleIds();
@@ -229,7 +276,7 @@ void Dashboard::clearReadings()
 void Dashboard::updateVisibleIds()
 {
     emit visibleSensorIdsChanged(!isVisible() || isMinimized() ? QStringList()
-        : m_tableView->isChecked() ? m_catalogIds : m_grid->visibleIds());
+        : !m_compact && m_tableView->isChecked() ? m_catalogIds : m_grid->visibleIds());
 }
 
 void Dashboard::setActions(QAction *show, QAction *hide, QAction *settings,
