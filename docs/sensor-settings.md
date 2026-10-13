@@ -115,7 +115,9 @@ tray=true
 label=CPU Package
 ```
 
-The complete optional sensor keys are `dashboard=false`, `tray=false`, `label=`,
+Optional `column` and `row` store the selected dashboard cell. An omitted position
+is allocated into the first empty cell. Disabled sensors do not retain a cell.
+The complete optional presentation keys are `dashboard=false`, `tray=false`, `label=`,
 `multiplier=1`, `offset=0`, `foreground=`, `background=`, `customRange=false`,
 `rangeLower=0`, `rangeUpper=100`, `memoryAsPercent=false`. These are their implicit defaults, not lines
 that must be added. Colors accept Qt color strings, including `#RRGGBB` and
@@ -128,8 +130,10 @@ is illustrative. Slashes and colons in identity values are ordinary text.
 
 `[Display] temperatureUnit` accepts `Celsius` (default), `Fahrenheit` or `Kelvin`.
 `[Dashboard]` uses plain `width`, `height`, `x`, `y`, and `maximized` values;
-X11 supports position restoration while Wayland controls placement. Fixed grid bounds use `gridLeft`, `gridTop`, `gridColumns`, `gridRows`;
-`[Tile-NNN]` sections store `id`, `column`, `row` for selected sensors.
+X11 supports position restoration while Wayland controls placement. Selected dashboard sensors store `column` and `row` directly in their
+`[Sensor-NNN]` sections. Field bounds are derived from these coordinates; there
+are no separate Tile sections or saved dimensions. Layout saves preserve other
+preferences, and an open Settings draft does not overwrite newer positions.
 Deselecting a dashboard sensor releases its cell. `controlsVisible` remembers
 menu/toolbar/status-bar visibility. Tile size, gauges and view remain
 `tileSize`, `gauges` and `tableView`. `[Monitoring] intervalSeconds` is unchanged.

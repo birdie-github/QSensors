@@ -4,6 +4,8 @@
 
 #include <QSettings>
 #include <QUrl>
+#include <QSet>
+#include <limits>
 
 #include <algorithm>
 #include <cmath>
@@ -64,7 +66,7 @@ QString sensorInternalId(const QString &id)
 
 bool SensorPreferences::operator==(const SensorPreferences &other) const
 {
-    return dashboard == other.dashboard && tray == other.tray && label == other.label
+    return position == other.position && dashboard == other.dashboard && tray == other.tray && label == other.label
         && multiplier == other.multiplier && offset == other.offset
         && foreground == other.foreground && background == other.background
         && memoryAsPercent == other.memoryAsPercent
@@ -104,6 +106,13 @@ SensorPreferences readPreferences(QSettings &settings)
     p.dashboard = boolean(settings, QStringLiteral("dashboard"), false);
     p.tray = boolean(settings, QStringLiteral("tray"), false);
     p.label = settings.value(QStringLiteral("label")).toString();
+    if (p.dashboard && settings.contains(QStringLiteral("column")) && settings.contains(QStringLiteral("row"))) {
+        bool xOk = false, yOk = false;
+        const int x = settings.value(QStringLiteral("column")).toInt(&xOk);
+        const int y = settings.value(QStringLiteral("row")).toInt(&yOk);
+        constexpr int limit = dashboardCellLimit;
+        if (xOk && yOk && x >= -limit && x < limit && y >= -limit && y < limit) p.position = QPoint(x, y);
+    }
     p.multiplier = number(settings, QStringLiteral("multiplier"), 1, 1e6);
     p.offset = number(settings, QStringLiteral("offset"), 0, 1e12);
     p.foreground = QColor(settings.value(QStringLiteral("foreground")).toString());
@@ -176,10 +185,43 @@ bool SensorPreferencesStore::apply(const QHash<QString, SensorPreferences> &valu
     auto merged = m_values;
     for (auto it = values.cbegin(); it != values.cend(); ++it) {
         auto p = it.value();
+        // Settings drafts do not edit layout. A drag may have updated it since the dialog opened.
+        p.position = p.dashboard ? m_values.value(it.key()).position : std::nullopt;
         if (!sensorSupportsTray(it.key())) p.tray = false;
         if (p == SensorPreferences{}) merged.remove(it.key());
         else merged.insert(it.key(), p);
     }
+    if (!write(merged, unit, error)) return false;
+    m_values = merged;
+    m_unit = unit;
+    emit changed();
+    return true;
+}
+
+bool SensorPreferencesStore::savePositions(const QHash<QString, QPoint> &positions, QString &error)
+{
+    auto updated = m_values;
+    QSet<QPoint> occupied;
+    constexpr int limit = dashboardCellLimit;
+    for (auto it = updated.begin(); it != updated.end(); ++it) {
+        if (!it->dashboard || !positions.contains(it.key())) { it->position.reset(); continue; }
+        const QPoint cell = positions.value(it.key());
+        if (cell.x() < 0 || cell.y() < 0 || cell.x() >= limit || cell.y() >= limit || occupied.contains(cell)) {
+            error = tr("Invalid or conflicting dashboard cell.");
+            return false;
+        }
+        occupied.insert(cell);
+        it->position = cell;
+    }
+    if (updated == m_values) return true;
+    if (!write(updated, m_unit, error)) return false;
+    m_values = updated;
+    return true;
+}
+
+bool SensorPreferencesStore::write(const QHash<QString, SensorPreferences> &values,
+                                   TemperatureUnit unit, QString &error)
+{
     QSettings settings;
     for (const auto &group : settings.childGroups()) {
         if (group.startsWith(QStringLiteral("Sensor-"))) settings.remove(group);
@@ -187,14 +229,18 @@ bool SensorPreferencesStore::apply(const QHash<QString, SensorPreferences> &valu
     if (unit == TemperatureUnit::Celsius) settings.remove(QStringLiteral("Display/temperatureUnit"));
     else settings.setValue(QStringLiteral("Display/temperatureUnit"), unit == TemperatureUnit::Fahrenheit
         ? QStringLiteral("Fahrenheit") : QStringLiteral("Kelvin"));
-    QStringList ids = merged.keys();
+    QStringList ids = values.keys();
     std::sort(ids.begin(), ids.end());
     int index = 0;
     for (const auto &id : ids) {
-        const auto p = merged.value(id);
+        const auto p = values.value(id);
         settings.beginGroup(QStringLiteral("Sensor-%1").arg(++index, 3, 10, QLatin1Char('0')));
         settings.setValue(QStringLiteral("id"), sensorConfigId(id));
         if (p.dashboard) settings.setValue(QStringLiteral("dashboard"), true);
+        if (p.dashboard && p.position) {
+            settings.setValue(QStringLiteral("column"), p.position->x());
+            settings.setValue(QStringLiteral("row"), p.position->y());
+        }
         if (p.tray) settings.setValue(QStringLiteral("tray"), true);
         if (!p.label.isEmpty()) settings.setValue(QStringLiteral("label"), p.label);
         if (p.multiplier != 1) settings.setValue(QStringLiteral("multiplier"), p.multiplier);
@@ -212,9 +258,6 @@ bool SensorPreferencesStore::apply(const QHash<QString, SensorPreferences> &valu
         error = tr("The new settings could not be saved. Check configuration-directory permissions.");
         return false;
     }
-    m_values = merged;
-    m_unit = unit;
-    emit changed();
     return true;
 }
 

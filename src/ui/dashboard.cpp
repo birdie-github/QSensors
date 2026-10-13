@@ -61,6 +61,9 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     connect(m_controlsAction, &QAction::toggled, this, &Dashboard::setControlsVisible);
     connect(m_grid, &SensorGrid::controlsToggleRequested, this, [this] { m_controlsAction->toggle(); });
     connect(m_grid, &SensorGrid::configureRequested, this, &Dashboard::sensorConfigureRequested);
+    connect(m_grid, &SensorGrid::layoutSaveFailed, this, [this](const QString &error) {
+        QMessageBox::warning(this, tr("Save dashboard layout"), error);
+    });
     connect(m_grid, &SensorGrid::deleteRequested, this, [this](const QString &id) {
         auto values = m_preferences->values();
         auto prefs = m_preferences->value(id);

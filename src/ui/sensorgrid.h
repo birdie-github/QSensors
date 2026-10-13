@@ -25,6 +25,7 @@ signals:
     void configureRequested(const QString &id);
     void deleteRequested(const QString &id);
     void controlsToggleRequested();
+    void layoutSaveFailed(const QString &error);
 protected:
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -55,17 +56,19 @@ private:
     void finishDrag(bool commit);
     QPoint firstEmptyCell();
     void expandTo(const QPoint &cell);
+    bool trimBounds();
 
     SensorPreferencesStore *m_preferences;
     QHash<QString, Tile> m_tiles;
     QHash<QString, QPoint> m_positions;
     QStringList m_order;
     QStringList m_lastVisible;
-    QRect m_bounds{0, 0, 3, 1};
+    QRect m_bounds{0, 0, 1, 1};
     TileStyle m_style;
     bool m_gauges = true;
     bool m_updatingLayout = false;
     bool m_dragging = false;
+    bool m_layoutDirty = false;
     int m_gap = 8;
     QString m_selected;
     QString m_pressed;

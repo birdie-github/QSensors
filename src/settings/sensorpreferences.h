@@ -5,8 +5,14 @@
 #include <QHash>
 #include <QObject>
 #include <QStringList>
+#include <QPoint>
+#include <optional>
+#include <limits>
 
 namespace qsensors {
+
+// Safe cell span even for 2048-pixel tiles plus the eight-pixel gap.
+inline constexpr int dashboardCellLimit = (std::numeric_limits<int>::max() / 2056 - 4) / 2;
 
 enum class TemperatureUnit { Celsius, Fahrenheit, Kelvin };
 
@@ -20,6 +26,7 @@ QString sensorConfigId(const QString &id);
 QString sensorInternalId(const QString &id);
 
 struct SensorPreferences {
+    std::optional<QPoint> position; // Dashboard cell, saved with the sensor.
     bool dashboard = false;
     bool tray = false;
     QString label;
@@ -45,11 +52,14 @@ public:
     TemperatureUnit temperatureUnit() const { return m_unit; }
     QStringList trayIds() const;
     bool apply(const QHash<QString, SensorPreferences> &values, TemperatureUnit unit, QString &error);
+    // Layout-only updates preserve current preferences and do not refresh sensor consumers.
+    bool savePositions(const QHash<QString, QPoint> &positions, QString &error);
 
 signals:
     void changed();
 
 private:
+    bool write(const QHash<QString, SensorPreferences> &values, TemperatureUnit unit, QString &error);
     QHash<QString, SensorPreferences> m_values;
     TemperatureUnit m_unit = TemperatureUnit::Celsius;
 };

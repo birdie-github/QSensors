@@ -10,8 +10,8 @@ valid size when editing finishes. **View → Show Gauges** toggles the gauges.
 
 The dashboard is a fixed rectangular field of square cells. Resizing the window
 changes the visible area and scrollbars, never tile positions or the field's
-column count. Changing tile size preserves cell coordinates. The initial field
-has three columns and one row. Enabling a sensor fills the first unoccupied cell
+column count. Changing tile size preserves cell coordinates. An empty field
+has one cell. Enabling a sensor fills the first unoccupied cell
 in row-major order (top to bottom, left to right). If all cells are occupied,
 the field gains a row and uses its first cell. Empty cells are dotted outlines,
 not sensor objects. Temporarily missing selected sensors retain visibly unavailable cells until
@@ -22,7 +22,14 @@ preview shows the destination. Dropping on an occupied cell swaps the two tiles.
 Dragging beyond any field edge expands the rectangle with empty cells; adding
 left/top cells does not alter existing sensor coordinates. Edge scrolling runs
 only during an active drag. Release commits the move; Esc, hiding, deactivation
-or a catalog change cancels it and restores the previous bounds. Input uses Qt
+or a catalog change cancels it and restores the previous layout. After a move
+or cancellation, empty outer rows/columns are removed. The resulting rectangle
+is bounded by the outermost occupied cells; internal gaps remain. Deleting or
+deselecting a border tile also trims the field. A completely empty dashboard
+keeps one cell. After trimming, all coordinates are shifted together so the occupied rectangle
+starts at column 0, row 0. Relative tile positions and interior gaps stay
+unchanged, and the trimmed bounds are
+saved. Input uses Qt
 widget mouse events/implicit mouse capture, without native X11 window movement.
 
 Arrow keys select a tile in the adjacent cell; Ctrl+arrow moves/swaps the selected
@@ -94,19 +101,23 @@ introduced. A newly exposed tile can show unavailable briefly until its batch
 returns. An already in-flight old-demand batch may finish; demand changes are
 coalesced for the next batch.
 
-QSettings saves field bounds as `Dashboard/gridLeft`, `gridTop`, `gridColumns`
-and `gridRows`. Sparse `[Tile-NNN]` sections contain readable sensor `id`, `column`
-and `row` values. They describe selected sensors only, not the discovered catalog.
-The former ordering list is replaced, without a migration reader. Grid positions
-and field growth survive restart, rescan, resizing and tile-size changes. Layout
-writes occur on actual selection/layout changes, not sample updates or an
-unchanged catalog rescan. Deselecting removes the position but preserves other
-sensor preferences. Field bounds are retained, including empty cells. Conflicting
-or invalid hand-edited positions are discarded and allocated into free cells.
+Each `[Sensor-NNN]` section stores the readable `id`, sensor preferences and,
+when selected for the dashboard, `column` and `row`. There are no independent
+Tile sections or stored grid dimensions. Field bounds are computed from occupied
+coordinates; after trimming, they start at (0, 0). Layout-only saves preserve
+current preferences and do not refresh measurement consumers. Saving an open
+Settings draft preserves newer layout coordinates. Deselecting releases the
+position while keeping other sensor preferences.
+
+This is a new layout format with no migration reader for Tile sections or old
+field dimensions. Close the app and remove the old configuration before using
+it. Sensor positions, internal gaps and control visibility survive restart.
+Layouts are written only on selection/layout changes, never sample updates.
+Invalid/conflicting coordinates are discarded and placed into free cells.
 
 Tile size, gauges, table view, control visibility and plain window geometry stay
 under Dashboard. Only visible sensor tiles (including a visible drag preview)
-request readings; rectangular canvas growth creates no monitoring demand itself.
+request readings; canvas growth creates no monitoring demand itself.
 
 Plain numeric settings retain supported window size and X11 position, with restored
 size bounded to the current screen's available area. Exact global positioning
@@ -123,7 +134,9 @@ performed. Manual checks:
   coordinates do not change. Disable the first tile; a new selection fills it.
 - Fill the field, then enable another sensor. Only a new row should be added.
 - Drag into an empty cell and onto an occupied cell; test all four growth edges,
-  including left/top. Cancel with Esc and ensure temporary growth is undone.
+  including left/top. Cancel with Esc and ensure temporary growth is undone and pre-existing empty
+  outer layers are trimmed. Keep two separated tiles to verify interior gaps
+  survive; delete the last tile to verify the single empty-cell fallback.
 - Scroll large tiles, hide/show, rescan and restart; ensure positions remain and
   drag/edge timers stop after release, cancellation or hiding.
 - Configure from a title menu; delete while Settings is open and press OK. Check

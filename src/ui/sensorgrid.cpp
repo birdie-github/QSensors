@@ -21,7 +21,7 @@
 namespace qsensors {
 namespace {
 // Keep cell-to-pixel conversions safe even at the largest supported tile size.
-constexpr int coordinateLimit = (std::numeric_limits<int>::max() / 2056 - 4) / 2;
+constexpr int coordinateLimit = dashboardCellLimit;
 }
 SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
     : QAbstractScrollArea(parent), m_preferences(preferences)
@@ -34,28 +34,21 @@ SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
     const int size = settings.value(QStringLiteral("Dashboard/tileSize"), 128).toInt(&valid);
     m_style = SensorTileRenderer::style(valid && size >= 48 && size <= 2048 ? size : 128, font());
     m_gauges = settings.value(QStringLiteral("Dashboard/gauges"), true).toBool();
-    const int left = settings.value(QStringLiteral("Dashboard/gridLeft"), 0).toInt();
-    const int top = settings.value(QStringLiteral("Dashboard/gridTop"), 0).toInt();
-    const int columns = settings.value(QStringLiteral("Dashboard/gridColumns"), 3).toInt();
-    const int rows = settings.value(QStringLiteral("Dashboard/gridRows"), 1).toInt();
-    if (left >= -coordinateLimit && top >= -coordinateLimit && columns > 0 && rows > 0
-        && qint64(left) + columns <= coordinateLimit && qint64(top) + rows <= coordinateLimit)
-        m_bounds = QRect(left, top, columns, rows);
-    for (const auto &group : settings.childGroups()) {
-        if (!group.startsWith(QStringLiteral("Tile-"))) continue;
-        settings.beginGroup(group);
-        const QString id = sensorInternalId(settings.value(QStringLiteral("id")).toString());
-        bool xOk = false, yOk = false;
-        const int x = settings.value(QStringLiteral("column")).toInt(&xOk);
-        const int y = settings.value(QStringLiteral("row")).toInt(&yOk);
-        const QPoint cell(x, y);
-        if (!id.isEmpty() && xOk && yOk && x >= -coordinateLimit && x < coordinateLimit
-            && y >= -coordinateLimit && y < coordinateLimit && !m_positions.values().contains(cell)) {
+    const auto preferencesById = m_preferences->values();
+    QStringList ids = preferencesById.keys();
+    std::sort(ids.begin(), ids.end());
+    for (const auto &id : ids) {
+        const auto preferences = preferencesById.value(id);
+        if (!preferences.dashboard || !preferences.position) continue;
+        const QPoint cell = *preferences.position;
+        const QRect next = m_bounds.united(QRect(cell, QSize(1, 1)));
+        if (!m_positions.values().contains(cell) && next.width() <= coordinateLimit && next.height() <= coordinateLimit) {
             m_positions.insert(id, cell);
-            m_bounds = m_bounds.united(QRect(cell, QSize(1, 1)));
+            m_bounds = next;
         }
-        settings.endGroup();
     }
+    // Normalize in memory; validated positions are saved once the catalog is supplied.
+    m_layoutDirty = trimBounds();
     m_autoScroll.setInterval(75);
     connect(&m_autoScroll, &QTimer::timeout, this, [this] {
         if (!m_dragging) { m_autoScroll.stop(); return; }
@@ -106,9 +99,10 @@ QPoint SensorGrid::firstEmptyCell()
 void SensorGrid::setDescriptors(const QList<SensorDescriptor> &descriptors)
 {
     finishDrag(false);
-    bool changed = false;
+    bool changed = m_layoutDirty;
+    bool removed = false;
     for (auto it = m_positions.begin(); it != m_positions.end();) {
-        if (!m_preferences->value(it.key()).dashboard) { it = m_positions.erase(it); changed = true; }
+        if (!m_preferences->value(it.key()).dashboard) { it = m_positions.erase(it); changed = true; removed = true; }
         else ++it;
     }
     QHash<QString, Tile> tiles;
@@ -143,29 +137,15 @@ void SensorGrid::setDescriptors(const QList<SensorDescriptor> &descriptors)
     }
     m_tiles = tiles;
     if (!m_tiles.contains(m_selected)) m_selected = m_order.value(0);
+    if (removed) trimBounds();
     if (changed) saveLayout();
     updateLayout();
 }
 void SensorGrid::saveLayout()
 {
-    QSettings settings;
-    for (const auto &group : settings.childGroups())
-        if (group.startsWith(QStringLiteral("Tile-"))) settings.remove(group);
-    QStringList ids = m_positions.keys();
-    std::sort(ids.begin(), ids.end());
-    int index = 0;
-    for (const auto &id : ids) {
-        settings.beginGroup(QStringLiteral("Tile-%1").arg(++index, 3, 10, QLatin1Char('0')));
-        settings.setValue(QStringLiteral("id"), sensorConfigId(id));
-        settings.setValue(QStringLiteral("column"), m_positions.value(id).x());
-        settings.setValue(QStringLiteral("row"), m_positions.value(id).y());
-        settings.endGroup();
-    }
-    settings.setValue(QStringLiteral("Dashboard/gridLeft"), m_bounds.left());
-    settings.setValue(QStringLiteral("Dashboard/gridTop"), m_bounds.top());
-    settings.setValue(QStringLiteral("Dashboard/gridColumns"), m_bounds.width());
-    settings.setValue(QStringLiteral("Dashboard/gridRows"), m_bounds.height());
-    settings.remove(QStringLiteral("Dashboard/sensorOrder"));
+    QString error;
+    if (!m_preferences->savePositions(m_positions, error)) emit layoutSaveFailed(error);
+    else m_layoutDirty = false;
 }
 void SensorGrid::applySamples(const QList<SensorSample> &samples)
 {
@@ -245,7 +225,7 @@ void SensorGrid::updateLayout()
 void SensorGrid::expandTo(const QPoint &cell)
 {
     const QRect next = m_bounds.united(QRect(cell, QSize(1, 1)));
-    if (next == m_bounds) return;
+    if (next == m_bounds || next.width() > coordinateLimit || next.height() > coordinateLimit) return;
     const QPoint compensation((m_bounds.left() - next.left()) * (tileSize() + m_gap),
                               (m_bounds.top() - next.top()) * (tileSize() + m_gap));
     const QPoint scroll(horizontalScrollBar()->value(), verticalScrollBar()->value());
@@ -254,6 +234,27 @@ void SensorGrid::expandTo(const QPoint &cell)
     horizontalScrollBar()->setValue(scroll.x() + compensation.x());
     verticalScrollBar()->setValue(scroll.y() + compensation.y());
 }
+bool SensorGrid::trimBounds()
+{
+    QRect occupied;
+    for (const auto &cell : m_positions)
+        occupied = occupied.united(QRect(cell, QSize(1, 1)));
+    // Keep one usable empty cell when the last tile is removed.
+    if (occupied.isEmpty()) occupied = QRect(0, 0, 1, 1);
+    const QRect normalized(QPoint(0, 0), occupied.size());
+    if (occupied == m_bounds && occupied.topLeft().isNull()) return false;
+    const QPoint scroll(horizontalScrollBar()->value(), verticalScrollBar()->value());
+    const QPoint compensation((m_bounds.left() - occupied.left()) * (tileSize() + m_gap),
+                              (m_bounds.top() - occupied.top()) * (tileSize() + m_gap));
+    const QPoint origin = occupied.topLeft();
+    for (auto it = m_positions.begin(); it != m_positions.end(); ++it) it.value() -= origin;
+    m_bounds = normalized;
+    updateLayout();
+    horizontalScrollBar()->setValue(scroll.x() + compensation.x());
+    verticalScrollBar()->setValue(scroll.y() + compensation.y());
+    return true;
+}
+
 void SensorGrid::paintEvent(QPaintEvent *event)
 {
     QPainter painter(viewport());
@@ -419,7 +420,13 @@ void SensorGrid::finishDrag(bool commit)
         const QString source = m_pressed;
         m_dragging = false;
         if (commit) moveTile(source, m_dropCell);
-        else { m_bounds = m_beforeDrag; updateLayout(); horizontalScrollBar()->setValue(m_beforeScroll.x()); verticalScrollBar()->setValue(m_beforeScroll.y()); }
+        else {
+            m_bounds = m_beforeDrag;
+            updateLayout();
+            horizontalScrollBar()->setValue(m_beforeScroll.x());
+            verticalScrollBar()->setValue(m_beforeScroll.y());
+            if (trimBounds()) saveLayout();
+        }
     }
     m_pressed.clear(); viewport()->unsetCursor(); viewport()->update(); notifyVisibleIds();
 }
@@ -457,9 +464,23 @@ void SensorGrid::moveTile(const QString &id, const QPoint &cell)
 {
     if (!m_tiles.contains(id)) return;
     const QPoint old = m_positions.value(id);
+    QRect occupied(cell, QSize(1, 1));
+    for (auto it = m_positions.cbegin(); it != m_positions.cend(); ++it) {
+        if (it.key() != id) occupied = occupied.united(QRect(it.value() == cell ? old : it.value(), QSize(1, 1)));
+    }
+    if (occupied.width() > coordinateLimit || occupied.height() > coordinateLimit) {
+        if (trimBounds()) saveLayout();
+        return;
+    }
     for (auto it = m_positions.begin(); it != m_positions.end(); ++it)
         if (it.key() != id && it.value() == cell) { it.value() = old; break; }
-    m_positions[id] = cell; expandTo(cell); saveLayout(); updateLayout(); select(id);
+    m_positions[id] = cell;
+    // Temporary drag growth can be discarded once the destination is committed.
+    trimBounds();
+    saveLayout();
+    updateLayout();
+    select(id);
+    ensureVisible(m_order.indexOf(id));
 }
 void SensorGrid::keyPressEvent(QKeyEvent *event)
 {
