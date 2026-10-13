@@ -105,6 +105,14 @@ void SensorGrid::setDescriptors(const QList<SensorDescriptor> &descriptors)
         if (!m_preferences->value(it.key()).dashboard) { it = m_positions.erase(it); changed = true; removed = true; }
         else ++it;
     }
+    if (m_positions.isEmpty() && !descriptors.isEmpty()) {
+        // Choose initial proportions once; never reflow a positioned layout.
+        const auto count = descriptors.size();
+        const auto rows = std::max<qsizetype>(1, static_cast<qsizetype>(std::sqrt(static_cast<double>(count))));
+        const auto columns = count / rows + (count % rows != 0);
+        m_bounds = QRect(0, 0, static_cast<int>(std::min<qsizetype>(columns, coordinateLimit)),
+                         static_cast<int>(std::min<qsizetype>(rows, coordinateLimit)));
+    }
     QHash<QString, Tile> tiles;
     m_order.clear();
     for (const auto &descriptor : descriptors) {

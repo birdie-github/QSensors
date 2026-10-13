@@ -11,7 +11,11 @@ valid size when editing finishes. **View → Show Gauges** toggles the gauges.
 The dashboard is a fixed rectangular field of square cells. Resizing the window
 changes the visible area and scrollbars, never tile positions or the field's
 column count. Changing tile size preserves cell coordinates. An empty field
-has one cell. Enabling a sensor fills the first unoccupied cell
+has one cell. If selected sensors have no saved coordinates, the initial layout
+uses `rows = floor(sqrt(N))` (at least one) and `columns = ceil(N / rows)`.
+For example, six sensors start in three columns and two rows. This is initial
+placement, not a migration or reflow: existing coordinates are left intact.
+Enabling a sensor in an existing layout fills the first unoccupied cell
 in row-major order (top to bottom, left to right). If all cells are occupied,
 the field gains a row and uses its first cell. Empty cells are dotted outlines,
 not sensor objects. Temporarily missing selected sensors retain visibly unavailable cells until
