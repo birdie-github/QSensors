@@ -145,10 +145,6 @@ QList<SensorSample> SystemSensorProvider::readBatch(const QStringList &ids)
                 if (frequencies.contains(id)) value = frequencies.value(id);
                 sample.maximum = coreMaxima.value(id, std::numeric_limits<double>::quiet_NaN());
             }
-            sample.detail = QStringLiteral("Current reported MHz; lowest online thread per physical core, excluding SMT siblings. Maximum is a current reading, not a rated boost limit.");
-            sample.detail += std::isfinite(sample.maximum)
-                ? QStringLiteral(" Automatic gauge maximum from cpuinfo_max_freq: %1 MHz.").arg(sample.maximum, 0, 'g', 8)
-                : QStringLiteral(" Hardware maximum unavailable; automatic gauge is omitted.");
         } else if (id == QStringLiteral("system/memory/ram") || id == QStringLiteral("system/memory/available")) {
             if (ram) {
                 value = id.endsWith(QStringLiteral("available")) ? ram->availableMiB : ram->percent;
