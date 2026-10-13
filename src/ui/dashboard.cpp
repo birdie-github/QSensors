@@ -193,6 +193,8 @@ void Dashboard::setControlsVisible(bool visible)
         m_expandedFlags = windowFlags();
         // Remove the stack so hidden table/placeholder minimum sizes cannot enlarge the field.
         takeCentralWidget();
+        // Keep the inactive view owned while it is outside the main-window layout.
+        m_stack->setParent(this);
         m_stack->hide();
         m_grid->setParent(this);
         setCentralWidget(m_grid);
@@ -217,6 +219,8 @@ void Dashboard::setControlsVisible(bool visible)
     if (auto *toolbar = findChild<QToolBar *>(QStringLiteral("sensorsToolbar"))) toolbar->setVisible(visible);
     statusBar()->setVisible(visible);
     QSettings().setValue(QStringLiteral("Dashboard/controlsVisible"), visible);
+    // Reparenting explicitly hides widgets; showing the window does not undo it.
+    centralWidget()->show();
     fitCompactView();
     if (wasVisible) show();
     updateVisibleIds();
