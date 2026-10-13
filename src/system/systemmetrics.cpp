@@ -67,6 +67,25 @@ QHash<int, double> cpuFrequencies(const QByteArray &contents)
     return values;
 }
 
+std::optional<double> frequencyLimitMHz(const QByteArray &contents)
+{
+    const auto khz = unsignedNumber(contents.trimmed());
+    if (!khz || !*khz) return {};
+    return static_cast<double>(*khz) / 1000.0;
+}
+
+std::optional<FrequencyLimits> frequencyLimits(const QList<double> &coreMaxima)
+{
+    if (coreMaxima.isEmpty()) return {};
+    FrequencyLimits limits{0, 0};
+    for (double value : coreMaxima) {
+        if (!std::isfinite(value) || value <= 0) return {};
+        limits.average += value / coreMaxima.size();
+        limits.maximum = std::max(limits.maximum, value);
+    }
+    return std::isfinite(limits.average) ? std::optional<FrequencyLimits>(limits) : std::nullopt;
+}
+
 std::optional<double> cpuActivity(const CpuCounters &previous, const CpuCounters &current)
 {
     quint64 total = 0, idle = 0;

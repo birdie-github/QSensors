@@ -3,6 +3,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QMap>
 #include <QRegularExpression>
 #include <QSet>
@@ -89,6 +90,9 @@ QList<SensorSample> SystemSensorProvider::readBatch(const QStringList &ids)
     const QByteArray mem = memory ? read(QStringLiteral("/proc/meminfo")) : QByteArray();
     const QByteArray up = ids.contains(QStringLiteral("system/uptime")) ? read(QStringLiteral("/proc/uptime")) : QByteArray();
     QHash<QString, double> frequencies;
+    QHash<QString, double> coreMaxima;
+    QHash<QString, double> policyMaxima;
+    QList<double> onlineMaxima;
     const auto reported = frequency ? systemmetrics::cpuFrequencies(info) : QHash<int, double>();
     bool allFrequencies = true;
     const bool summary = ids.contains(QStringLiteral("system/cpu/frequency")) || ids.contains(QStringLiteral("system/cpu/maximum-frequency"));
@@ -100,8 +104,19 @@ QList<SensorSample> SystemSensorProvider::readBatch(const QStringList &ids)
             if (first == core.threads.cend()) continue;
             if (reported.contains(*first)) frequencies.insert(core.id, reported.value(*first));
             else allFrequencies = false;
+            const QString policy = QFileInfo(cpuPath(*first) + QStringLiteral("cpufreq")).canonicalFilePath();
+            const QString path = (policy.isEmpty() ? cpuPath(*first) + QStringLiteral("cpufreq") : policy)
+                + QStringLiteral("/cpuinfo_max_freq");
+            if (!policyMaxima.contains(path)) {
+                const auto limit = systemmetrics::frequencyLimitMHz(read(path));
+                policyMaxima.insert(path, limit.value_or(std::numeric_limits<double>::quiet_NaN()));
+            }
+            const double limit = policyMaxima.value(path);
+            coreMaxima.insert(core.id, limit);
+            onlineMaxima.append(limit);
         }
     }
+    const auto limits = systemmetrics::frequencyLimits(onlineMaxima);
     std::optional<double> activity;
     const auto current = cpu ? systemmetrics::cpuCounters(stat) : std::optional<systemmetrics::CpuCounters>();
     if (current && m_previousCpu)
@@ -125,8 +140,15 @@ QList<SensorSample> SystemSensorProvider::readBatch(const QStringList &ids)
         } else if (id.startsWith(QStringLiteral("system/cpu/")) && id.endsWith(QStringLiteral("frequency"))) {
             if (id == QStringLiteral("system/cpu/frequency") || id == QStringLiteral("system/cpu/maximum-frequency")) {
                 if (allFrequencies && !frequencies.isEmpty()) value = id.endsWith(QStringLiteral("maximum-frequency")) ? maximum : average;
-            } else if (frequencies.contains(id)) value = frequencies.value(id);
+                if (limits) sample.maximum = id.endsWith(QStringLiteral("maximum-frequency")) ? limits->maximum : limits->average;
+            } else {
+                if (frequencies.contains(id)) value = frequencies.value(id);
+                sample.maximum = coreMaxima.value(id, std::numeric_limits<double>::quiet_NaN());
+            }
             sample.detail = QStringLiteral("Current reported MHz; lowest online thread per physical core, excluding SMT siblings. Maximum is a current reading, not a rated boost limit.");
+            sample.detail += std::isfinite(sample.maximum)
+                ? QStringLiteral(" Automatic gauge maximum from cpuinfo_max_freq: %1 MHz.").arg(sample.maximum, 0, 'g', 8)
+                : QStringLiteral(" Hardware maximum unavailable; automatic gauge is omitted.");
         } else if (id == QStringLiteral("system/memory/ram") || id == QStringLiteral("system/memory/available")) {
             if (ram) {
                 value = id.endsWith(QStringLiteral("available")) ? ram->availableMiB : ram->percent;

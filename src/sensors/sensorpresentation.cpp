@@ -57,6 +57,7 @@ void SensorPresentation::publish(bool changedCatalog)
         if (sample.available) {
             const auto p = m_preferences->value(sample.id);
             sample.value = sample.value * p.multiplier + p.offset;
+            if (std::isfinite(sample.maximum)) sample.maximum = sample.maximum * p.multiplier + p.offset;
             if (m_kinds.contains(sample.id) && m_kinds.value(sample.id) == SensorKind::Temperature)
                 sample.value = temperatureToDisplay(sample.value, m_preferences->temperatureUnit());
             if (m_kinds.value(sample.id) == SensorKind::Memory && p.memoryAsPercent) {

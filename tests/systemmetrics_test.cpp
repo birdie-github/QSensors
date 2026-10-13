@@ -40,6 +40,11 @@ int main()
         require(!cpuCounters("cpu0 1 2 3 4\n"), "aggregate missing");
         const auto frequencies = cpuFrequencies("processor : 0\ncpu MHz : 900\n\nprocessor : 1\ncpu MHz : 1200\n");
         require(frequencies.value(0) == 900 && frequencies.value(1) == 1200, "logical frequency association");
+        near(frequencyLimitMHz("5200000\n"), 5200, "sysfs kHz to MHz");
+        require(!frequencyLimitMHz("0\n") && !frequencyLimitMHz("bad\n") && !frequencyLimitMHz("-1\n"), "invalid hardware limits");
+        const auto limits = frequencyLimits({5200, 3600, 2800});
+        require(limits && limits->maximum == 5200 && std::abs(limits->average - 11600.0 / 3) < 1e-9, "heterogeneous core normalization");
+        require(!frequencyLimits({}) && !frequencyLimits({5200, std::numeric_limits<double>::quiet_NaN()}), "incomplete limits not guessed");
         qsensors::SensorDescriptor descriptor;
         descriptor.kind = qsensors::SensorKind::Frequency;
         auto formatted = qsensors::formatSensorValue(descriptor, 900);

@@ -34,6 +34,26 @@ silently averaging an incomplete set. If topology is unknown, frequencies are
 unavailable rather than guessing which logical CPUs are physical cores. A fully
 offline core is excluded from summaries and its saved row becomes unavailable.
 
+## Automatic frequency gauge limits
+
+Frequency gauges use `/sys/devices/system/cpu/cpuN/cpufreq/cpuinfo_max_freq`,
+converting the driver's hardware maximum from kHz to canonical MHz. The per-core
+upper bound is that representative core's limit. Maximum frequency uses the
+largest limit across online physical cores; Average frequency uses the arithmetic
+mean of those limits, with one contribution per physical core. For a hybrid CPU,
+slower cores therefore reduce the average upper bound appropriately.
+
+Shared cpufreq policies are read once per requested batch. Limits are refreshed
+alongside frequency samples, without a second timer or GUI file reads. This uses
+the hardware capability reported by the driver, not the current policy cap
+`scaling_max_freq`. Missing, zero or malformed limits leave the current reading
+usable but omit its automatic gauge. Aggregate bounds require limits for every
+online physical core; no 5 GHz fallback or estimate from current readings is
+used. Explicit custom bounds take precedence. Optional calibration applies to
+both the current reading and provider maximum; nonpositive/invalid maxima omit
+the automatic gauge. The instantaneous Maximum frequency reading retains its
+existing meaning; this change fixes normalization, not the measured value.
+
 ## Compact display
 
 Frequency uses MHz below 1000 MHz and GHz at/above 1000 MHz. Tiles, Settings and
@@ -76,7 +96,8 @@ These are host figures, not cgroup limits or zram compression measurements.
 
 Opt-in parser/formatter fixtures cover guest accounting, large counters, resets,
 malformed data, RAM fallback, no swap, processor/frequency association, MiB
-references, unit thresholds, sub-MiB values and the three-character numeric
+references, hardware-limit unit conversion and heterogeneous-core normalization, unit
+thresholds, sub-MiB values and the three-character numeric
 budget. They have not been compiled or executed for this patch.
 
 ```sh
@@ -91,6 +112,9 @@ Manual checks:
   On SMT systems there must be one row per physical core, not one per thread.
 - Compare Average/Maximum frequency with the displayed physical-core readings;
   Usage should still agree approximately with tools sampling all logical CPUs.
+- Compare per-core gauge endpoints with cpuinfo_max_freq divided by 1000. The
+  Maximum endpoint must be the largest physical-core limit; Average must be their
+  mean. Test custom range precedence and missing limits if your environment allows.
 - Test 900 MHz / 1.2 GHz and MiB/GiB transitions on dashboard, table and tray.
 - Toggle Available RAM between MiB and percentage, including with calibration
   and custom ranges; Apply, restart and confirm persistence.
@@ -100,3 +124,4 @@ Manual checks:
 Reference definitions:
 https://www.kernel.org/doc/html/latest/filesystems/proc.html
 https://www.kernel.org/doc/html/latest/admin-guide/cputopology.html
+https://docs.kernel.org/admin-guide/pm/cpufreq.html

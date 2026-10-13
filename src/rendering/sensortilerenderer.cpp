@@ -27,7 +27,7 @@ GaugeRange gaugeRange(SensorKind kind, double value)
     case SensorKind::Energy: range = {0, 1000}; break;
     case SensorKind::Humidity:
     case SensorKind::Percentage: range = {0, 100}; break;
-    case SensorKind::Frequency: range = {0, 5000}; break;
+    case SensorKind::Frequency: return {0, 0}; // Only a provider limit or explicit custom range is valid.
     case SensorKind::Duration: range = {0, 86400}; break;
     case SensorKind::Memory: range = {0, 1024}; break;
     }
@@ -90,6 +90,7 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
 {
     TileReading result;
     result.unit = descriptor.unit;
+    if (descriptor.kind == SensorKind::Frequency) result.range = {0, 0};
     result.available = sample.available && std::isfinite(sample.value) && sample.timestamp.isValid();
     if (!result.available) {
         result.text = QStringLiteral("—");
@@ -116,6 +117,9 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
     const double canonicalValue = temperature ? temperatureFromDisplay(sample.value, unit) : sample.value;
     result.range = preferences.customRange ? GaugeRange{preferences.rangeLower, preferences.rangeUpper}
                                           : gaugeRange(descriptor.kind, canonicalValue);
+    if (!preferences.customRange && descriptor.kind == SensorKind::Frequency)
+        result.range = std::isfinite(sample.maximum) && sample.maximum > 0
+            ? GaugeRange{0, sample.maximum} : GaugeRange{0, 0};
     // Memory's canonical unit stays MiB even when its display descriptor is %.
     if (descriptor.id == QStringLiteral("system/memory/available") && preferences.memoryAsPercent && std::isfinite(sample.reference) && sample.reference > 0 && preferences.customRange) {
         result.range.lower = result.range.lower / sample.reference * 100;
@@ -145,6 +149,8 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
                              bool gauge, bool selected)
 {
     gauge = gauge && descriptor.kind != SensorKind::Duration;
+    if (descriptor.kind == SensorKind::Frequency)
+        gauge = gauge && std::isfinite(reading.range.upper) && reading.range.upper > reading.range.lower;
     painter.save();
     painter.setClipRect(rect, Qt::IntersectClip);
     painter.translate(rect.topLeft());

@@ -30,6 +30,7 @@ struct SensorSample {
     bool available = false;
     QString error;
     double reference = std::numeric_limits<double>::quiet_NaN(); // Total RAM in MiB for available-RAM percentage.
+    double maximum = std::numeric_limits<double>::quiet_NaN(); // Provider-supplied automatic upper bound, in canonical units.
     QString detail; // Supplemental state, e.g. no swap or frequency interpretation.
 };
 
