@@ -264,6 +264,30 @@ void SettingsDialog::updateCatalog(const QList<SensorDescriptor> &catalog)
         requestPreview();
 }
 
+void SettingsDialog::selectSensor(const QString &id)
+{
+    if (auto *tabs = findChild<QTabWidget *>()) tabs->setCurrentIndex(1);
+    m_search->clear();
+    for (int i = 0; i < m_list->topLevelItemCount(); ++i) {
+        auto *group = m_list->topLevelItem(i);
+        for (int j = 0; j < group->childCount(); ++j) {
+            auto *item = group->child(j);
+            if (item->data(0, Qt::UserRole).toString() == id) {
+                group->setExpanded(true);
+                m_list->setCurrentItem(item);
+                m_list->scrollToItem(item);
+                return;
+            }
+        }
+    }
+}
+void SettingsDialog::disableDashboardSensor(const QString &id)
+{
+    // Preserve unrelated unapplied edits, but do not resurrect an externally deleted tile on OK.
+    if (m_draft.contains(id)) m_draft[id].dashboard = false;
+    populate();
+}
+
 void SettingsDialog::showEvent(QShowEvent *event)
 {
     QDialog::showEvent(event);

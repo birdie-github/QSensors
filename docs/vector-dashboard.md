@@ -8,19 +8,46 @@ logical pixels; its default is 128. Presets are 64, 96, 128, 192, 256, 512, 1024
 and 2048, also available under View. Incomplete edits revert to the current
 valid size when editing finishes. **View → Show Gauges** toggles the gauges.
 
-Drag a tile before/after another tile to reorder it. A line marks the insertion
-position. Near viewport edges, scrolling runs only during an active drag.
-Arrow keys select adjacent tiles; Home/End select the first/last. Ctrl+arrow
-or Ctrl+Home/End moves the selected tile before/after the target. Keyboard
-navigation scrolls the selection into reach, including tiles larger than the
-viewport. Reordering uses Qt drag-and-drop, without direct X11 window movement.
+The dashboard is a fixed rectangular field of square cells. Resizing the window
+changes the visible area and scrollbars, never tile positions or the field's
+column count. Changing tile size preserves cell coordinates. The initial field
+has three columns and one row. Enabling a sensor fills the first unoccupied cell
+in row-major order (top to bottom, left to right). If all cells are occupied,
+the field gains a row and uses its first cell. Empty cells are dotted outlines,
+not sensor objects. Temporarily missing selected sensors retain visibly unavailable cells until
+rediscovery or deselection. No cached value is shown as current.
 
-The grid wraps to the viewport width and provides horizontal scrolling when
-one tile exceeds that width. Settings chooses which discovered channels appear on the dashboard; the table
-uses the same selection. Full Unicode labels,
-device names, values and units remain available through tooltips; labels are
-elided when necessary. Device text appears on the tile at sizes of 192 or more.
-At small sizes the renderer omits gauge endpoint labels and uses a compact arc.
+Hold the left mouse button on a tile and move it to a new cell. A translucent
+preview shows the destination. Dropping on an occupied cell swaps the two tiles.
+Dragging beyond any field edge expands the rectangle with empty cells; adding
+left/top cells does not alter existing sensor coordinates. Edge scrolling runs
+only during an active drag. Release commits the move; Esc, hiding, deactivation
+or a catalog change cancels it and restores the previous bounds. Input uses Qt
+widget mouse events/implicit mouse capture, without native X11 window movement.
+
+Arrow keys select a tile in the adjacent cell; Ctrl+arrow moves/swaps the selected
+tile one cell and expands the field if necessary. The selected tile scrolls into
+reach. Layout extents are checked against integer pixel-coordinate capacity at
+the maximum supported tile size; empty cells are never individually allocated.
+
+Double-click empty space (including gutters between tiles) to show/hide the main
+window controls: menu, toolbar and status bar. The dashboard and window frame
+remain visible. The state is saved. **Ctrl+Shift+M** restores/toggles controls even
+in table mode. **View → Show Main Window Controls** exposes the same action.
+
+Right-click a tile's title/footer for Configure, Delete and Show/Hide Main Window.
+The uptime tile also accepts its top HH:MM legend. Keyboard context menus work
+on the selected tile. Configure opens Settings at that sensor. Delete clears
+only its dashboard selection: labels, colors, calibration, ranges and any tray
+selection remain. Its cell becomes available, without compacting other tiles.
+Re-enabling fills the first empty cell rather than recovering its old position.
+Deleting while Settings is open updates that draft's dashboard checkbox without
+throwing away other edits, so OK cannot accidentally restore the deleted tile.
+
+Settings chooses which discovered channels appear on the dashboard; table mode
+uses the same selection. Full Unicode labels, device names, values and units
+remain available through tooltips. Device text appears at tile sizes of 192 or
+more. At small sizes gauge endpoint labels are omitted.
 
 ## Rendering and ranges
 
@@ -67,13 +94,19 @@ introduced. A newly exposed tile can show unavailable briefly until its batch
 returns. An already in-flight old-demand batch may finish; demand changes are
 coalesced for the next batch.
 
-QSettings saves `Dashboard/tileSize`, `Dashboard/gauges`, `Dashboard/sensorOrder`,
-`Dashboard/tableView` and plain `Dashboard/width`, `height`, `x`, `y`, `maximized`. Order uses stable sensor
-IDs, retains missing selected IDs, and appends newly selected IDs. Deselecting
-a dashboard sensor removes its saved position; re-enabling it appends it. Resizing/wrapping
-changes grid columns without changing that order. Missing channels return to
-their saved relative positions when rediscovered. Settings are never written
-on measurements.
+QSettings saves field bounds as `Dashboard/gridLeft`, `gridTop`, `gridColumns`
+and `gridRows`. Sparse `[Tile-NNN]` sections contain readable sensor `id`, `column`
+and `row` values. They describe selected sensors only, not the discovered catalog.
+The former ordering list is replaced, without a migration reader. Grid positions
+and field growth survive restart, rescan, resizing and tile-size changes. Layout
+writes occur on actual selection/layout changes, not sample updates or an
+unchanged catalog rescan. Deselecting removes the position but preserves other
+sensor preferences. Field bounds are retained, including empty cells. Conflicting
+or invalid hand-edited positions are discarded and allocated into free cells.
+
+Tile size, gauges, table view, control visibility and plain window geometry stay
+under Dashboard. Only visible sensor tiles (including a visible drag preview)
+request readings; rectangular canvas growth creates no monitoring demand itself.
 
 Plain numeric settings retain supported window size and X11 position, with restored
 size bounded to the current screen's available area. Exact global positioning
@@ -82,9 +115,20 @@ has no custom top-level window dragging in this phase.
 
 ## Validation
 
-The user confirmed phase 3 works. Phase 4 has static review and clean patch
-application checks only; no configure/build or application execution was done.
-Visual inspection is still required at 48, 128, 256, 512 and 2048 logical pixels,
-normal/fractional/high DPI, light/dark palettes, native Wayland drag/drop,
-large-tile horizontal/vertical scrolling, restart/rescan order persistence and
-tray/table/tile demand transitions. CPU/memory performance remains unmeasured.
+This revision has static review and clean patch-application checks only. No
+configure, compilation, application execution or native mouse-capture test was
+performed. Manual checks:
+
+- Enable a few sensors; resize narrower/wider and change tile size. Confirm cell
+  coordinates do not change. Disable the first tile; a new selection fills it.
+- Fill the field, then enable another sensor. Only a new row should be added.
+- Drag into an empty cell and onto an occupied cell; test all four growth edges,
+  including left/top. Cancel with Esc and ensure temporary growth is undone.
+- Scroll large tiles, hide/show, rescan and restart; ensure positions remain and
+  drag/edge timers stop after release, cancellation or hiding.
+- Configure from a title menu; delete while Settings is open and press OK. Check
+  that other settings/tray selection survive and the dashboard tile stays off.
+- Double-click a gutter to hide/restore controls. Repeat via the title menu and
+  Ctrl+Shift+M; confirm the state persists and the application remains reachable.
+- Repeat native X11 and Wayland mouse dragging at fractional/high DPI. Inspect
+  48, 128, 256, 512 and 2048 logical-pixel tiles. Performance is unmeasured.

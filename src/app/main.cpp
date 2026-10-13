@@ -135,8 +135,7 @@ int main(int argc, char *argv[])
         if (settingsDialog)
             settingsDialog->applySnapshot(snapshot);
     });
-    QObject::connect(&tray, &qsensors::TrayController::settingsRequested, &dashboard,
-                     [&dashboard, &preferences, &rawCatalog, &settingsDialog, &monitor] {
+    const auto showSettings = [&dashboard, &preferences, &rawCatalog, &settingsDialog, &monitor](const QString &id) {
         if (!settingsDialog) {
             settingsDialog = new qsensors::SettingsDialog(&preferences, rawCatalog, &dashboard);
             QObject::connect(settingsDialog.data(), &qsensors::SettingsDialog::previewIdsChanged,
@@ -149,6 +148,12 @@ int main(int argc, char *argv[])
         settingsDialog->show();
         settingsDialog->raise();
         settingsDialog->activateWindow();
+        if (!id.isEmpty()) settingsDialog->selectSensor(id);
+    };
+    QObject::connect(&tray, &qsensors::TrayController::settingsRequested, &dashboard, [showSettings] { showSettings({}); });
+    QObject::connect(&dashboard, &qsensors::Dashboard::sensorConfigureRequested, &dashboard, showSettings);
+    QObject::connect(&dashboard, &qsensors::Dashboard::sensorDisabled, &dashboard, [&settingsDialog](const QString &id) {
+        if (settingsDialog) settingsDialog->disableDashboardSensor(id);
     });
     monitor.setBackgroundIds(tray.selectedIds());
     tray.start();

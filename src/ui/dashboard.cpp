@@ -18,6 +18,7 @@
 #include <QKeySequence>
 #include <QLabel>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMenuBar>
 #include <QSignalBlocker>
 #include <QSpinBox>
@@ -53,6 +54,25 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     m_tableView->setCheckable(true);
     m_tableView->setChecked(QSettings().value(QStringLiteral("Dashboard/tableView"), false).toBool());
     m_grid = new SensorGrid(preferences, this);
+    m_controlsAction = view->addAction(tr("Show Main Window Controls"));
+    m_controlsAction->setCheckable(true);
+    m_controlsAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+M")));
+    addAction(m_controlsAction);
+    connect(m_controlsAction, &QAction::toggled, this, &Dashboard::setControlsVisible);
+    connect(m_grid, &SensorGrid::controlsToggleRequested, this, [this] { m_controlsAction->toggle(); });
+    connect(m_grid, &SensorGrid::configureRequested, this, &Dashboard::sensorConfigureRequested);
+    connect(m_grid, &SensorGrid::deleteRequested, this, [this](const QString &id) {
+        auto values = m_preferences->values();
+        auto prefs = m_preferences->value(id);
+        prefs.dashboard = false;
+        values.insert(id, prefs);
+        QString error;
+        if (!m_preferences->apply(values, m_preferences->temperatureUnit(), error)) {
+            QMessageBox::warning(this, tr("Delete tile"), error);
+            return;
+        }
+        emit sensorDisabled(id);
+    });
     auto *gauges = view->addAction(tr("Show Gauges"));
     gauges->setCheckable(true);
     gauges->setChecked(m_grid->gaugesVisible());
@@ -121,6 +141,7 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     m_trayWarning->setToolTip(tr("A compatible system tray host is required for background operation."));
     statusBar()->addPermanentWidget(m_trayWarning);
     QSettings settings;
+    setControlsVisible(settings.value(QStringLiteral("Dashboard/controlsVisible"), true).toBool());
     if (settings.contains(QStringLiteral("Dashboard/width"))) {
         bool widthOk = false, heightOk = false;
         const int width = settings.value(QStringLiteral("Dashboard/width")).toInt(&widthOk);
@@ -150,6 +171,16 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
 Dashboard::~Dashboard()
 {
     saveWindowGeometry();
+}
+
+void Dashboard::setControlsVisible(bool visible)
+{
+    const QSignalBlocker blocker(m_controlsAction);
+    m_controlsAction->setChecked(visible);
+    menuBar()->setVisible(visible);
+    if (auto *toolbar = findChild<QToolBar *>(QStringLiteral("sensorsToolbar"))) toolbar->setVisible(visible);
+    statusBar()->setVisible(visible);
+    QSettings().setValue(QStringLiteral("Dashboard/controlsVisible"), visible);
 }
 
 void Dashboard::saveWindowGeometry()

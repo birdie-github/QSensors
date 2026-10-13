@@ -128,9 +128,10 @@ is illustrative. Slashes and colons in identity values are ordinary text.
 
 `[Display] temperatureUnit` accepts `Celsius` (default), `Fahrenheit` or `Kelvin`.
 `[Dashboard]` uses plain `width`, `height`, `x`, `y`, and `maximized` values;
-X11 supports position restoration while Wayland controls placement. `sensorOrder`
-is a Qt INI string list of readable identities for dashboard selections only.
-Deselecting a dashboard sensor removes its saved position. Tile size, gauges and view remain
+X11 supports position restoration while Wayland controls placement. Fixed grid bounds use `gridLeft`, `gridTop`, `gridColumns`, `gridRows`;
+`[Tile-NNN]` sections store `id`, `column`, `row` for selected sensors.
+Deselecting a dashboard sensor releases its cell. `controlsVisible` remembers
+menu/toolbar/status-bar visibility. Tile size, gauges and view remain
 `tileSize`, `gauges` and `tableView`. `[Monitoring] intervalSeconds` is unchanged.
 Sensor preferences are written on OK, not on measurements. Opening Settings and
 pressing OK without modifications does not dump the discovered catalog.

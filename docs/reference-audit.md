@@ -44,3 +44,11 @@ shadow and one-pixel shadow offset. QSensors follows that presentation behavior;
 its normalized vector segment geometry and formatter are new implementations.
 No source listings or glyph bitmap tables were copied. The days layout is a new
 requested behavior beyond the original uptime panel.
+
+## Fixed dashboard layout reference
+
+Inspected `LMSensorsWidget::findUnusedPosition`, its saved panel geometry and
+mouse-drag handlers in Miguel Novas's KSensors 0.7.3. QSensors implements sparse
+cell coordinates, first-free placement and dragging independently; the old
+32-row bit mask, direct global-position drag code and per-tile widgets are not
+copied. The existing Qt6 viewport and prepared vector renderer are retained.

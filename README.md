@@ -20,7 +20,10 @@ presets under View. **View → Table View** retains the sensor table. Use Settin
 to choose dashboard/tray sensors and **Sensors → Rescan** (F5) after hardware
 changes. The saved interval is 1–3600 seconds (default 5). Tile mode polls
 visible selected tiles plus tray selections; table mode polls selected dashboard
-sensors. Closing hides when a tray host exists; **Quit** exits. Without a tray
+sensors. Tile positions are fixed across window resizing; dragging can grow the
+rectangular field. New sensors fill its first empty cell. Double-click empty
+space or press Ctrl+Shift+M to show/hide menu, toolbar and status bar.
+Closing hides when a tray host exists; **Quit** exits. Without a tray
 host the dashboard stays recoverable and closing exits.
 
 The minimum target is **Qt 6.8**. Phase 7 has only been statically reviewed,

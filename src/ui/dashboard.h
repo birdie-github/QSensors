@@ -36,6 +36,8 @@ signals:
     void intervalChanged(int seconds);
     void dashboardActiveChanged(bool active);
     void visibleSensorIdsChanged(const QStringList &ids);
+    void sensorConfigureRequested(const QString &id);
+    void sensorDisabled(const QString &id);
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -46,12 +48,14 @@ protected:
 private:
     void updateVisibleIds();
     void saveWindowGeometry();
+    void setControlsVisible(bool visible);
     SensorPreferencesStore *m_preferences;
     QSpinBox *m_interval;
     SensorGrid *m_grid;
     QStackedWidget *m_stack;
     QComboBox *m_tileSize;
     QAction *m_tableView;
+    QAction *m_controlsAction;
     QStringList m_catalogIds;
     QLabel *m_trayWarning;
     bool m_trayAvailable = false;

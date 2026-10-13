@@ -23,6 +23,8 @@ class SettingsDialog final : public QDialog {
 public:
     SettingsDialog(SensorPreferencesStore *store, const QList<SensorDescriptor> &catalog, QWidget *parent);
     void updateCatalog(const QList<SensorDescriptor> &catalog);
+    void selectSensor(const QString &id);
+    void disableDashboardSensor(const QString &id);
     void applySnapshot(const SensorSnapshot &snapshot);
 
 signals:
