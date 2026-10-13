@@ -17,6 +17,7 @@
 #include <QHeaderView>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLayout>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMenuBar>
@@ -28,6 +29,7 @@
 #include <QToolBar>
 #include <QSystemTrayIcon>
 #include <QTimer>
+#include <algorithm>
 
 namespace qsensors {
 
@@ -223,17 +225,30 @@ void Dashboard::setControlsVisible(bool visible)
     centralWidget()->show();
     fitCompactView();
     if (wasVisible) show();
+    // Window flag changes and hidden toolbars settle through posted layout events.
+    QTimer::singleShot(0, this, &Dashboard::fitCompactView);
     updateVisibleIds();
 }
 
 void Dashboard::fitCompactView()
 {
     if (!m_compact) return;
-    QSize field = m_grid->fieldSize();
-    // QWidget dimensions are bounded; oversized fields retain scrollbars.
-    field = field.boundedTo(QSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX));
-    if (const auto *display = screen()) field = field.boundedTo(display->availableGeometry().size());
-    setFixedSize(field);
+    // Flush the central-widget/chrome layout before deriving the outer size.
+    layout()->invalidate();
+    layout()->activate();
+    const QSize chrome(std::max(0, width() - m_grid->width()),
+                       std::max(0, height() - m_grid->height()));
+    const QSize field = m_grid->fieldSize() + chrome;
+    QSize available(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+    if (const auto *display = screen()) available = available.boundedTo(display->availableGeometry().size());
+    const bool fits = field.width() <= available.width() && field.height() <= available.height();
+    // Existing scrollbars shrink the viewport and can keep each other's ranges positive.
+    // A complete field needs neither; oversized fields still scroll within the screen.
+    const auto policy = fits ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded;
+    m_grid->setHorizontalScrollBarPolicy(policy);
+    m_grid->setVerticalScrollBarPolicy(policy);
+    setFixedSize(field.boundedTo(available));
+    layout()->activate();
 }
 
 void Dashboard::saveWindowGeometry()
@@ -331,6 +346,7 @@ void Dashboard::setIntervalSeconds(int seconds)
 void Dashboard::showEvent(QShowEvent *event)
 {
     QMainWindow::showEvent(event);
+    QTimer::singleShot(0, this, &Dashboard::fitCompactView);
     updateVisibleIds();
     emit dashboardActiveChanged(!isMinimized());
 }

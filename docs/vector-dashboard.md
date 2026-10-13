@@ -41,7 +41,8 @@ tile one cell and expands the field if necessary. The selected tile scrolls into
 reach. Layout extents are checked against integer pixel-coordinate capacity at
 the maximum supported tile size; empty cells are never individually allocated.
 
-Double-click empty space (including gutters between tiles) to toggle controls.
+Double-click empty space (including gutters between tiles) to hide controls.
+In compact view, double-click anywhere, including on a sensor, to restore controls.
 Hiding controls switches to a frameless, always-on-top window sized to the tile
 field. The menu, toolbar, status bar and table view are hidden. This view has a
 fixed size and disables mouse and keyboard tile rearrangement. Left-dragging a
@@ -52,6 +53,8 @@ normal fields fit completely without scrollbars. Tile size or sensor selection
 changes refit the compact window. Showing controls restores the previous normal
 window geometry, maximized state and chosen tile/table view. The controls state
 is saved; compact dimensions do not overwrite the normal window dimensions.
+Compact sizing is reapplied after show/layout events so startup does not retain
+stale central-widget dimensions or transient scrollbars.
 **Ctrl+Shift+M** toggles controls even in table mode.
 
 Right-click anywhere on a sensor tile for Configure, Delete and Hide/Show controls.

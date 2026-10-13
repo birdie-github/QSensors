@@ -72,6 +72,10 @@ void SensorGrid::setCompactView(bool compact)
     finishDrag(false);
     m_windowPressed = false;
     m_compact = compact;
+    if (!compact) {
+        setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    }
     setFrameShape(compact ? QFrame::NoFrame : QFrame::StyledPanel);
     horizontalScrollBar()->setValue(0);
     verticalScrollBar()->setValue(0);
@@ -479,7 +483,8 @@ void SensorGrid::mouseReleaseEvent(QMouseEvent *event)
 }
 void SensorGrid::mouseDoubleClickEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton && indexAt(event->position().toPoint()) < 0) {
+    if (event->button() == Qt::LeftButton && (m_compact || indexAt(event->position().toPoint()) < 0)) {
+        m_windowPressed = false;
         finishDrag(false); emit controlsToggleRequested(); event->accept(); return;
     }
     QAbstractScrollArea::mouseDoubleClickEvent(event);
