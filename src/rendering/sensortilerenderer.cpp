@@ -24,7 +24,10 @@ GaugeRange gaugeRange(SensorKind kind, double value)
     case SensorKind::Current: range = {0, 10}; break;
     case SensorKind::Power: range = {0, 100}; break;
     case SensorKind::Energy: range = {0, 1000}; break;
-    case SensorKind::Humidity: range = {0, 100}; break;
+    case SensorKind::Humidity:
+    case SensorKind::Percentage: range = {0, 100}; break;
+    case SensorKind::Frequency: range = {0, 5000}; break;
+    case SensorKind::Duration: range = {0, 86400}; break;
     }
     const auto extend = [](double magnitude) {
         if (magnitude == 0)
@@ -94,7 +97,8 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
     case SensorKind::Temperature:
         result.text = locale.toString(sample.value, 'f', unit == TemperatureUnit::Kelvin ? 2 : 1);
         break;
-    case SensorKind::Humidity: result.text = locale.toString(sample.value, 'f', 1); break;
+    case SensorKind::Humidity:
+    case SensorKind::Percentage: result.text = locale.toString(sample.value, 'f', 1); break;
     case SensorKind::Fan: result.text = locale.toString(sample.value, 'f', 0); break;
     default: result.text = locale.toString(sample.value, 'g', 6); break;
     }
@@ -122,6 +126,7 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
                              const TileStyle &style, const QPalette &palette,
                              bool gauge, bool selected)
 {
+    gauge = gauge && descriptor.kind != SensorKind::Duration;
     painter.save();
     painter.setClipRect(rect, Qt::IntersectClip);
     painter.translate(rect.topLeft());

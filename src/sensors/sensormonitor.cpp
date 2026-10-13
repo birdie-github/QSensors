@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "sensors/sensormonitor.h"
 #include "sensors/lmsensorsprovider.h"
+#include "system/systemsensorprovider.h"
 
 #include <QSettings>
 
@@ -25,14 +26,21 @@ public:
             const auto discovery = m_provider->discover();
             snapshot.descriptors = discovery.descriptors;
             snapshot.error = discovery.error;
+            snapshot.descriptors.append(m_system.discover().descriptors);
             if (readAll) {
-                for (const auto &descriptor : discovery.descriptors)
+                for (const auto &descriptor : snapshot.descriptors)
                     if (!ids.contains(descriptor.id))
                         ids.append(descriptor.id);
             }
         }
-        if (snapshot.error.isEmpty())
-            snapshot.samples = m_provider->readBatch(ids);
+        QStringList hardwareIds, systemIds;
+        for (const auto &id : ids) {
+            if (id.startsWith(QStringLiteral("system/"))) systemIds.append(id);
+            else hardwareIds.append(id);
+        }
+        // A libsensors failure must not suppress independent system readings.
+        snapshot.samples = m_provider->readBatch(hardwareIds);
+        snapshot.samples.append(m_system.readBatch(systemIds));
         emit finished(snapshot);
     }
 
@@ -41,6 +49,7 @@ signals:
 
 private:
     std::unique_ptr<LmSensorsProvider> m_provider;
+    SystemSensorProvider m_system;
 };
 
 SensorMonitor::SensorMonitor(QObject *parent) : QObject(parent), m_worker(new SensorWorker)

@@ -41,7 +41,7 @@ QVariant SensorTableModel::data(const QModelIndex &index, int role) const
             return descriptor.id;
         if (!sample.available)
             return sample.error;
-        return {};
+        return sample.detail;
     }
     if (role != Qt::DisplayRole)
         return {};
@@ -106,6 +106,7 @@ void SensorTableModel::applySamples(const QList<SensorSample> &samples)
         }
         const auto &previous = m_samples[row];
         const bool changed = sample.available != previous.available
+            || sample.detail != previous.detail
             || sample.error != previous.error
             || (sample.available && sample.value != previous.value);
         m_samples[row] = sample;

@@ -284,7 +284,8 @@ bool SensorGrid::viewportEvent(QEvent *event)
                                         : tr("Unavailable");
             QToolTip::showText(help->globalPos(), tr("%1\n%2\n%3\n%4")
                 .arg(tile.descriptor.label, tile.descriptor.device, value,
-                     valid ? tile.descriptor.id : tile.sample.error.isEmpty() ? tr("No current reading") : tile.sample.error), viewport());
+                     valid ? (tile.sample.detail.isEmpty() ? tile.descriptor.id : tile.sample.detail)
+                           : tile.sample.error.isEmpty() ? tr("No current reading") : tile.sample.error), viewport());
         } else {
             QToolTip::hideText();
         }

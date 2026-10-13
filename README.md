@@ -5,10 +5,13 @@ with Qt 6 Widgets and modern libsensors. No KDE dependencies.
 
 ## Current status
 
-Phase 5 adds persistent per-sensor dashboard/tray selections, labels,
-calibration, custom display ranges and colors. Settings has General and Sensors
-pages, including Celsius/Fahrenheit/Kelvin display units and opt-in desktop
-login autostart. Alarm controls follow with the phase-6 alarm engine.
+Phase 7 adds optional system readings: aggregate CPU activity, mean reported CPU
+frequency with CPU model metadata, RAM usage, swap usage and uptime. Hardware and
+system sensors use the same Settings, dashboard and numeric tray selections.
+New sensors default to disabled. Settings groups sensors by source, supports
+renaming and search, and previews live values in resizable columns. Calibration,
+colors, custom gauge ranges, C/F/K units and opt-in desktop autostart remain
+available. Phase 6 (alarms) is deferred.
 
 Vector tiles default to 128 logical pixels; the toolbar accepts 48–2048, with
 presets under View. **View → Table View** retains the sensor table. Use Settings
@@ -18,8 +21,9 @@ visible selected tiles plus tray selections; table mode polls selected dashboard
 sensors. Closing hides when a tray host exists; **Quit** exits. Without a tray
 host the dashboard stays recoverable and closing exits.
 
-The minimum target is **Qt 6.8**. Phase 5 has only been statically reviewed,
+The minimum target is **Qt 6.8**. Phase 7 has only been statically reviewed,
 without configuring, compiling or running it. See
+[system-sensors.md](docs/system-sensors.md),
 [sensor-settings.md](docs/sensor-settings.md),
 [vector-dashboard.md](docs/vector-dashboard.md),
 [hardware-backend.md](docs/hardware-backend.md) and
@@ -64,6 +68,7 @@ lists installed files; no custom uninstaller or privileged helper is provided.
 
 - `src/app`: metadata, command line, application assembly and single-instance IPC.
 - `src/sensors`: libsensors backend, serialized worker/demand scheduler and raw-to-display presentation.
+- `src/system`: bounded proc reads and independent CPU/memory/uptime parsers.
 - `src/settings`: stable-ID preferences, settings dialog and desktop-neutral autostart.
 - `src/tray`: shared actions, numeric icons, host recovery and selection dialog.
 - `src/ui`: persistent dashboard, virtual tile grid and table model. The model rejects missing,

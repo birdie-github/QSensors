@@ -30,6 +30,10 @@ qt_add_executable(qsensors
     src/settings/autostart.h
     src/sensors/sensorpresentation.cpp
     src/sensors/sensorpresentation.h
+    src/system/systemmetrics.cpp
+    src/system/systemmetrics.h
+    src/system/systemsensorprovider.cpp
+    src/system/systemsensorprovider.h
     src/sensors/sensorprovider.h
     src/sensors/sensortypes.h
     src/sensors/lmsensorsprovider.cpp
@@ -64,3 +68,16 @@ foreach(size IN ITEMS 64 256)
         RENAME io.github.birdie_github.QSensors.png)
 endforeach()
 install(FILES LICENSE DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/QSensors")
+
+# Parser fixtures are opt-in and require only the existing Qt Core dependency.
+option(QSENSORS_BUILD_TESTS "Build system parser fixtures" OFF)
+if(QSENSORS_BUILD_TESTS)
+    enable_testing()
+    add_executable(qsensors-systemmetrics-test
+        tests/systemmetrics_test.cpp
+        src/system/systemmetrics.cpp
+    )
+    target_include_directories(qsensors-systemmetrics-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(qsensors-systemmetrics-test PRIVATE Qt6::Core)
+    add_test(NAME systemmetrics COMMAND qsensors-systemmetrics-test)
+endif()

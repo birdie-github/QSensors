@@ -316,6 +316,9 @@ void SettingsDialog::updateValues()
                 if (!unit.isEmpty()) text += QLatin1Char(' ') + unit;
                 tooltip = tr("Applied calibration and display units. Read at %1.")
                     .arg(QLocale().toString(sample.timestamp.toLocalTime(), QLocale::ShortFormat));
+                if (!sample.detail.isEmpty()) tooltip += QLatin1Char('\n') + sample.detail;
+                if (sample.detail == QStringLiteral("No swap configured"))
+                    text = tr("No swap configured");
             }
             item->setText(3, text);
             item->setToolTip(3, tooltip);

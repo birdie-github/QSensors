@@ -28,7 +28,8 @@ QString compactValue(const SensorDescriptor &descriptor, double value)
     QString text;
     switch (descriptor.kind) {
     case SensorKind::Temperature:
-    case SensorKind::Humidity: text = QString::number(value, 'f', 0); break;
+    case SensorKind::Humidity:
+    case SensorKind::Percentage: text = QString::number(value, 'f', 0); break;
     case SensorKind::Fan: text = QString::number(value / 1000.0, 'f', 1); break;
     case SensorKind::Voltage: text = QString::number(value, 'f', 1); break;
     default: text = QString::number(value, 'g', 3); break;
@@ -239,6 +240,8 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
     const QString value = available ? tr("%1 %2").arg(QLocale().toString(sample.value, 'g', 8), descriptor.unit)
                                    : tr("Unavailable");
     QString tooltip = tr("%1\n%2\n%3").arg(label, descriptor.device, value);
+    if (available && !sample.detail.isEmpty())
+        tooltip += QStringLiteral("\n") + sample.detail;
     if (!available)
         tooltip += QStringLiteral("\n") + (sample.error.isEmpty() ? tr("No current reading") : sample.error);
     if (tooltip != entry.tooltip) {
