@@ -2,6 +2,7 @@
 #pragma once
 
 #include "sensors/sensortypes.h"
+#include "settings/sensorpreferences.h"
 
 #include <QFont>
 #include <QPalette>
@@ -37,7 +38,8 @@ struct TileStyle {
 class SensorTileRenderer {
 public:
     static TileStyle style(int size, const QFont &baseFont);
-    static TileReading prepare(const SensorDescriptor &descriptor, const SensorSample &sample);
+    static TileReading prepare(const SensorDescriptor &descriptor, const SensorSample &sample,
+                               const SensorPreferences &preferences, TemperatureUnit unit);
     static void draw(QPainter &painter, const QRectF &rect, const SensorDescriptor &descriptor,
                      const TileReading &reading, const TileStyle &style,
                      const QPalette &palette, bool gauge, bool selected);

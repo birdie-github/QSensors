@@ -41,7 +41,7 @@ resume rescan; there is no udev subscription in this phase. With the dashboard h
 only for tray selections. With no selections they pause; an in-flight batch
 may finish after hiding. Newly available rows appear after rescan, removed rows
 leave the view, and the application does not erase sensor preferences on rescan.
-Per-sensor display/alarm preferences are implemented in phase 5.
+Per-sensor display preferences are implemented in phase 5; alarms follow in phase 6.
 `Monitoring/intervalSeconds` (1–3600, default 5) and `Tray/sensors` selections
 are currently saved.
 
@@ -59,8 +59,8 @@ the backend's channel map and is discarded before cleanup.
 The GUI schedules at most one worker operation at a time. A single-shot timer
 is armed after completion, so a slow read extends the interval instead of
 queuing overlapping work. Multiple rescan requests coalesce into one follow-up.
-The tile viewport demands intersecting tiles; table mode demands the full
-catalog. Tray selections add background demand, including selected missing IDs
+The tile viewport demands intersecting selected tiles; table mode demands the
+selected dashboard catalog. Tray selections add background demand, including selected missing IDs
 for explicit unavailable results and recovery. The worker reads the union once. Alarm demand follows
 in phase 6 without adding competing readers.
 

@@ -6,7 +6,6 @@
 #include <QHash>
 #include <QMap>
 #include <QObject>
-#include <QPointer>
 #include <QStringList>
 #include <QTimer>
 
@@ -19,12 +18,12 @@ class QWidget;
 
 namespace qsensors {
 
-class TraySettingsDialog;
+class SensorPreferencesStore;
 
 class TrayController final : public QObject {
     Q_OBJECT
 public:
-    explicit TrayController(QWidget *window, QObject *parent = nullptr);
+    explicit TrayController(QWidget *window, SensorPreferencesStore *preferences, QObject *parent = nullptr);
     ~TrayController() override;
     void start();
     void applySnapshot(const SensorSnapshot &snapshot);
@@ -46,6 +45,7 @@ signals:
     void quitRequested();
     void availabilityChanged(bool available);
     void selectionChanged(const QStringList &ids);
+    void settingsRequested();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -64,6 +64,7 @@ private:
     QSystemTrayIcon *createIcon();
 
     QWidget *m_window;
+    SensorPreferencesStore *m_preferences;
     std::unique_ptr<QMenu> m_menu;
     QMenu *m_readingsMenu;
     QAction *m_showAction;
@@ -75,10 +76,8 @@ private:
     QSystemTrayIcon *m_fallback = nullptr;
     QMap<QString, Entry> m_entries;
     QStringList m_selected;
-    QList<SensorDescriptor> m_catalog;
     QHash<QString, SensorDescriptor> m_descriptors;
     QHash<QString, SensorSample> m_samples;
-    QPointer<TraySettingsDialog> m_settings;
     QTimer m_hostWatch;
     bool m_available = false;
     bool m_dashboardVisible = true;

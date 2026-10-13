@@ -2,6 +2,7 @@
 #include "ui/dashboard.h"
 #include "ui/sensortablemodel.h"
 #include "ui/sensorgrid.h"
+#include "settings/sensorpreferences.h"
 
 #include <QAction>
 #include <QCoreApplication>
@@ -28,7 +29,8 @@
 
 namespace qsensors {
 
-Dashboard::Dashboard(SensorTableModel *model, QWidget *parent) : QMainWindow(parent)
+Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preferences, QWidget *parent)
+    : QMainWindow(parent), m_preferences(preferences)
 {
     setWindowTitle(QCoreApplication::applicationName());
     resize(800, 500);
@@ -50,7 +52,7 @@ Dashboard::Dashboard(SensorTableModel *model, QWidget *parent) : QMainWindow(par
     m_tableView = view->addAction(tr("Table View"));
     m_tableView->setCheckable(true);
     m_tableView->setChecked(QSettings().value(QStringLiteral("Dashboard/tableView"), false).toBool());
-    m_grid = new SensorGrid(this);
+    m_grid = new SensorGrid(preferences, this);
     auto *gauges = view->addAction(tr("Show Gauges"));
     gauges->setCheckable(true);
     gauges->setChecked(m_grid->gaugesVisible());
@@ -108,7 +110,7 @@ Dashboard::Dashboard(SensorTableModel *model, QWidget *parent) : QMainWindow(par
     connect(m_grid, &SensorGrid::visibleIdsChanged, this, [this] { updateVisibleIds(); });
     connect(m_tableView, &QAction::toggled, this, [this](bool table) {
         QSettings().setValue(QStringLiteral("Dashboard/tableView"), table);
-        m_stack->setCurrentIndex(m_catalogIds.isEmpty() ? 0 : table ? 2 : 1);
+        m_stack->setCurrentIndex(table ? 2 : 1);
         m_tileSize->setEnabled(!table);
         updateVisibleIds();
     });
@@ -139,10 +141,15 @@ void Dashboard::applySnapshot(const SensorSnapshot &snapshot)
 {
     if (snapshot.rescanned) {
         m_catalogIds.clear();
-        for (const auto &descriptor : snapshot.descriptors)
-            m_catalogIds.append(descriptor.id);
-        m_grid->setDescriptors(snapshot.descriptors);
-        m_stack->setCurrentIndex(m_catalogIds.isEmpty() ? 0 : m_tableView->isChecked() ? 2 : 1);
+        QList<SensorDescriptor> selected;
+        for (const auto &descriptor : snapshot.descriptors) {
+            if (m_preferences->value(descriptor.id).dashboard) {
+                m_catalogIds.append(descriptor.id);
+                selected.append(descriptor);
+            }
+        }
+        m_grid->setDescriptors(selected);
+        m_stack->setCurrentIndex(snapshot.descriptors.isEmpty() ? 0 : m_tableView->isChecked() ? 2 : 1);
     }
     m_grid->applySamples(snapshot.samples);
     updateVisibleIds();

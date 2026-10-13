@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ui/sensorgrid.h"
+#include "settings/sensorpreferences.h"
 
 #include <QApplication>
 #include <QDrag>
@@ -29,7 +30,8 @@ namespace {
 constexpr auto tileMime = "application/x-qsensors-tile-id";
 }
 
-SensorGrid::SensorGrid(QWidget *parent) : QAbstractScrollArea(parent)
+SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
+    : QAbstractScrollArea(parent), m_preferences(preferences)
 {
     setFocusPolicy(Qt::StrongFocus);
     viewport()->setAutoFillBackground(true);
@@ -87,7 +89,7 @@ void SensorGrid::setDescriptors(const QList<SensorDescriptor> &descriptors)
     for (const auto &descriptor : descriptors) {
         Tile tile = m_tiles.value(descriptor.id);
         tile.descriptor = descriptor;
-        tile.reading = SensorTileRenderer::prepare(descriptor, tile.sample);
+        tile.reading = SensorTileRenderer::prepare(descriptor, tile.sample, m_preferences->value(descriptor.id), m_preferences->temperatureUnit());
         tiles.insert(descriptor.id, tile);
         if (!m_savedOrder.contains(descriptor.id)) {
             m_savedOrder.append(descriptor.id);
@@ -124,7 +126,7 @@ void SensorGrid::applySamples(const QList<SensorSample> &samples)
         auto &tile = m_tiles[m_order[i]];
         auto sample = batch.value(m_order[i]);
         sample.id = m_order[i];
-        const auto reading = SensorTileRenderer::prepare(tile.descriptor, sample);
+        const auto reading = SensorTileRenderer::prepare(tile.descriptor, sample, m_preferences->value(tile.descriptor.id), m_preferences->temperatureUnit());
         const bool different = reading.available != tile.reading.available
             || reading.text != tile.reading.text
             || (m_gauges && (reading.fraction != tile.reading.fraction
@@ -202,6 +204,12 @@ void SensorGrid::paintEvent(QPaintEvent *event)
 {
     QPainter painter(viewport());
     painter.setClipRegion(event->region());
+    if (m_order.isEmpty()) {
+        painter.setPen(palette().color(QPalette::Text));
+        painter.drawText(viewport()->rect().adjusted(16, 16, -16, -16), Qt::AlignCenter | Qt::TextWordWrap,
+                         tr("No dashboard sensors selected. Choose sensors in Settings."));
+        return;
+    }
     const int stride = tileSize() + m_gap;
     const int firstRow = std::max(0, (verticalScrollBar()->value() - m_gap) / stride);
     const int lastRow = (verticalScrollBar()->value() + viewport()->height()) / stride;
@@ -212,8 +220,14 @@ void SensorGrid::paintEvent(QPaintEvent *event)
         if (!event->region().intersects(rect))
             continue;
         const auto &tile = m_tiles.constFind(id).value();
+        QPalette colors = palette();
+        const auto preferences = m_preferences->value(id);
+        if (preferences.foreground.isValid() || preferences.background.isValid())
+            colors.setColor(QPalette::Text, dashboardTextColor(preferences, colors.color(QPalette::Text)));
+        if (preferences.background.isValid())
+            colors.setColor(QPalette::Base, preferences.background);
         SensorTileRenderer::draw(painter, rect, tile.descriptor, tile.reading, m_style,
-                                 palette(), m_gauges, id == m_selected);
+                                 colors, m_gauges, id == m_selected);
         if (id == m_dropTarget) {
             painter.setPen(QPen(palette().color(QPalette::Highlight), 3));
             const int x = m_dropAfter ? rect.right() : rect.left();

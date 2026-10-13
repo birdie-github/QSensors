@@ -5,21 +5,23 @@ with Qt 6 Widgets and modern libsensors. No KDE dependencies.
 
 ## Current status
 
-Phase 4 adds scalable QPainter vector tiles with optional gauges, a scrollable
-viewport and persistent drag/keyboard ordering. Tiles default to 128 logical
-pixels; the toolbar accepts 48–2048, with presets under View. **View → Table
-View** retains the existing sensor table.
+Phase 5 adds persistent per-sensor dashboard/tray selections, labels,
+calibration, custom display ranges and colors. Settings has General and Sensors
+pages, including Celsius/Fahrenheit/Kelvin display units and opt-in desktop
+login autostart. Alarm controls follow with the phase-6 alarm engine.
 
-Use **Settings** to select numeric tray sensors and **Sensors → Rescan** (F5)
-after hardware changes. The saved interval is 1–3600 seconds (default 5).
-Tile mode polls visible tiles plus tray selections; table mode polls the whole
-catalog. Closing hides when a tray host exists; **Quit** exits. Without a tray
-host the dashboard stays recoverable and closing exits. Full sensor settings
-and alarms follow in later phases.
+Vector tiles default to 128 logical pixels; the toolbar accepts 48–2048, with
+presets under View. **View → Table View** retains the sensor table. Use Settings
+to choose dashboard/tray sensors and **Sensors → Rescan** (F5) after hardware
+changes. The saved interval is 1–3600 seconds (default 5). Tile mode polls
+visible selected tiles plus tray selections; table mode polls selected dashboard
+sensors. Closing hides when a tray host exists; **Quit** exits. Without a tray
+host the dashboard stays recoverable and closing exits.
 
-The minimum target is **Qt 6.8**. The user confirmed phase 3 works; their exact
-Qt version was not recorded. Phase 4 has only been statically reviewed, without
-configuring, compiling or running it. See [vector-dashboard.md](docs/vector-dashboard.md),
+The minimum target is **Qt 6.8**. Phase 5 has only been statically reviewed,
+without configuring, compiling or running it. See
+[sensor-settings.md](docs/sensor-settings.md),
+[vector-dashboard.md](docs/vector-dashboard.md),
 [hardware-backend.md](docs/hardware-backend.md) and
 [tray-lifecycle.md](docs/tray-lifecycle.md) for controls, architecture and limitations.
 
@@ -61,8 +63,8 @@ lists installed files; no custom uninstaller or privileged helper is provided.
 ## Architecture
 
 - `src/app`: metadata, command line, application assembly and single-instance IPC.
-- `src/sensors`: libsensors backend, copied descriptors/samples and serialized
-  worker/demand scheduler.
+- `src/sensors`: libsensors backend, serialized worker/demand scheduler and raw-to-display presentation.
+- `src/settings`: stable-ID preferences, settings dialog and desktop-neutral autostart.
 - `src/tray`: shared actions, numeric icons, host recovery and selection dialog.
 - `src/ui`: persistent dashboard, virtual tile grid and table model. The model rejects missing,
   non-finite or invalid-timestamp readings and does not present stale values.

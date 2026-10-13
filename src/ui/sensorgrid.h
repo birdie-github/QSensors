@@ -12,11 +12,13 @@ class QMimeData;
 
 namespace qsensors {
 
+class SensorPreferencesStore;
+
 // Paints visible tiles directly into one viewport; no per-tile widgets/pixmaps.
 class SensorGrid final : public QAbstractScrollArea {
     Q_OBJECT
 public:
-    explicit SensorGrid(QWidget *parent = nullptr);
+    explicit SensorGrid(SensorPreferencesStore *preferences, QWidget *parent = nullptr);
     int tileSize() const { return m_style.size; }
     bool gaugesVisible() const { return m_gauges; }
     void setTileSize(int size);
@@ -61,6 +63,7 @@ private:
     bool acceptDrag(const QMimeData *data, QObject *source) const;
     void updateDropTarget(const QPoint &position);
 
+    SensorPreferencesStore *m_preferences;
     QHash<QString, Tile> m_tiles;
     QStringList m_savedOrder;
     QStringList m_order;

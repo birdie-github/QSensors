@@ -3,8 +3,8 @@
 ## Usage
 
 The dashboard opens on startup. Settings (from File, the toolbar or any tray
-icon) currently selects numeric tray sensors; the full sensor/color/alarm
-settings interface follows in later phases. Changes apply on OK, Cancel leaves
+icon) selects dashboard/tray sensors and configures labels, calibration,
+units, ranges and colors. Alarm controls follow in phase 6. Changes apply on OK, Cancel leaves
 selections unchanged, and selections are stored as stable IDs in `Tray/sensors`.
 An open Settings window preserves unapplied checkboxes across a rescan.
 Temporarily missing selected sensors remain checked until explicitly removed.
@@ -20,8 +20,8 @@ Transparent numeric icons are painted directly at 16, 22, 24, 32, 48, 64 and
 128 physical pixels. Text has a contrasting outline for legibility on different
 panel backgrounds. This is a bounded resolution set independent of dashboard
 size. Icon images change only when compact text, colors or font parameters
-change; full-value tooltip/menu text can update independently. Color and alarm
-configuration belong to phases 5/6; this phase uses the application palette.
+change; full-value tooltip/menu text can update independently. Settings selects per-sensor text/tray colors; invalid colors use the application
+palette. Alarm colors/actions follow in phase 6.
 
 Every icon shares Show Dashboard, Hide Dashboard, Settings, Rescan, About and
 Quit actions with the application menus. Single activation toggles the dashboard
@@ -34,7 +34,7 @@ Closing with a tray host hides the persistent dashboard. File/Tray Quit always
 exits, including from an open Settings window. Selected tray channels keep
 updating in the background; with none selected, hiding/minimizing stops sensor
 polling. Showing restores the chosen view's demand and refreshes stale values:
-intersecting tiles, or the complete catalog in table mode.
+intersecting selected tiles, or the selected dashboard catalog in table mode.
 Tray and dashboard share one hardware worker; there are no competing readers.
 Settings currently opens with the dashboard visible and lists cached catalog
 metadata; it does not require extra preview readings. Alarms will add background demand in phase 6.

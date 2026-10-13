@@ -8,12 +8,14 @@
 
 namespace qsensors {
 
+class SensorPreferencesStore;
+
 // Sensor view model, independent of provider ownership/polling.
 class SensorTableModel final : public QAbstractTableModel {
     Q_OBJECT
 
 public:
-    explicit SensorTableModel(QObject *parent = nullptr);
+    explicit SensorTableModel(SensorPreferencesStore *preferences, QObject *parent = nullptr);
     int rowCount(const QModelIndex &parent = {}) const override;
     int columnCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -23,6 +25,7 @@ public:
     void applySamples(const QList<SensorSample> &samples);
 
 private:
+    SensorPreferencesStore *m_preferences;
     QList<SensorDescriptor> m_descriptors;
     QList<SensorSample> m_samples;
 };

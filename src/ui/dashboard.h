@@ -16,12 +16,13 @@ namespace qsensors {
 
 class SensorTableModel;
 class SensorGrid;
+class SensorPreferencesStore;
 
 class Dashboard final : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit Dashboard(SensorTableModel *model, QWidget *parent = nullptr);
+    explicit Dashboard(SensorTableModel *model, SensorPreferencesStore *preferences, QWidget *parent = nullptr);
     ~Dashboard() override;
     void applySnapshot(const SensorSnapshot &snapshot);
     void clearReadings();
@@ -45,6 +46,7 @@ protected:
 private:
     void updateVisibleIds();
     void saveWindowGeometry();
+    SensorPreferencesStore *m_preferences;
     QSpinBox *m_interval;
     SensorGrid *m_grid;
     QStackedWidget *m_stack;

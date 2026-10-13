@@ -80,7 +80,8 @@ TileStyle SensorTileRenderer::style(int size, const QFont &baseFont)
     return result;
 }
 
-TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, const SensorSample &sample)
+TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, const SensorSample &sample,
+                                       const SensorPreferences &preferences, TemperatureUnit unit)
 {
     TileReading result;
     result.available = sample.available && std::isfinite(sample.value) && sample.timestamp.isValid();
@@ -91,6 +92,8 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
     const QLocale locale;
     switch (descriptor.kind) {
     case SensorKind::Temperature:
+        result.text = locale.toString(sample.value, 'f', unit == TemperatureUnit::Kelvin ? 2 : 1);
+        break;
     case SensorKind::Humidity: result.text = locale.toString(sample.value, 'f', 1); break;
     case SensorKind::Fan: result.text = locale.toString(sample.value, 'f', 0); break;
     default: result.text = locale.toString(sample.value, 'g', 6); break;
@@ -98,9 +101,16 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
     // Keep essential numbers readable at the smallest tile size.
     if (result.text.size() > 9)
         result.text = locale.toString(sample.value, 'g', 4);
-    result.range = gaugeRange(descriptor.kind, sample.value);
-    result.lowerText = locale.toString(result.range.lower, 'g', 3);
-    result.upperText = locale.toString(result.range.upper, 'g', 3);
+    const bool temperature = descriptor.kind == SensorKind::Temperature;
+    const double canonicalValue = temperature ? temperatureFromDisplay(sample.value, unit) : sample.value;
+    result.range = preferences.customRange ? GaugeRange{preferences.rangeLower, preferences.rangeUpper}
+                                          : gaugeRange(descriptor.kind, canonicalValue);
+    if (temperature) {
+        result.range.lower = temperatureToDisplay(result.range.lower, unit);
+        result.range.upper = temperatureToDisplay(result.range.upper, unit);
+    }
+    result.lowerText = locale.toString(result.range.lower, 'g', 6);
+    result.upperText = locale.toString(result.range.upper, 'g', 6);
     const double span = result.range.upper - result.range.lower;
     if (span > 0 && std::isfinite(span))
         result.fraction = std::clamp((sample.value - result.range.lower) / span, 0.0, 1.0);

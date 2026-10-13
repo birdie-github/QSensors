@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ui/sensortablemodel.h"
+#include "settings/sensorpreferences.h"
 
 #include <QHash>
 #include <QLocale>
+#include <QApplication>
+#include <QPalette>
 
 #include <cmath>
 
 namespace qsensors {
 
-SensorTableModel::SensorTableModel(QObject *parent) : QAbstractTableModel(parent) {}
+SensorTableModel::SensorTableModel(SensorPreferencesStore *preferences, QObject *parent)
+    : QAbstractTableModel(parent), m_preferences(preferences) {}
 
 int SensorTableModel::rowCount(const QModelIndex &parent) const
 {
@@ -27,6 +31,11 @@ QVariant SensorTableModel::data(const QModelIndex &index, int role) const
         return {};
     const auto &descriptor = m_descriptors[index.row()];
     const auto &sample = m_samples[index.row()];
+    const auto preferences = m_preferences->value(descriptor.id);
+    if (role == Qt::ForegroundRole && (preferences.foreground.isValid() || preferences.background.isValid()))
+        return dashboardTextColor(preferences, QApplication::palette().color(QPalette::Text));
+    if (role == Qt::BackgroundRole && preferences.background.isValid())
+        return preferences.background;
     if (role == Qt::ToolTipRole) {
         if (index.column() <= 1)
             return descriptor.id;

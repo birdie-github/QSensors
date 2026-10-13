@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "tray/traycontroller.h"
-#include "tray/traysettingsdialog.h"
+#include "settings/sensorpreferences.h"
 
 #include <QAction>
 #include <QApplication>
@@ -15,7 +15,6 @@
 #include <QPainterPath>
 #include <QPalette>
 #include <QPixmap>
-#include <QSettings>
 #include <QSystemTrayIcon>
 
 #include <algorithm>
@@ -70,8 +69,8 @@ QIcon numericIcon(const QString &text, const QColor &color, QFont font)
 
 } // namespace
 
-TrayController::TrayController(QWidget *window, QObject *parent)
-    : QObject(parent), m_window(window), m_menu(std::make_unique<QMenu>())
+TrayController::TrayController(QWidget *window, SensorPreferencesStore *preferences, QObject *parent)
+    : QObject(parent), m_window(window), m_preferences(preferences), m_menu(std::make_unique<QMenu>())
 {
     m_showAction = m_menu->addAction(tr("Show Dashboard"));
     m_hideAction = m_menu->addAction(tr("Hide Dashboard"));
@@ -97,10 +96,12 @@ TrayController::TrayController(QWidget *window, QObject *parent)
             tr("QSensors %1\nA Qt hardware-sensor monitor inspired by KSensors.\nLicensed under GPL version 3.")
                 .arg(QCoreApplication::applicationVersion()));
     });
-    m_selected = QSettings().value(QStringLiteral("Tray/sensors")).toStringList();
-    m_selected.removeAll(QString());
-    m_selected.removeDuplicates();
-    std::sort(m_selected.begin(), m_selected.end());
+    m_selected = preferences->trayIds();
+    connect(preferences, &SensorPreferencesStore::changed, this, [this] {
+        setSelectedIds(m_preferences->trayIds());
+        for (auto it = m_entries.begin(); it != m_entries.end(); ++it)
+            updateEntry(it.key(), it.value());
+    });
     m_hostWatch.setInterval(3000);
     m_hostWatch.setTimerType(Qt::VeryCoarseTimer);
     connect(&m_hostWatch, &QTimer::timeout, this, &TrayController::checkAvailability);
@@ -114,8 +115,6 @@ TrayController::~TrayController()
     for (const auto &entry : m_entries)
         delete entry.icon;
     delete m_fallback;
-    if (m_settings)
-        delete m_settings.data();
 }
 
 void TrayController::start()
@@ -165,7 +164,6 @@ void TrayController::setSelectedIds(QStringList ids)
     if (ids == m_selected)
         return;
     m_selected = ids;
-    QSettings().setValue(QStringLiteral("Tray/sensors"), ids);
     reconcileIcons();
     emit selectionChanged(ids);
 }
@@ -210,18 +208,15 @@ void TrayController::reconcileIcons()
 void TrayController::applySnapshot(const SensorSnapshot &snapshot)
 {
     if (snapshot.rescanned) {
-        m_catalog = snapshot.descriptors;
         // Retain metadata only for selected missing channels, not every old device.
         QHash<QString, SensorDescriptor> descriptors;
-        for (const auto &descriptor : m_catalog)
+        for (const auto &descriptor : snapshot.descriptors)
             descriptors.insert(descriptor.id, descriptor);
         for (const auto &id : m_selected) {
             if (!descriptors.contains(id) && m_descriptors.contains(id))
                 descriptors.insert(id, m_descriptors.value(id));
         }
         m_descriptors = descriptors;
-        if (m_settings)
-            m_settings->updateCatalog(m_catalog);
     }
     m_samples.clear();
     for (const auto &sample : snapshot.samples) {
@@ -238,7 +233,9 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
     const auto sample = m_samples.value(id);
     const bool available = m_descriptors.contains(id) && sample.available && std::isfinite(sample.value) && sample.timestamp.isValid();
     const QString text = available ? compactValue(descriptor, sample.value) : QStringLiteral("—");
-    const QString label = descriptor.label.isEmpty() ? id : descriptor.label;
+    const auto preferences = m_preferences->value(id);
+    const QString label = !preferences.label.isEmpty() ? preferences.label
+        : descriptor.label.isEmpty() ? id : descriptor.label;
     const QString value = available ? tr("%1 %2").arg(QLocale().toString(sample.value, 'g', 8), descriptor.unit)
                                    : tr("Unavailable");
     QString tooltip = tr("%1\n%2\n%3").arg(label, descriptor.device, value);
@@ -249,7 +246,8 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
         entry.icon->setToolTip(tooltip);
         entry.reading->setText(tr("%1 — %2: %3").arg(label, descriptor.device, value));
     }
-    const QColor color = QApplication::palette().color(QPalette::Text);
+    const QColor color = preferences.foreground.isValid() ? preferences.foreground
+        : QApplication::palette().color(QPalette::Text);
     const QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     const QString key = text + QStringLiteral("|") + color.name(QColor::HexArgb) + font.toString();
     if (key != entry.renderKey) {
@@ -261,18 +259,7 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
 void TrayController::openSettings()
 {
     emit showRequested();
-    if (m_settings) {
-        m_settings->show();
-        m_settings->raise();
-        m_settings->activateWindow();
-        return;
-    }
-    m_settings = new TraySettingsDialog(m_catalog, m_selected, m_window);
-    connect(m_settings.data(), &QDialog::accepted, this, [this] {
-        if (m_settings)
-            setSelectedIds(m_settings->selectedIds());
-    });
-    m_settings->show();
+    emit settingsRequested();
 }
 
 bool TrayController::eventFilter(QObject *watched, QEvent *event)

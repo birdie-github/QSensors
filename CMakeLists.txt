@@ -22,8 +22,14 @@ qt_add_executable(qsensors
     src/app/singleinstance.h
     src/tray/traycontroller.cpp
     src/tray/traycontroller.h
-    src/tray/traysettingsdialog.cpp
-    src/tray/traysettingsdialog.h
+    src/settings/sensorpreferences.cpp
+    src/settings/sensorpreferences.h
+    src/settings/settingsdialog.cpp
+    src/settings/settingsdialog.h
+    src/settings/autostart.cpp
+    src/settings/autostart.h
+    src/sensors/sensorpresentation.cpp
+    src/sensors/sensorpresentation.h
     src/sensors/sensorprovider.h
     src/sensors/sensortypes.h
     src/sensors/lmsensorsprovider.cpp

@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "app/singleinstance.h"
+#include "settings/sensorpreferences.h"
+#include "settings/settingsdialog.h"
+#include "sensors/sensorpresentation.h"
 #include "sensors/sensormonitor.h"
 #include "tray/traycontroller.h"
 #include "ui/dashboard.h"
@@ -8,6 +11,7 @@
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QIcon>
+#include <QPointer>
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QSystemTrayIcon>
@@ -40,11 +44,15 @@ int main(int argc, char *argv[])
         return 1;
     }
     app.setQuitOnLastWindowClosed(false);
-    qsensors::SensorTableModel model;
+    qsensors::SensorPreferencesStore preferences;
+    qsensors::SensorPresentation presentation(&preferences);
+    qsensors::SensorTableModel model(&preferences);
     qsensors::SensorMonitor monitor;
     monitor.setDashboardIds({});
-    qsensors::Dashboard dashboard(&model);
-    qsensors::TrayController tray(&dashboard);
+    QList<qsensors::SensorDescriptor> rawCatalog;
+    QPointer<qsensors::SettingsDialog> settingsDialog;
+    qsensors::Dashboard dashboard(&model, &preferences);
+    qsensors::TrayController tray(&dashboard, &preferences);
     dashboard.setIntervalSeconds(monitor.intervalSeconds());
     dashboard.setActions(tray.showAction(), tray.hideAction(), tray.settingsAction(),
                          tray.rescanAction(), tray.aboutAction(), tray.quitAction());
@@ -99,17 +107,41 @@ int main(int argc, char *argv[])
         bar->showMessage(text);
     });
     QObject::connect(&monitor, &qsensors::SensorMonitor::snapshotReady,
-                     &model, [&model](const qsensors::SensorSnapshot &snapshot) {
-        if (snapshot.rescanned)
-            model.setDescriptors(snapshot.descriptors);
+                     &presentation, &qsensors::SensorPresentation::applySnapshot);
+    QObject::connect(&presentation, &qsensors::SensorPresentation::snapshotReady,
+                     &model, [&model, &preferences](const qsensors::SensorSnapshot &snapshot) {
+        if (snapshot.rescanned) {
+            QList<qsensors::SensorDescriptor> selected;
+            for (const auto &descriptor : snapshot.descriptors) {
+                if (preferences.value(descriptor.id).dashboard)
+                    selected.append(descriptor);
+            }
+            model.setDescriptors(selected);
+        }
         model.applySamples(snapshot.samples);
     });
-    QObject::connect(&monitor, &qsensors::SensorMonitor::snapshotReady,
+    QObject::connect(&presentation, &qsensors::SensorPresentation::snapshotReady,
                      &dashboard, &qsensors::Dashboard::applySnapshot);
-    QObject::connect(&monitor, &qsensors::SensorMonitor::snapshotReady,
+    QObject::connect(&presentation, &qsensors::SensorPresentation::snapshotReady,
                      &tray, &qsensors::TrayController::applySnapshot);
+    QObject::connect(&presentation, &qsensors::SensorPresentation::catalogChanged, &dashboard,
+                     [&rawCatalog, &settingsDialog](const QList<qsensors::SensorDescriptor> &catalog) {
+        rawCatalog = catalog;
+        if (settingsDialog)
+            settingsDialog->updateCatalog(catalog);
+    });
+    QObject::connect(&tray, &qsensors::TrayController::settingsRequested, &dashboard,
+                     [&dashboard, &preferences, &rawCatalog, &settingsDialog] {
+        if (!settingsDialog)
+            settingsDialog = new qsensors::SettingsDialog(&preferences, rawCatalog, &dashboard);
+        settingsDialog->show();
+        settingsDialog->raise();
+        settingsDialog->activateWindow();
+    });
     monitor.setBackgroundIds(tray.selectedIds());
     tray.start();
     dashboard.show();
-    return app.exec();
+    const int exitCode = app.exec();
+    delete settingsDialog.data();
+    return exitCode;
 }

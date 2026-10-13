@@ -45,4 +45,5 @@ struct SensorSnapshot {
 
 } // namespace qsensors
 
+Q_DECLARE_METATYPE(qsensors::SensorDescriptor)
 Q_DECLARE_METATYPE(qsensors::SensorSnapshot)

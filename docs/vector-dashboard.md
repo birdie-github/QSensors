@@ -16,8 +16,8 @@ navigation scrolls the selection into reach, including tiles larger than the
 viewport. Reordering uses Qt drag-and-drop, without direct X11 window movement.
 
 The grid wraps to the viewport width and provides horizontal scrolling when
-one tile exceeds that width. All discovered supported channels are included;
-per-sensor dashboard selection belongs to phase 5. Full Unicode labels,
+one tile exceeds that width. Settings chooses which discovered channels appear on the dashboard; the table
+uses the same selection. Full Unicode labels,
 device names, values and units remain available through tooltips; labels are
 elided when necessary. Device text appears on the tile at sizes of 192 or more.
 At small sizes the renderer omits gauge endpoint labels and uses a compact arc.
@@ -54,15 +54,14 @@ those bounds at sizes of 96 and above. They are not recommendations for safe
 hardware operation and do not produce alarms. Zero RPM and negative readings
 are valid. Missing/failed/non-finite/invalid-timestamp readings show an em dash
 and no needle; they are never interpreted as zero. Invalid/zero-width/overflowing
-range spans cannot produce an invalid needle calculation. Configurable ranges,
-calibration, unit conversions and alarm thresholds belong to later phases.
+range spans cannot produce an invalid needle calculation. Custom ranges, calibration and temperature units are configured in Settings.
+Alarm thresholds remain separate and follow in phase 6.
 
 ## Demand, persistence and window geometry
 
 The tile viewport publishes the IDs of tiles intersecting it. Only those IDs
 plus tray selections are read; scrolling/resizing requests newly visible data
-through the same coalesced serialized worker. Table mode requests the complete
-catalog, preserving its existing behavior. Discovery obtains descriptors first,
+through the same coalesced serialized worker. Table mode requests the selected dashboard catalog. Discovery obtains descriptors first,
 then the chosen view supplies reading demand. No competing sensor reader is
 introduced. A newly exposed tile can show unavailable briefly until its batch
 returns. An already in-flight old-demand batch may finish; demand changes are
