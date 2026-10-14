@@ -28,7 +28,21 @@ namespace {
 
 QString compactValue(const SensorDescriptor &descriptor, double value)
 {
-    if (descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory) {
+    if (descriptor.kind == SensorKind::Frequency) {
+        // Frequency providers and calibration use canonical MHz. Include the
+        // suffix in the four-character budget and promote rounding overflows.
+        if (!std::isfinite(value) || value < 0.001 || value > 999.0 * 1000)
+            return QStringLiteral("ERR");
+        if (value < 1) {
+            const double kilohertz = std::round(value * 1000);
+            if (kilohertz < 1000)
+                return QString::number(kilohertz, 'f', 0) + QStringLiteral("K");
+        }
+        const double megahertz = std::round(value);
+        if (megahertz < 10000) return QString::number(megahertz, 'f', 0);
+        return QString::number(std::round(value / 1000), 'f', 0) + QStringLiteral("G");
+    }
+    if (descriptor.kind == SensorKind::Memory) {
         const auto formatted = formatSensorValue(descriptor, value, true);
         return formatted.number + formatted.unit;
     }
@@ -332,7 +346,9 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
     const QString label = !preferences.label.isEmpty() ? preferences.label
         : descriptor.label.isEmpty() ? id : descriptor.label;
     const auto formatted = formatSensorValue(descriptor, sample.value);
-    const QString value = available ? tr("%1 %2").arg(formatted.number, formatted.unit)
+    const QString value = available && descriptor.kind == SensorKind::Frequency
+        ? QLocale(QLocale::English, QLocale::UnitedStates).toString(sample.value * 1000000, 'f', 0) + QStringLiteral(" Hz")
+        : available ? tr("%1 %2").arg(formatted.number, formatted.unit)
                                    : tr("Unavailable");
     QString tooltip = tr("%1\n%2\n%3").arg(label, descriptor.device, value);
     if (available && !sample.detail.isEmpty())
