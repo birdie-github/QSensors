@@ -9,7 +9,6 @@
 #include "ui/sensortablemodel.h"
 
 #include <QApplication>
-#include <QSet>
 #include <QCommandLineParser>
 #include <QIcon>
 #include <QPointer>
@@ -87,9 +86,8 @@ int main(int argc, char *argv[])
     QObject::connect(&dashboard, &qsensors::Dashboard::dashboardActiveChanged,
                      &tray, &qsensors::TrayController::setDashboardVisible);
     QObject::connect(&dashboard, &qsensors::Dashboard::dashboardActiveChanged,
-                     &monitor, [&monitor, &model, &dashboard, wasActive = false](bool active) mutable {
+                     &monitor, [&monitor, &dashboard, wasActive = false](bool active) mutable {
         if (active && !wasActive) {
-            model.applySamples({});
             dashboard.clearReadings();
         }
         wasActive = active;
@@ -109,23 +107,6 @@ int main(int argc, char *argv[])
     });
     QObject::connect(&monitor, &qsensors::SensorMonitor::snapshotReady,
                      &presentation, &qsensors::SensorPresentation::applySnapshot);
-    QObject::connect(&presentation, &qsensors::SensorPresentation::snapshotReady,
-                     &model, [&model, &preferences](const qsensors::SensorSnapshot &snapshot) {
-        if (snapshot.rescanned) {
-            QList<qsensors::SensorDescriptor> selected;
-            for (const auto &descriptor : snapshot.descriptors) {
-                if (preferences.value(descriptor.id).dashboard)
-                    selected.append(descriptor);
-            }
-            model.setDescriptors(selected);
-        }
-        const QSet<QString> due(snapshot.dashboardRefreshIds.cbegin(), snapshot.dashboardRefreshIds.cend());
-        QList<qsensors::SensorSample> samples;
-        for (const auto &sample : snapshot.samples) {
-            if (!snapshot.incremental || due.contains(sample.id)) samples.append(sample);
-        }
-        model.applySamples(samples, snapshot.incremental);
-    });
     QObject::connect(&presentation, &qsensors::SensorPresentation::snapshotReady,
                      &dashboard, &qsensors::Dashboard::applySnapshot);
     QObject::connect(&presentation, &qsensors::SensorPresentation::snapshotReady,

@@ -60,7 +60,7 @@ protected:
 }
 
 Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preferences, QWidget *parent)
-    : QMainWindow(parent), m_preferences(preferences)
+    : QMainWindow(parent), m_preferences(preferences), m_model(model)
 {
     setWindowTitle(QCoreApplication::applicationName());
     resize(800, 500);
@@ -192,6 +192,7 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     stack->addWidget(m_grid);
     stack->addWidget(table);
     setCentralWidget(stack);
+    connect(stack, &QStackedWidget::currentChanged, this, [this] { refreshPresentation(); });
     connect(m_grid, &SensorGrid::visibleIdsChanged, this, [this] { updateVisibleIds(); });
     connect(m_tableView, &QAction::toggled, this, [this](bool table) {
         QSettings().setValue(QStringLiteral("Dashboard/tableView"), table);
@@ -284,6 +285,7 @@ void Dashboard::setControlsVisible(bool visible)
     QSettings().setValue(QStringLiteral("Dashboard/controlsVisible"), visible);
     // Reparenting explicitly hides widgets; showing the window does not undo it.
     centralWidget()->show();
+    refreshPresentation();
     for (auto *grip : m_resizeGrips) grip->setVisible(m_compact);
     fitCompactView();
     if (wasVisible) show();
@@ -396,30 +398,72 @@ void Dashboard::chooseCustomTileSize()
 
 void Dashboard::applySnapshot(const SensorSnapshot &snapshot)
 {
+    QList<SensorDescriptor> selected;
     if (snapshot.rescanned) {
         m_catalogIds.clear();
-        QList<SensorDescriptor> selected;
+        m_catalogSet.clear();
         for (const auto &descriptor : snapshot.descriptors) {
             if (m_preferences->value(descriptor.id).dashboard) {
                 m_catalogIds.append(descriptor.id);
+                m_catalogSet.insert(descriptor.id);
                 selected.append(descriptor);
             }
         }
-        m_grid->setDescriptors(selected);
-        if (!m_compact) m_stack->setCurrentIndex(snapshot.descriptors.isEmpty() ? 0 : m_tableView->isChecked() ? 2 : 1);
     }
+    if (!snapshot.incremental) m_dashboardSamples.clear();
     const QSet<QString> due(snapshot.dashboardRefreshIds.cbegin(), snapshot.dashboardRefreshIds.cend());
     QList<SensorSample> samples;
     for (const auto &sample : snapshot.samples) {
-        if (!snapshot.incremental || due.contains(sample.id)) samples.append(sample);
+        if (m_catalogSet.contains(sample.id) && (!snapshot.incremental || due.contains(sample.id))) {
+            m_dashboardSamples.insert(sample.id, sample);
+            samples.append(sample);
+        }
     }
-    m_grid->applySamples(samples, snapshot.incremental);
+    if (snapshot.rescanned) {
+        // Catalog/layout maintenance is infrequent and still reaches both views.
+        // Install the cache first: grid visibility signals can request a batch.
+        m_gridDirty = m_tableDirty = true;
+        m_model->setDescriptors(selected);
+        m_grid->setDescriptors(selected);
+        if (!m_compact) m_stack->setCurrentIndex(snapshot.descriptors.isEmpty() ? 0 : m_tableView->isChecked() ? 2 : 1);
+    }
+    if (snapshot.rescanned) refreshPresentation();
+    else if (!snapshot.incremental || !samples.isEmpty()) updatePresentation(samples, snapshot.incremental);
     if (snapshot.rescanned) updateVisibleIds();
+}
+
+void Dashboard::updatePresentation(const QList<SensorSample> &samples, bool incremental)
+{
+    if (!isVisible() || isMinimized()) {
+        m_gridDirty = m_tableDirty = true;
+        return;
+    }
+    if (m_compact || m_stack->currentIndex() == 1) {
+        m_tableDirty = true;
+        if (!incremental || m_gridDirty) m_grid->applySamples(m_dashboardSamples.values());
+        else m_grid->applySamples(samples, true);
+        m_gridDirty = false;
+    } else if (m_stack->currentIndex() == 2) {
+        m_gridDirty = true;
+        if (!incremental || m_tableDirty) m_model->applySamples(m_dashboardSamples.values());
+        else m_model->applySamples(samples, true);
+        m_tableDirty = false;
+    }
+}
+
+void Dashboard::refreshPresentation()
+{
+    // A switch catches up once from the latest dashboard-cadence cache, without
+    // requesting extra readings or applying the hidden view's formatting work.
+    if ((m_compact || m_stack->currentIndex() == 1) ? m_gridDirty : m_tableDirty)
+        updatePresentation({}, true);
 }
 
 void Dashboard::clearReadings()
 {
-    m_grid->applySamples({});
+    m_dashboardSamples.clear();
+    m_gridDirty = m_tableDirty = true;
+    refreshPresentation();
 }
 
 void Dashboard::updateVisibleIds()

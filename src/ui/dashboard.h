@@ -4,6 +4,8 @@
 #include <QMainWindow>
 #include "sensors/sensortypes.h"
 #include <QStringList>
+#include <QHash>
+#include <QSet>
 #include <QTimer>
 
 class QSpinBox;
@@ -52,12 +54,15 @@ protected:
 private:
     void chooseCustomTileSize();
     void updateVisibleIds();
+    void updatePresentation(const QList<SensorSample> &samples, bool incremental);
+    void refreshPresentation();
     void saveWindowGeometry();
     void setControlsVisible(bool visible);
     void fitCompactView();
     void positionResizeGrips();
     void finishCompactResize();
     SensorPreferencesStore *m_preferences;
+    SensorTableModel *m_model;
     QSpinBox *m_interval;
     SensorGrid *m_grid;
     QStackedWidget *m_stack;
@@ -65,6 +70,10 @@ private:
     QAction *m_tableView;
     QAction *m_controlsAction;
     QStringList m_catalogIds;
+    QSet<QString> m_catalogSet;
+    QHash<QString, SensorSample> m_dashboardSamples;
+    bool m_gridDirty = true;
+    bool m_tableDirty = true;
     QLabel *m_trayWarning;
     bool m_trayAvailable = false;
     bool m_compact = false;
