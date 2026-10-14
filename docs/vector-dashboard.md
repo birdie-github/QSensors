@@ -41,10 +41,14 @@ unchanged, and the trimmed bounds are
 saved. Input uses Qt
 widget mouse events/implicit mouse capture, without native X11 window movement.
 
-Arrow keys select a tile in the adjacent cell; Ctrl+arrow moves/swaps the selected
-tile one cell and expands the field if necessary. The selected tile scrolls into
-reach. Layout extents are checked against integer pixel-coordinate capacity at
-the maximum supported tile size; empty cells are never individually allocated.
+Left/Right select tiles in row order, continuing into the previous/next occupied
+row. Up/Down use column order, continuing into the previous/next occupied column.
+Empty cells are skipped and navigation wraps at either end of the field. Enter
+(including keypad Enter) opens Settings at the selected sensor. Ctrl+arrow
+moves/swaps the selected tile one cell and expands the field if necessary.
+The selected tile scrolls into reach. Layout extents are checked against integer
+pixel-coordinate capacity at the maximum supported tile size; empty cells are
+never individually allocated.
 
 Double-click empty space (including gutters between tiles) to hide controls.
 In compact view, double-click anywhere, including on a sensor, to restore controls.
@@ -53,6 +57,7 @@ field. The menu, toolbar, status bar and table view are hidden. This view has a
 fixed size and disables mouse and keyboard tile rearrangement. Left-dragging a
 tile or empty space requests native window movement through Qt; X11 also has a
 manual movement fallback. Wayland movement and stacking are compositor-managed.
+Clicking a tile also selects it and focuses the grid for keyboard navigation.
 Compact windows match the complete field even when it exceeds the screen.
 Compact view never has scrollbars or scroll offsets. Tile size or sensor selection
 changes refit the compact window. Showing controls restores the previous normal

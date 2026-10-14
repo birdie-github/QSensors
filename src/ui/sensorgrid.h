@@ -53,6 +53,7 @@ private:
     QRect cellRect(const QPoint &cell) const;
     QPoint cellAt(const QPoint &position) const;
     int indexAt(const QPoint &position) const;
+    int navigationTarget(int current, bool vertical, bool forward) const;
     void select(const QString &id);
     void ensureVisible(int index);
     void moveTile(const QString &id, const QPoint &cell);

@@ -445,6 +445,9 @@ void SensorGrid::ensureVisible(int index)
 void SensorGrid::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton && m_compact) {
+        const int index = indexAt(event->position().toPoint());
+        if (index >= 0) select(m_order[index]);
+        setFocus(Qt::MouseFocusReason);
         m_windowGrabOffset = event->globalPosition().toPoint() - window()->pos();
         // Start while the initiating press is active, as required by Wayland.
         const bool nativeMove = window()->windowHandle() && window()->windowHandle()->startSystemMove();
@@ -564,6 +567,29 @@ void SensorGrid::moveTile(const QString &id, const QPoint &cell)
     select(id);
     ensureVisible(m_order.indexOf(id));
 }
+int SensorGrid::navigationTarget(int current, bool vertical, bool forward) const
+{
+    // Traverse occupied cells in row order (horizontal) or column order
+    // (vertical). A single scan also finds the wrap target for sparse layouts.
+    const auto comesBefore = [this, vertical, forward](int left, int right) {
+        const QPoint a = m_positions.value(m_order[left]);
+        const QPoint b = m_positions.value(m_order[right]);
+        const int aPrimary = vertical ? a.x() : a.y();
+        const int bPrimary = vertical ? b.x() : b.y();
+        const int aSecondary = vertical ? a.y() : a.x();
+        const int bSecondary = vertical ? b.y() : b.x();
+        if (aPrimary != bPrimary)
+            return forward ? aPrimary < bPrimary : aPrimary > bPrimary;
+        return forward ? aSecondary < bSecondary : aSecondary > bSecondary;
+    };
+    int next = -1;
+    int wrap = current;
+    for (int i = 0; i < m_order.size(); ++i) {
+        if (comesBefore(i, wrap)) wrap = i;
+        if (comesBefore(current, i) && (next < 0 || comesBefore(i, next))) next = i;
+    }
+    return next >= 0 ? next : wrap;
+}
 void SensorGrid::keyPressEvent(QKeyEvent *event)
 {
     if (event->key() == Qt::Key_Escape && m_dragging) { finishDrag(false); event->accept(); return; }
@@ -571,17 +597,26 @@ void SensorGrid::keyPressEvent(QKeyEvent *event)
     if (current < 0) { QAbstractScrollArea::keyPressEvent(event); return; }
     QPoint delta;
     switch (event->key()) {
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+        if (!m_dragging && m_pressed.isEmpty() && !event->isAutoRepeat())
+            emit configureRequested(m_selected);
+        event->accept(); return;
     case Qt::Key_Left: delta = {-1,0}; break;
     case Qt::Key_Right: delta = {1,0}; break;
     case Qt::Key_Up: delta = {0,-1}; break;
     case Qt::Key_Down: delta = {0,1}; break;
     default: QAbstractScrollArea::keyPressEvent(event); return;
     }
-    const QPoint cell = m_positions.value(m_selected) + delta;
-    if (cell.x() <= -coordinateLimit || cell.x() >= coordinateLimit || cell.y() <= -coordinateLimit || cell.y() >= coordinateLimit) return;
-    if (event->modifiers() & Qt::ControlModifier) moveTile(m_selected, cell);
-    else {
-        for (const auto &id : m_order) if (m_positions.value(id) == cell) { select(id); break; }
+    if (m_dragging || !m_pressed.isEmpty()) { event->accept(); return; }
+    if (event->modifiers() & Qt::ControlModifier) {
+        const QPoint cell = m_positions.value(m_selected) + delta;
+        if (cell.x() > -coordinateLimit && cell.x() < coordinateLimit &&
+            cell.y() > -coordinateLimit && cell.y() < coordinateLimit)
+            moveTile(m_selected, cell);
+    } else {
+        const int next = navigationTarget(current, delta.y() != 0, delta.x() > 0 || delta.y() > 0);
+        select(m_order[next]);
     }
     ensureVisible(m_order.indexOf(m_selected)); event->accept();
 }
