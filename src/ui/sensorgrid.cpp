@@ -72,10 +72,9 @@ void SensorGrid::setCompactView(bool compact)
     finishDrag(false);
     m_windowPressed = false;
     m_compact = compact;
-    if (!compact) {
-        setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-        setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    }
+    const auto policy = compact ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded;
+    setHorizontalScrollBarPolicy(policy);
+    setVerticalScrollBarPolicy(policy);
     setFrameShape(compact ? QFrame::NoFrame : QFrame::StyledPanel);
     horizontalScrollBar()->setValue(0);
     verticalScrollBar()->setValue(0);
@@ -244,8 +243,9 @@ void SensorGrid::updateLayout()
     const int stride = tileSize() + m_gap;
     horizontalScrollBar()->setPageStep(viewport()->width());
     verticalScrollBar()->setPageStep(viewport()->height());
-    horizontalScrollBar()->setRange(0, std::max(0, m_gap + m_bounds.width() * stride - viewport()->width()));
-    verticalScrollBar()->setRange(0, std::max(0, m_gap + m_bounds.height() * stride - viewport()->height()));
+    // Disable scrolling itself in compact mode, including wheel/keyboard offsets.
+    horizontalScrollBar()->setRange(0, m_compact ? 0 : std::max(0, m_gap + m_bounds.width() * stride - viewport()->width()));
+    verticalScrollBar()->setRange(0, m_compact ? 0 : std::max(0, m_gap + m_bounds.height() * stride - viewport()->height()));
     horizontalScrollBar()->setSingleStep(std::max(16, tileSize() / 4));
     verticalScrollBar()->setSingleStep(std::max(16, tileSize() / 4));
     m_updatingLayout = false;

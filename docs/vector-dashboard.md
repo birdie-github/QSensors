@@ -48,8 +48,8 @@ field. The menu, toolbar, status bar and table view are hidden. This view has a
 fixed size and disables mouse and keyboard tile rearrangement. Left-dragging a
 tile or empty space requests native window movement through Qt; X11 also has a
 manual movement fallback. Wayland movement and stacking are compositor-managed.
-Fields larger than the screen are bounded to its available area and scroll;
-normal fields fit completely without scrollbars. Tile size or sensor selection
+Compact windows match the complete field even when it exceeds the screen.
+Compact view never has scrollbars or scroll offsets. Tile size or sensor selection
 changes refit the compact window. Showing controls restores the previous normal
 window geometry, maximized state and chosen tile/table view. The controls state
 is saved; compact dimensions do not overwrite the normal window dimensions.
@@ -135,8 +135,9 @@ Tile size, gauges, table view, control visibility and plain window geometry stay
 under Dashboard. Only visible sensor tiles (including a visible drag preview)
 request readings; canvas growth creates no monitoring demand itself.
 
-Plain numeric settings retain supported window size and X11 position, with restored
-size bounded to the current screen's available area. Exact global positioning
+Plain numeric settings retain supported normal-window size and X11 position, with restored
+normal-window size bounded to the current screen's available area. Compact dimensions
+are always derived from the field and are never capped to the screen. Exact global positioning
 and virtual-desktop restoration are not required on Wayland. Compact dragging requests native system movement, with a fallback only on X11.
 
 ## Validation

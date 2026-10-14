@@ -239,15 +239,8 @@ void Dashboard::fitCompactView()
     const QSize chrome(std::max(0, width() - m_grid->width()),
                        std::max(0, height() - m_grid->height()));
     const QSize field = m_grid->fieldSize() + chrome;
-    QSize available(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
-    if (const auto *display = screen()) available = available.boundedTo(display->availableGeometry().size());
-    const bool fits = field.width() <= available.width() && field.height() <= available.height();
-    // Existing scrollbars shrink the viewport and can keep each other's ranges positive.
-    // A complete field needs neither; oversized fields still scroll within the screen.
-    const auto policy = fits ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded;
-    m_grid->setHorizontalScrollBarPolicy(policy);
-    m_grid->setVerticalScrollBarPolicy(policy);
-    setFixedSize(field.boundedTo(available));
+    // Compact mode always contains the complete field, even beyond screen bounds.
+    setFixedSize(field);
     layout()->activate();
 }
 
