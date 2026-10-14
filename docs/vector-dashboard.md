@@ -69,6 +69,24 @@ stale central-widget dimensions or transient scrollbars.
 
 ### Dashboard colors and backgrounds
 
+**View → Dashboard Style** independently selects Rounded Rectangular (the
+existing default), Square, or Circular. Square uses a one-logical-pixel palette
+border, with no gaps between cells or padding around the field. Compact window
+dimensions therefore match the square tile field exactly. Sparse empty cells
+remain in place; changing style does not rearrange sensors. Circular uses true
+circles within the existing spaced square cells. Square and Circular omit dotted
+rectangular cell guides so no extra frame appears behind transparent tiles.
+
+**Circular Content Shrink** defaults to 20%, with dynamically generated 0–30%
+presets in 5% steps and Custom accepting any integer from 0 to 50%. It scales all
+tile contents uniformly about the center, including text, gauges and shadows;
+the circular border remains full size. Contents are clipped only to the square
+cell, so protrusion beyond the circle is allowed. The control is enabled for
+Circular style. Other styles retain their normal content size. Style and shrink
+are saved as `Dashboard/style` (`rounded`, `square`, `circular`) and
+`Dashboard/circleShrinkPercent`. Missing/unknown styles use Rounded Rectangular;
+malformed shrink values use 20%, and numeric values are clamped to 0–50%.
+
 **View → Dashboard Palette** offers System (the default), Classic KSensors,
 Graphite, and Custom. Classic uses the original 0.7.3 white/black panel colors,
 green/red gauge bands, and blue/teal voltage bands. Graphite uses charcoal panels

@@ -25,6 +25,20 @@ namespace qsensors {
 namespace {
 // Keep cell-to-pixel conversions safe even at the largest supported tile size.
 constexpr int coordinateLimit = dashboardCellLimit;
+QString tileShapeKey(DashboardTileShape shape)
+{
+    switch (shape) {
+    case DashboardTileShape::Square: return QStringLiteral("square");
+    case DashboardTileShape::Circle: return QStringLiteral("circular");
+    default: return QStringLiteral("rounded");
+    }
+}
+DashboardTileShape tileShapeFromKey(const QString &key)
+{
+    if (key == QStringLiteral("square")) return DashboardTileShape::Square;
+    if (key == QStringLiteral("circular")) return DashboardTileShape::Circle;
+    return DashboardTileShape::RoundedRectangle;
+}
 }
 SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
     : QAbstractScrollArea(parent), m_preferences(preferences)
@@ -33,12 +47,18 @@ SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
     viewport()->setAutoFillBackground(false);
     viewport()->setBackgroundRole(QPalette::Window);
     QSettings settings;
+    m_tileShape = tileShapeFromKey(settings.value(QStringLiteral("Dashboard/style")).toString());
+    bool shrinkValid = false;
+    const int shrink = settings.value(QStringLiteral("Dashboard/circleShrinkPercent"), 20).toInt(&shrinkValid);
+    m_circleShrinkPercent = shrinkValid ? std::clamp(shrink, 0, 50) : 20;
+    m_gap = m_tileShape == DashboardTileShape::Square ? 0 : 8;
     m_palettePreset = dashboardPaletteFromKey(settings.value(QStringLiteral("Dashboard/palette")).toString());
     m_backgroundPattern = dashboardBackgroundFromKey(settings.value(QStringLiteral("Dashboard/backgroundPattern")).toString());
     updateAppearance();
     bool valid = false;
     const int size = settings.value(QStringLiteral("Dashboard/tileSize"), 128).toInt(&valid);
-    m_style = SensorTileRenderer::style(valid && size >= minimumTileSize && size <= maximumTileSize ? size : 128, font());
+    m_style = SensorTileRenderer::style(valid && size >= minimumTileSize && size <= maximumTileSize ? size : 128,
+                                        font(), m_tileShape, m_circleShrinkPercent);
     const auto preferencesById = m_preferences->values();
     QStringList ids = preferencesById.keys();
     std::sort(ids.begin(), ids.end());
@@ -128,13 +148,34 @@ void SensorGrid::saveTileSize() const
 {
     QSettings().setValue(QStringLiteral("Dashboard/tileSize"), tileSize());
 }
+void SensorGrid::setTileShape(DashboardTileShape shape)
+{
+    if (shape == m_tileShape) return;
+    finishDrag(false);
+    m_tileShape = shape;
+    m_gap = shape == DashboardTileShape::Square ? 0 : 8;
+    m_style = SensorTileRenderer::style(tileSize(), font(), m_tileShape, m_circleShrinkPercent);
+    QSettings().setValue(QStringLiteral("Dashboard/style"), tileShapeKey(shape));
+    updateLayout();
+    ensureVisible(m_order.indexOf(m_selected));
+    emit fieldSizeChanged();
+}
+void SensorGrid::setCircleShrinkPercent(int percent)
+{
+    percent = std::clamp(percent, 0, 50);
+    if (percent == m_circleShrinkPercent) return;
+    m_circleShrinkPercent = percent;
+    m_style = SensorTileRenderer::style(tileSize(), font(), m_tileShape, percent);
+    QSettings().setValue(QStringLiteral("Dashboard/circleShrinkPercent"), percent);
+    viewport()->update();
+}
 void SensorGrid::setTileSize(int size, bool persist)
 {
     size = std::clamp(size, minimumTileSize, maximumTileSize);
     if (size == tileSize()) return;
     finishDrag(false);
     const bool labelsChanged = (tileSize() >= 96) != (size >= 96);
-    m_style = SensorTileRenderer::style(size, font());
+    m_style = SensorTileRenderer::style(size, font(), m_tileShape, m_circleShrinkPercent);
     if (labelsChanged) {
         // Gauge endpoint labels enter/leave the painted layout at this boundary.
         for (auto &tile : m_tiles)
@@ -361,14 +402,17 @@ void SensorGrid::paintEvent(QPaintEvent *event)
     // Anchor the repeating brush to the field so it follows scrolling tiles.
     painter.setBrushOrigin(-horizontalScrollBar()->value(), -verticalScrollBar()->value());
     painter.fillRect(viewport()->rect(), m_backgroundBrush);
-    // Empty cells are outlines only; no cell objects or canvas-sized image.
-    painter.setPen(QPen(m_appearance.colors.color(QPalette::Mid), 1, Qt::DotLine));
-    const QPoint first = cellAt(QPoint(0, 0)), last = cellAt(viewport()->rect().bottomRight());
-    for (int y = std::max(first.y(), m_bounds.top()); y <= std::min(last.y(), m_bounds.bottom()); ++y)
-        for (int x = std::max(first.x(), m_bounds.left()); x <= std::min(last.x(), m_bounds.right()); ++x) {
-            const QRect rect = cellRect(QPoint(x, y));
-            if (event->region().intersects(rect)) painter.drawRect(rect.adjusted(1, 1, -1, -1));
-        }
+    // Retain the existing cell guides only in the rounded style. They would
+    // add an unwanted inner square border to transparent square/circular tiles.
+    if (m_tileShape == DashboardTileShape::RoundedRectangle) {
+        painter.setPen(QPen(m_appearance.colors.color(QPalette::Mid), 1, Qt::DotLine));
+        const QPoint first = cellAt(QPoint(0, 0)), last = cellAt(viewport()->rect().bottomRight());
+        for (int y = std::max(first.y(), m_bounds.top()); y <= std::min(last.y(), m_bounds.bottom()); ++y)
+            for (int x = std::max(first.x(), m_bounds.left()); x <= std::min(last.x(), m_bounds.right()); ++x) {
+                const QRect rect = cellRect(QPoint(x, y));
+                if (event->region().intersects(rect)) painter.drawRect(rect.adjusted(1, 1, -1, -1));
+            }
+    }
     const auto draw = [&](const QString &id, const QRect &rect) {
         const auto &tile = m_tiles.constFind(id).value();
         QPalette colors = m_appearance.colors;
@@ -407,7 +451,7 @@ void SensorGrid::changeEvent(QEvent *event)
     QAbstractScrollArea::changeEvent(event);
     if (event->type() == QEvent::WindowDeactivate) finishDrag(false);
     if (event->type() == QEvent::FontChange)
-        m_style = SensorTileRenderer::style(tileSize(), font());
+        m_style = SensorTileRenderer::style(tileSize(), font(), m_tileShape, m_circleShrinkPercent);
     if (event->type() == QEvent::PaletteChange) updateAppearance();
     if (event->type() == QEvent::FontChange || event->type() == QEvent::PaletteChange)
         viewport()->update();

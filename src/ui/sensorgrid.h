@@ -20,6 +20,10 @@ public:
     void setCompactView(bool compact);
     void setTileSize(int size, bool persist = true);
     void saveTileSize() const;
+    DashboardTileShape tileShape() const { return m_tileShape; }
+    int circleShrinkPercent() const { return m_circleShrinkPercent; }
+    void setTileShape(DashboardTileShape shape);
+    void setCircleShrinkPercent(int percent);
     DashboardPalette palettePreset() const { return m_palettePreset; }
     DashboardBackground backgroundPattern() const { return m_backgroundPattern; }
     void setPalettePreset(DashboardPalette preset);
@@ -77,6 +81,8 @@ private:
     QStringList m_lastVisible;
     QRect m_bounds{0, 0, 1, 1};
     TileStyle m_style;
+    DashboardTileShape m_tileShape = DashboardTileShape::RoundedRectangle;
+    int m_circleShrinkPercent = 20;
     DashboardPalette m_palettePreset = DashboardPalette::System;
     DashboardBackground m_backgroundPattern = DashboardBackground::Solid;
     DashboardAppearance m_appearance;

@@ -15,6 +15,7 @@ namespace qsensors {
 
 inline constexpr int minimumTileSize = 64;
 inline constexpr int maximumTileSize = 2048;
+enum class DashboardTileShape { RoundedRectangle, Square, Circle };
 
 struct GaugeRange {
     double lower = 0;
@@ -38,6 +39,8 @@ struct TileReading {
 // Geometry/fonts are shared by the whole grid and rebuilt only on size/font changes.
 struct TileStyle {
     int size = 128;
+    DashboardTileShape shape = DashboardTileShape::RoundedRectangle;
+    qreal contentScale = 1;
     QFont valueFont;
     QFont unitFont;
     QFont labelFont;
@@ -46,7 +49,9 @@ struct TileStyle {
 
 class SensorTileRenderer {
 public:
-    static TileStyle style(int size, const QFont &baseFont);
+    static TileStyle style(int size, const QFont &baseFont,
+                           DashboardTileShape shape = DashboardTileShape::RoundedRectangle,
+                           int circleShrinkPercent = 20);
     // Prepare only the selected readout and enabled gauge data; the grid tells
     // us whether endpoint labels are present at its current tile size.
     static TileReading prepare(const SensorDescriptor &descriptor, const SensorSample &sample,

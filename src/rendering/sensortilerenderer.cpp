@@ -76,10 +76,14 @@ void fittedText(QPainter &painter, const QRectF &rect, const QString &text,
 
 } // namespace
 
-TileStyle SensorTileRenderer::style(int size, const QFont &baseFont)
+TileStyle SensorTileRenderer::style(int size, const QFont &baseFont,
+                                  DashboardTileShape shape, int circleShrinkPercent)
 {
     TileStyle result;
     result.size = size;
+    result.shape = shape;
+    result.contentScale = shape == DashboardTileShape::Circle
+        ? 1.0 - std::clamp(circleShrinkPercent, 0, 50) / 100.0 : 1.0;
     const auto font = [&baseFont, size](double fraction, int minimum, bool bold) {
         QFont font = baseFont;
         font.setPixelSize(std::max(minimum, static_cast<int>(std::round(size * fraction))));
@@ -198,9 +202,21 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
     painter.setRenderHint(QPainter::Antialiasing);
     if (preferences.dashboardTransparent) painter.setBrush(Qt::NoBrush);
     else painter.setBrush(palette.brush(QPalette::Base));
-    painter.setPen(QPen(palette.color(selected ? QPalette::Highlight : QPalette::Mid),
-                        std::max(1.0, size * (selected ? 0.014 : 0.006))));
-    painter.drawRoundedRect(QRectF(1, 1, size - 2, size - 2), size * 0.06, size * 0.06);
+    const qreal borderWidth = style.shape == DashboardTileShape::Square ? 1.0
+        : std::max(1.0, size * (selected ? 0.014 : 0.006));
+    painter.setPen(QPen(palette.color(selected ? QPalette::Highlight : QPalette::Mid), borderWidth));
+    if (style.shape == DashboardTileShape::Square)
+        painter.drawRect(QRectF(.5, .5, size - 1, size - 1));
+    else if (style.shape == DashboardTileShape::Circle)
+        painter.drawEllipse(QRectF(borderWidth / 2, borderWidth / 2, size - borderWidth, size - borderWidth));
+    else painter.drawRoundedRect(QRectF(1, 1, size - 2, size - 2), size * 0.06, size * 0.06);
+    // Shrink all contents about the center, leaving the circular border intact.
+    // Keep the rectangular cell clip: contents may protrude beyond the circle.
+    if (style.contentScale != 1) {
+        const qreal inset = size * (1 - style.contentScale) / 2;
+        painter.translate(inset, inset);
+        painter.scale(style.contentScale, style.contentScale);
+    }
     const QColor textColor = palette.color(reading.available ? QPalette::Active : QPalette::Disabled,
                                           QPalette::Text);
     painter.setPen(textColor);

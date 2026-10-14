@@ -117,6 +117,56 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     addBackground(tr("Solid"), DashboardBackground::Solid);
     addBackground(tr("Dots"), DashboardBackground::Dots);
     addBackground(tr("Grid"), DashboardBackground::Grid);
+    auto *styleMenu = view->addMenu(tr("Dashboard Style"));
+    auto *styleGroup = new QActionGroup(styleMenu);
+    const auto addStyle = [this, styleMenu, styleGroup](const QString &label, DashboardTileShape shape) {
+        auto *action = styleMenu->addAction(label);
+        action->setCheckable(true);
+        styleGroup->addAction(action);
+        action->setChecked(m_grid->tileShape() == shape);
+        connect(action, &QAction::triggered, m_grid, [this, shape] { m_grid->setTileShape(shape); });
+    };
+    addStyle(tr("Rounded Rectangular"), DashboardTileShape::RoundedRectangle);
+    addStyle(tr("Square"), DashboardTileShape::Square);
+    addStyle(tr("Circular"), DashboardTileShape::Circle);
+    styleMenu->addSeparator();
+    auto *shrinkMenu = styleMenu->addMenu(tr("Circular Content Shrink"));
+    auto *shrinkGroup = new QActionGroup(shrinkMenu);
+    for (int percent = 0; percent <= 30; percent += 5) {
+        auto *action = shrinkMenu->addAction(tr("%1%").arg(percent));
+        action->setCheckable(true);
+        action->setData(percent);
+        shrinkGroup->addAction(action);
+        connect(action, &QAction::triggered, m_grid, [this, percent] { m_grid->setCircleShrinkPercent(percent); });
+    }
+    shrinkMenu->addSeparator();
+    auto *customShrink = shrinkMenu->addAction(tr("Custom…"));
+    customShrink->setCheckable(true);
+    customShrink->setData(-1);
+    shrinkGroup->addAction(customShrink);
+    const auto updateShrinkActions = [this, shrinkGroup, customShrink] {
+        const int percent = m_grid->circleShrinkPercent();
+        bool preset = false;
+        for (auto *action : shrinkGroup->actions()) {
+            const bool matches = action->data().toInt() == percent;
+            action->setChecked(matches);
+            preset = preset || matches;
+        }
+        customShrink->setChecked(!preset);
+        customShrink->setText(preset ? tr("Custom…") : tr("Custom (%1%)…").arg(percent));
+    };
+    connect(styleMenu, &QMenu::aboutToShow, this, [this, shrinkMenu] {
+        shrinkMenu->setEnabled(m_grid->tileShape() == DashboardTileShape::Circle);
+    });
+    connect(shrinkMenu, &QMenu::aboutToShow, this, updateShrinkActions);
+    connect(customShrink, &QAction::triggered, this, [this, updateShrinkActions] {
+        bool accepted = false;
+        const int percent = QInputDialog::getInt(this, tr("Circular Content Shrink"), tr("Shrink contents by (%):"),
+                                                m_grid->circleShrinkPercent(), 0, 50, 1, &accepted);
+        if (accepted) m_grid->setCircleShrinkPercent(percent);
+        updateShrinkActions();
+    });
+    updateShrinkActions();
     // A bottom-right handle leaves the tile field available for moving the window.
     // QSizeGrip uses Qt's native resize support, including Wayland when available.
     m_resizeGrip = new QSizeGrip(this);
