@@ -41,7 +41,7 @@ QVariant SensorTableModel::data(const QModelIndex &index, int role) const
         return preferences.background;
     if (role == Qt::ToolTipRole) {
         if (index.column() <= 1)
-            return descriptor.id;
+            return tr("%1\n%2").arg(descriptor.label, descriptor.device);
         if (!sample.available)
             return sample.error;
         return sample.detail;

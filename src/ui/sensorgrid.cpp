@@ -381,10 +381,11 @@ bool SensorGrid::viewportEvent(QEvent *event)
             const auto formatted = formatSensorValue(tile.descriptor, tile.sample.value);
             const QString value = valid ? QStringLiteral("%1 %2").arg(formatted.number, formatted.unit)
                                         : tr("Unavailable");
-            QToolTip::showText(help->globalPos(), tr("%1\n%2\n%3\n%4")
-                .arg(tile.descriptor.label, tile.descriptor.device, value,
-                     valid ? (tile.sample.detail.isEmpty() ? tile.descriptor.id : tile.sample.detail)
-                           : tile.sample.error.isEmpty() ? tr("No current reading") : tile.sample.error), viewport());
+            QString tooltip = tr("%1\n%2\n%3").arg(tile.descriptor.label, tile.descriptor.device, value);
+            const QString detail = valid ? tile.sample.detail
+                : tile.sample.error.isEmpty() ? tr("No current reading") : tile.sample.error;
+            if (!detail.isEmpty()) tooltip += QLatin1Char('\n') + detail;
+            QToolTip::showText(help->globalPos(), tooltip, viewport());
         } else {
             QToolTip::hideText();
         }

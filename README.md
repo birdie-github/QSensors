@@ -21,6 +21,8 @@ Dashboard sensors independently select Normal/Digital text and gauge visibility.
 Digital readouts use scalable vector segments; CPU frequencies use filled watch
 segments, while temperatures retain one decimal and a square degree mark. Tile
 source footers are omitted; sources remain in Settings, table rows and tooltips.
+Dashboard tooltips omit internal sensor IDs and retain useful status/error details;
+diagnostic IDs remain accessible in Settings.
 Phase 6 (alarms) is deferred.
 
 Vector tiles default to 128 logical pixels; the toolbar accepts 64–2048, with
