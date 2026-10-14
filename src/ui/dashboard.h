@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include "sensors/sensortypes.h"
 #include <QStringList>
+#include <QTimer>
 
 class QSpinBox;
 class QAction;
@@ -11,6 +12,8 @@ class QLabel;
 class QCloseEvent;
 class QStackedWidget;
 class QComboBox;
+class QSizeGrip;
+class QResizeEvent;
 
 namespace qsensors {
 
@@ -44,6 +47,7 @@ protected:
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
     void changeEvent(QEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void chooseCustomTileSize();
@@ -51,6 +55,8 @@ private:
     void saveWindowGeometry();
     void setControlsVisible(bool visible);
     void fitCompactView();
+    void positionResizeGrips();
+    void finishCompactResize();
     SensorPreferencesStore *m_preferences;
     QSpinBox *m_interval;
     SensorGrid *m_grid;
@@ -62,6 +68,10 @@ private:
     QLabel *m_trayWarning;
     bool m_trayAvailable = false;
     bool m_compact = false;
+    bool m_adjustingCompact = false;
+    QSizeGrip *m_resizeGrips[4]{};
+    QTimer m_resizeSaveTimer;
+    bool m_resizeSavePending = false;
     QRect m_expandedGeometry;
     Qt::WindowStates m_expandedState;
     Qt::WindowFlags m_expandedFlags;

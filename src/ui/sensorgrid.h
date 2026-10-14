@@ -15,8 +15,11 @@ public:
     explicit SensorGrid(SensorPreferencesStore *preferences, QWidget *parent = nullptr);
     int tileSize() const { return m_style.size; }
     QSize fieldSize() const;
+    QSize fieldSizeForTileSize(int size) const;
+    int tileSizeForResize(const QSize &size, const QSize &previousSize) const;
     void setCompactView(bool compact);
-    void setTileSize(int size);
+    void setTileSize(int size, bool persist = true);
+    void saveTileSize() const;
     void setDescriptors(const QList<SensorDescriptor> &descriptors);
     void applySamples(const QList<SensorSample> &samples, bool incremental = false);
     QStringList visibleIds() const;

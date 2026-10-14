@@ -24,6 +24,9 @@
 #include <QMessageBox>
 #include <QMenuBar>
 #include <QSignalBlocker>
+#include <QScopedValueRollback>
+#include <QResizeEvent>
+#include <QSizeGrip>
 #include <QSpinBox>
 #include <QSortFilterProxyModel>
 #include <QStackedWidget>
@@ -79,6 +82,24 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     m_tableView->setCheckable(true);
     m_tableView->setChecked(QSettings().value(QStringLiteral("Dashboard/tableView"), false).toBool());
     m_grid = new SensorGrid(preferences, this);
+    // Corner-only handles leave the tile field available for moving the window.
+    // QSizeGrip uses Qt's native resize support, including Wayland when available.
+    for (auto &grip : m_resizeGrips) {
+        grip = new QSizeGrip(this);
+        grip->setToolTip(tr("Resize square tiles"));
+        grip->hide();
+    }
+    m_resizeSaveTimer.setSingleShot(true);
+    m_resizeSaveTimer.setInterval(200);
+    connect(&m_resizeSaveTimer, &QTimer::timeout, this, [this] {
+        // Native resize operations do not expose a portable "resize finished"
+        // event. Wait for both quiet geometry and released mouse buttons.
+        if (QGuiApplication::mouseButtons() != Qt::NoButton) {
+            m_resizeSaveTimer.start();
+            return;
+        }
+        finishCompactResize();
+    });
     m_controlsAction = view->addAction(tr("Show Main Window Controls"));
     m_controlsAction->setCheckable(true);
     m_controlsAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+M")));
@@ -215,6 +236,7 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
 
 Dashboard::~Dashboard()
 {
+    finishCompactResize();
     saveWindowGeometry();
 }
 
@@ -223,6 +245,8 @@ void Dashboard::setControlsVisible(bool visible)
     const QSignalBlocker blocker(m_controlsAction);
     m_controlsAction->setChecked(visible);
     if (m_compact == !visible) return;
+    finishCompactResize();
+    const QScopedValueRollback<bool> adjusting(m_adjustingCompact, true);
     const bool wasVisible = isVisible();
     if (!visible) {
         saveWindowGeometry();
@@ -259,6 +283,7 @@ void Dashboard::setControlsVisible(bool visible)
     QSettings().setValue(QStringLiteral("Dashboard/controlsVisible"), visible);
     // Reparenting explicitly hides widgets; showing the window does not undo it.
     centralWidget()->show();
+    for (auto *grip : m_resizeGrips) grip->setVisible(m_compact);
     fitCompactView();
     if (wasVisible) show();
     // Window flag changes and hidden toolbars settle through posted layout events.
@@ -269,6 +294,7 @@ void Dashboard::setControlsVisible(bool visible)
 void Dashboard::fitCompactView()
 {
     if (!m_compact) return;
+    const QScopedValueRollback<bool> adjusting(m_adjustingCompact, true);
     // Flush the central-widget/chrome layout before deriving the outer size.
     layout()->invalidate();
     layout()->activate();
@@ -276,8 +302,54 @@ void Dashboard::fitCompactView()
                        std::max(0, height() - m_grid->height()));
     const QSize field = m_grid->fieldSize() + chrome;
     // Compact mode always contains the complete field, even beyond screen bounds.
-    setFixedSize(field);
+    setMinimumSize(m_grid->fieldSizeForTileSize(minimumTileSize) + chrome);
+    setMaximumSize(m_grid->fieldSizeForTileSize(maximumTileSize) + chrome);
+    resize(field);
     layout()->activate();
+    positionResizeGrips();
+    // Resizing uses the same preference as the menu and toolbar selectors.
+    const QSignalBlocker blocker(m_tileSize);
+    m_tileSize->setCurrentText(QString::number(m_grid->tileSize()));
+}
+
+void Dashboard::positionResizeGrips()
+{
+    for (int i = 0; i < 4; ++i) {
+        auto *grip = m_resizeGrips[i];
+        const QSize extent = grip->sizeHint();
+        grip->setGeometry((i & 1) ? width() - extent.width() : 0,
+                          (i & 2) ? height() - extent.height() : 0,
+                          extent.width(), extent.height());
+        grip->raise();
+    }
+}
+
+void Dashboard::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    if (!m_compact || m_adjustingCompact) return;
+    const QScopedValueRollback<bool> adjusting(m_adjustingCompact, true);
+    layout()->activate();
+    const QSize chrome(std::max(0, width() - m_grid->width()),
+                       std::max(0, height() - m_grid->height()));
+    const int size = m_grid->tileSizeForResize(event->size() - chrome,
+                                             event->oldSize() - chrome);
+    if (size != m_grid->tileSize()) {
+        m_grid->setTileSize(size, false);
+        m_resizeSavePending = true;
+    }
+    if (m_resizeSavePending) m_resizeSaveTimer.start();
+    // Snap both axes to the same integer tile size; never stretch a tile or
+    // introduce scrollbars, including for non-square dashboard arrangements.
+    fitCompactView();
+}
+
+void Dashboard::finishCompactResize()
+{
+    m_resizeSaveTimer.stop();
+    if (!m_resizeSavePending) return;
+    m_resizeSavePending = false;
+    m_grid->saveTileSize();
 }
 
 void Dashboard::saveWindowGeometry()
@@ -410,6 +482,7 @@ void Dashboard::showEvent(QShowEvent *event)
 
 void Dashboard::hideEvent(QHideEvent *event)
 {
+    finishCompactResize();
     QMainWindow::hideEvent(event);
     updateVisibleIds();
     emit dashboardActiveChanged(false);

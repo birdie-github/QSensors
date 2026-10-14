@@ -63,8 +63,23 @@ SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
 }
 QSize SensorGrid::fieldSize() const
 {
-    const int stride = tileSize() + m_gap;
+    return fieldSizeForTileSize(tileSize());
+}
+QSize SensorGrid::fieldSizeForTileSize(int size) const
+{
+    const int stride = std::clamp(size, minimumTileSize, maximumTileSize) + m_gap;
     return QSize(m_gap + m_bounds.width() * stride, m_gap + m_bounds.height() * stride);
+}
+int SensorGrid::tileSizeForResize(const QSize &size, const QSize &previousSize) const
+{
+    // Follow the axis with the larger change per cell. Using the smaller
+    // dimension would stall growth when a corner moves by only a few pixels.
+    const double dx = double(size.width() - previousSize.width()) / m_bounds.width();
+    const double dy = double(size.height() - previousSize.height()) / m_bounds.height();
+    const double requested = std::abs(dx) >= std::abs(dy)
+        ? double(size.width() - m_gap) / m_bounds.width() - m_gap
+        : double(size.height() - m_gap) / m_bounds.height() - m_gap;
+    return std::clamp(int(std::round(requested)), minimumTileSize, maximumTileSize);
 }
 void SensorGrid::setCompactView(bool compact)
 {
@@ -79,13 +94,17 @@ void SensorGrid::setCompactView(bool compact)
     verticalScrollBar()->setValue(0);
     updateLayout();
 }
-void SensorGrid::setTileSize(int size)
+void SensorGrid::saveTileSize() const
+{
+    QSettings().setValue(QStringLiteral("Dashboard/tileSize"), tileSize());
+}
+void SensorGrid::setTileSize(int size, bool persist)
 {
     size = std::clamp(size, minimumTileSize, maximumTileSize);
     if (size == tileSize()) return;
     finishDrag(false);
     m_style = SensorTileRenderer::style(size, font());
-    QSettings().setValue(QStringLiteral("Dashboard/tileSize"), size);
+    if (persist) saveTileSize();
     updateLayout();
     ensureVisible(m_order.indexOf(m_selected));
     emit fieldSizeChanged();
