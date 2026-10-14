@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ui/sensorgrid.h"
+#include "ui/dashboardcolorsdialog.h"
 #include "rendering/valueformat.h"
 #include "settings/sensorpreferences.h"
 #include <QApplication>
@@ -29,9 +30,12 @@ SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
     : QAbstractScrollArea(parent), m_preferences(preferences)
 {
     setFocusPolicy(Qt::StrongFocus);
-    viewport()->setAutoFillBackground(true);
+    viewport()->setAutoFillBackground(false);
     viewport()->setBackgroundRole(QPalette::Window);
     QSettings settings;
+    m_palettePreset = dashboardPaletteFromKey(settings.value(QStringLiteral("Dashboard/palette")).toString());
+    m_backgroundPattern = dashboardBackgroundFromKey(settings.value(QStringLiteral("Dashboard/backgroundPattern")).toString());
+    updateAppearance();
     bool valid = false;
     const int size = settings.value(QStringLiteral("Dashboard/tileSize"), 128).toInt(&valid);
     m_style = SensorTileRenderer::style(valid && size >= minimumTileSize && size <= maximumTileSize ? size : 128, font());
@@ -60,6 +64,35 @@ SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
         updateDrag();
         if (oldScroll == QPoint(horizontalScrollBar()->value(), verticalScrollBar()->value()) && oldBounds == m_bounds) m_autoScroll.stop();
     });
+}
+void SensorGrid::updateAppearance()
+{
+    m_appearance = dashboardAppearance(palette(), m_palettePreset);
+    m_backgroundBrush = dashboardBackgroundBrush(m_appearance, m_backgroundPattern);
+    viewport()->update();
+}
+void SensorGrid::setPalettePreset(DashboardPalette preset)
+{
+    if (m_palettePreset == preset) return;
+    m_palettePreset = preset;
+    QSettings().setValue(QStringLiteral("Dashboard/palette"), dashboardPaletteKey(preset));
+    updateAppearance();
+}
+void SensorGrid::setBackgroundPattern(DashboardBackground pattern)
+{
+    if (m_backgroundPattern == pattern) return;
+    m_backgroundPattern = pattern;
+    QSettings().setValue(QStringLiteral("Dashboard/backgroundPattern"), dashboardBackgroundKey(pattern));
+    updateAppearance();
+}
+void SensorGrid::customizeColors()
+{
+    const auto draft = editDashboardColors(m_appearance, this);
+    if (!draft) return;
+    saveCustomDashboardAppearance(*draft);
+    m_palettePreset = DashboardPalette::Custom;
+    QSettings().setValue(QStringLiteral("Dashboard/palette"), dashboardPaletteKey(m_palettePreset));
+    updateAppearance();
 }
 QSize SensorGrid::fieldSize() const
 {
@@ -325,8 +358,11 @@ void SensorGrid::paintEvent(QPaintEvent *event)
 {
     QPainter painter(viewport());
     painter.setClipRegion(event->region());
+    // Anchor the repeating brush to the field so it follows scrolling tiles.
+    painter.setBrushOrigin(-horizontalScrollBar()->value(), -verticalScrollBar()->value());
+    painter.fillRect(viewport()->rect(), m_backgroundBrush);
     // Empty cells are outlines only; no cell objects or canvas-sized image.
-    painter.setPen(QPen(palette().color(QPalette::Mid), 1, Qt::DotLine));
+    painter.setPen(QPen(m_appearance.colors.color(QPalette::Mid), 1, Qt::DotLine));
     const QPoint first = cellAt(QPoint(0, 0)), last = cellAt(viewport()->rect().bottomRight());
     for (int y = std::max(first.y(), m_bounds.top()); y <= std::min(last.y(), m_bounds.bottom()); ++y)
         for (int x = std::max(first.x(), m_bounds.left()); x <= std::min(last.x(), m_bounds.right()); ++x) {
@@ -335,12 +371,16 @@ void SensorGrid::paintEvent(QPaintEvent *event)
         }
     const auto draw = [&](const QString &id, const QRect &rect) {
         const auto &tile = m_tiles.constFind(id).value();
-        QPalette colors = palette();
+        QPalette colors = m_appearance.colors;
         const auto prefs = m_preferences->value(id);
-        if (prefs.foreground.isValid() || prefs.background.isValid()) colors.setColor(QPalette::Text, dashboardTextColor(prefs, colors.color(QPalette::Text)));
-        if (prefs.dashboardTransparent) colors.setColor(QPalette::Base, palette().color(QPalette::Window));
+        if (prefs.foreground.isValid() || prefs.background.isValid()) {
+            const QColor text = dashboardTextColor(prefs, colors.color(QPalette::Text));
+            colors.setColor(QPalette::Active, QPalette::Text, text);
+            colors.setColor(QPalette::Inactive, QPalette::Text, text);
+        }
+        if (prefs.dashboardTransparent) colors.setColor(QPalette::Base, m_appearance.colors.color(QPalette::Window));
         else if (prefs.background.isValid()) colors.setColor(QPalette::Base, prefs.background);
-        SensorTileRenderer::draw(painter, rect, tile.descriptor, tile.reading, m_style, colors, id == m_selected, prefs);
+        SensorTileRenderer::draw(painter, rect, tile.descriptor, tile.reading, m_style, colors, id == m_selected, prefs, m_appearance);
     };
     for (int i = 0; i < m_order.size(); ++i) {
         if (m_dragging && m_order[i] == m_pressed) continue;
@@ -351,7 +391,7 @@ void SensorGrid::paintEvent(QPaintEvent *event)
         painter.save(); painter.setOpacity(.85); draw(m_pressed, cellRect(m_dropCell)); painter.restore();
     }
     if (m_order.isEmpty()) {
-        painter.setPen(palette().color(QPalette::Text));
+        painter.setPen(m_appearance.colors.color(QPalette::Text));
         painter.drawText(viewport()->rect().adjusted(16,16,-16,-16), Qt::AlignCenter | Qt::TextWordWrap,
                          tr("No dashboard sensors selected. Choose sensors in Settings. Double-click empty space to show or hide controls."));
     }
@@ -368,6 +408,7 @@ void SensorGrid::changeEvent(QEvent *event)
     if (event->type() == QEvent::WindowDeactivate) finishDrag(false);
     if (event->type() == QEvent::FontChange)
         m_style = SensorTileRenderer::style(tileSize(), font());
+    if (event->type() == QEvent::PaletteChange) updateAppearance();
     if (event->type() == QEvent::FontChange || event->type() == QEvent::PaletteChange)
         viewport()->update();
 }

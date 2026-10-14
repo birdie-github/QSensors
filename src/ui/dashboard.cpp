@@ -6,6 +6,7 @@
 
 #include <QSet>
 #include <QAction>
+#include <QActionGroup>
 #include <QCoreApplication>
 #include <QComboBox>
 #include <QIntValidator>
@@ -83,6 +84,39 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     m_tableView->setCheckable(true);
     m_tableView->setChecked(QSettings().value(QStringLiteral("Dashboard/tableView"), false).toBool());
     m_grid = new SensorGrid(preferences, this);
+    auto *paletteMenu = view->addMenu(tr("Dashboard Palette"));
+    auto *paletteGroup = new QActionGroup(paletteMenu);
+    const auto addPalette = [this, paletteMenu, paletteGroup](const QString &label, DashboardPalette preset) {
+        auto *action = paletteMenu->addAction(label);
+        action->setCheckable(true);
+        paletteGroup->addAction(action);
+        action->setData(static_cast<int>(preset));
+        action->setChecked(m_grid->palettePreset() == preset);
+        connect(action, &QAction::triggered, m_grid, [this, preset] { m_grid->setPalettePreset(preset); });
+    };
+    addPalette(tr("System"), DashboardPalette::System);
+    addPalette(tr("Classic KSensors"), DashboardPalette::Classic);
+    addPalette(tr("Graphite"), DashboardPalette::Graphite);
+    addPalette(tr("Custom"), DashboardPalette::Custom);
+    paletteMenu->addSeparator();
+    connect(paletteMenu->addAction(tr("Custom Colors…")), &QAction::triggered, this, [this, paletteGroup] {
+        m_grid->customizeColors();
+        // The editor activates Custom only on OK; Cancel retains the current action.
+        for (auto *action : paletteGroup->actions())
+            action->setChecked(action->data().toInt() == static_cast<int>(m_grid->palettePreset()));
+    });
+    auto *backgroundMenu = view->addMenu(tr("Dashboard Background"));
+    auto *backgroundGroup = new QActionGroup(backgroundMenu);
+    const auto addBackground = [this, backgroundMenu, backgroundGroup](const QString &label, DashboardBackground pattern) {
+        auto *action = backgroundMenu->addAction(label);
+        action->setCheckable(true);
+        backgroundGroup->addAction(action);
+        action->setChecked(m_grid->backgroundPattern() == pattern);
+        connect(action, &QAction::triggered, m_grid, [this, pattern] { m_grid->setBackgroundPattern(pattern); });
+    };
+    addBackground(tr("Solid"), DashboardBackground::Solid);
+    addBackground(tr("Dots"), DashboardBackground::Dots);
+    addBackground(tr("Grid"), DashboardBackground::Grid);
     // Corner-only handles leave the tile field available for moving the window.
     // QSizeGrip uses Qt's native resize support, including Wayland when available.
     for (auto &grip : m_resizeGrips) {

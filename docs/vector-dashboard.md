@@ -67,6 +67,43 @@ Compact sizing is reapplied after show/layout events so startup does not retain
 stale central-widget dimensions or transient scrollbars.
 **Ctrl+Shift+M** toggles controls even in table mode.
 
+### Dashboard colors and backgrounds
+
+**View → Dashboard Palette** offers System (the default), Classic KSensors,
+Graphite, and Custom. Classic uses the original 0.7.3 white/black panel colors,
+green/red gauge bands, and blue/teal voltage bands. Graphite uses charcoal panels
+with amber selection and needles. Palettes affect dashboard tiles in both normal
+and compact views; menus, the table view and tray keep their own appearance.
+
+Classic's gauge colors reproduce the original RGB values, but band positions
+are fixed proportions of the displayed range, not hardware alarm thresholds.
+Fans put the end band at the low end; voltage uses it at both ends. Other gauges
+put it at the high end. Unavailable readings use the plain gauge track.
+
+**Custom Colors…** starts with the currently selected palette. It edits canvas,
+tile, text, unavailable text, border, selection, pattern (including opacity),
+gauge track, needles, uptime digits, and the main/transition/end gauge bands.
+Voltage colors have separate controls. Colored bands can be enabled or disabled.
+OK saves and activates Custom; Cancel discards the draft. Switching presets keeps
+the saved custom palette; choose Custom before editing to resume that palette.
+Existing per-sensor text/background overrides take precedence. Reset those colors
+in sensor settings to follow the palette again; automatic contrast still applies
+when only a custom per-sensor background is set. Shadows remain derived from
+their text color, controlled by the existing per-sensor shadow option.
+
+**View → Dashboard Background** independently selects Solid (default), Dots, or
+Grid. Patterns cover the field and show through transparent tiles, while solid
+tiles retain their own background. A cached 16×16 brush repeats across the field;
+no full-dashboard bitmap or animation is allocated. It moves with the tiles when
+scrolling. No original wallpaper is enabled or required.
+
+Appearance choices are saved immediately from View. The custom-color editor saves
+only on OK. Settings use `Dashboard/palette` (`system`, `classic`, `graphite`,
+`custom`), `Dashboard/backgroundPattern` (`solid`, `dots`, `grid`), and colors under
+`Dashboard/CustomColors`. Unknown preset/pattern names fall back to System/Solid;
+invalid custom colors fall back to Classic defaults. Changing appearance does not
+change sensor polling, text styles, tile positions, sizes or per-sensor settings.
+
 Right-click anywhere on a sensor tile for Configure, Delete and Hide/Show controls.
 Empty cells and gutters offer only Hide/Show controls. Both menus work in compact
 view; keyboard context menus work on the selected tile. Configure opens Settings

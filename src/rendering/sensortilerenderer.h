@@ -2,6 +2,7 @@
 #pragma once
 
 #include "sensors/sensortypes.h"
+#include "rendering/dashboardappearance.h"
 #include "settings/sensorpreferences.h"
 
 #include <QFont>
@@ -52,7 +53,8 @@ public:
                                const SensorPreferences &preferences, TemperatureUnit unit, bool gaugeLabels);
     static void draw(QPainter &painter, const QRectF &rect, const SensorDescriptor &descriptor,
                      const TileReading &reading, const TileStyle &style,
-                     const QPalette &palette, bool selected, const SensorPreferences &preferences);
+                     const QPalette &palette, bool selected, const SensorPreferences &preferences,
+                     const DashboardAppearance &appearance);
 };
 
 } // namespace qsensors

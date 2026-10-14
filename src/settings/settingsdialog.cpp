@@ -820,17 +820,13 @@ void SettingsDialog::chooseColor(bool background, bool tray)
 void SettingsDialog::updateColorButtons()
 {
     const auto p = m_draft.value(m_currentId);
-    const auto update = [this](QPushButton *button, const QColor &color) {
-        button->setText(color.isValid() ? color.name() : tr("System default"));
+    const auto update = [this](QPushButton *button, const QColor &color, bool dashboard = false) {
+        button->setText(color.isValid() ? color.name() : dashboard ? tr("Palette default") : tr("System default"));
         button->setStyleSheet(color.isValid() ? QStringLiteral("background-color: %1; color: %2;")
             .arg(color.name(), color.lightness() > 128 ? QStringLiteral("black") : QStringLiteral("white")) : QString());
     };
-    update(m_dashboardControls.foreground, p.foreground);
-    if (m_currentId == QStringLiteral("system/uptime") && !p.foreground.isValid()) {
-        m_dashboardControls.foreground->setText(tr("Default (red)"));
-        m_dashboardControls.foreground->setStyleSheet(QStringLiteral("background-color: #ff0000; color: white;"));
-    }
-    update(m_dashboardControls.background, p.background);
+    update(m_dashboardControls.foreground, p.foreground, true);
+    update(m_dashboardControls.background, p.background, true);
     update(m_trayControls.foreground, p.trayForeground);
     update(m_trayControls.background, p.trayBackground);
 }

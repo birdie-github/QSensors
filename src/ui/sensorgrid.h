@@ -20,6 +20,11 @@ public:
     void setCompactView(bool compact);
     void setTileSize(int size, bool persist = true);
     void saveTileSize() const;
+    DashboardPalette palettePreset() const { return m_palettePreset; }
+    DashboardBackground backgroundPattern() const { return m_backgroundPattern; }
+    void setPalettePreset(DashboardPalette preset);
+    void customizeColors();
+    void setBackgroundPattern(DashboardBackground pattern);
     void setDescriptors(const QList<SensorDescriptor> &descriptors);
     void applySamples(const QList<SensorSample> &samples, bool incremental = false);
     QStringList visibleIds() const;
@@ -48,6 +53,7 @@ private:
     struct Tile { SensorDescriptor descriptor; SensorSample sample; TileReading reading; };
     void saveLayout();
     void updateLayout();
+    void updateAppearance();
     void notifyVisibleIds();
     QRect tileRect(int index) const;
     QRect cellRect(const QPoint &cell) const;
@@ -71,6 +77,10 @@ private:
     QStringList m_lastVisible;
     QRect m_bounds{0, 0, 1, 1};
     TileStyle m_style;
+    DashboardPalette m_palettePreset = DashboardPalette::System;
+    DashboardBackground m_backgroundPattern = DashboardBackground::Solid;
+    DashboardAppearance m_appearance;
+    QBrush m_backgroundBrush;
     bool m_compact = false;
     bool m_windowPressed = false;
     QPoint m_windowGrabOffset;

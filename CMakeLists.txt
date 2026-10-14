@@ -42,10 +42,14 @@ qt_add_executable(qsensors
     src/sensors/sensormonitor.h
     src/ui/dashboard.cpp
     src/ui/dashboard.h
+    src/ui/dashboardcolorsdialog.cpp
+    src/ui/dashboardcolorsdialog.h
     src/ui/sensorgrid.cpp
     src/ui/sensorgrid.h
     src/rendering/sensortilerenderer.cpp
     src/rendering/sensortilerenderer.h
+    src/rendering/dashboardappearance.cpp
+    src/rendering/dashboardappearance.h
     src/rendering/valueformat.cpp
     src/rendering/valueformat.h
     src/rendering/digitaltext.cpp

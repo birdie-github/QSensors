@@ -115,7 +115,7 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
         result.days = uptime.days;
         result.digitalText = uptime.time;
         result.unit.clear();
-        result.valueColor = preferences.foreground.isValid() ? preferences.foreground : QColor(Qt::red);
+        result.valueColor = preferences.foreground;
         return result;
     }
     const QLocale locale;
@@ -185,7 +185,7 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
 void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
                              const SensorDescriptor &descriptor, const TileReading &reading,
                              const TileStyle &style, const QPalette &palette,
-                             bool selected, const SensorPreferences &preferences)
+                             bool selected, const SensorPreferences &preferences, const DashboardAppearance &appearance)
 {
     bool gauge = preferences.dashboardGauge && sensorSupportsGauge(descriptor.id, descriptor.kind);
     if (descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory)
@@ -206,9 +206,8 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
     painter.setPen(textColor);
     const bool digital = preferences.dashboardTextStyle == DashboardTextStyle::Digital;
     if (descriptor.id == QStringLiteral("system/uptime") && digital) {
-        // Small legends default to black; invert on dark tile backgrounds for readability.
-        const QColor legend = palette.color(QPalette::Base).lightness() >= 128 ? QColor(Qt::black) : QColor(Qt::white);
-        const QColor base = reading.available ? (reading.valueColor.isValid() ? reading.valueColor : QColor(Qt::red))
+        const QColor legend = textColor;
+        const QColor base = reading.available ? (reading.valueColor.isValid() ? reading.valueColor : appearance.uptime)
                                              : palette.color(QPalette::Disabled, QPalette::Text);
         if (reading.days.isEmpty()) {
             drawDigitalText(painter, QRectF(padding, size * .08, size - 2 * padding, size * .13), QStringLiteral("HH:MM"), legend);
@@ -243,7 +242,9 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
             fittedText(painter, QRectF(padding, size * (gauge ? .38 : .68), size - 2 * padding, size * .11),
                        reading.digitalUnit, style.unitFont, true, preferences.dashboardShadow);
     } else {
-        const QColor ink = reading.valueColor.isValid() && reading.available ? reading.valueColor : textColor;
+        const QColor valueColor = reading.valueColor.isValid() ? reading.valueColor
+            : descriptor.id == QStringLiteral("system/uptime") ? appearance.uptime : textColor;
+        const QColor ink = reading.available ? valueColor : textColor;
         painter.setPen(ink);
         fittedText(painter, QRectF(padding, size * (gauge ? .07 : .20), size - 2 * padding, size * .32),
                    reading.text, style.valueFont, false, preferences.dashboardShadow);
@@ -257,8 +258,8 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
         const QRectF arc = compact ? QRectF(size * 0.28, size * 0.53, size * 0.44, size * 0.44)
                                    : QRectF(size * 0.24, size * 0.50, size * 0.52, size * 0.52);
         painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(palette.color(QPalette::Mid), std::max(1.0, size * 0.02), Qt::SolidLine, Qt::RoundCap));
-        painter.drawArc(arc, 0, 180 * 16);
+        drawDashboardGauge(painter, arc, std::max(1.0, size * 0.02), descriptor.kind,
+                           appearance, reading.available);
         const double span = reading.range.upper - reading.range.lower;
         if (reading.available && span > 0 && std::isfinite(span)) {
             // The sample's value is represented by the range fraction passed as
@@ -269,7 +270,9 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
             const qreal radius = arc.width() * 0.45;
             const QPointF tip(center.x() + std::cos(angle) * radius,
                               center.y() - std::sin(angle) * radius);
-            painter.setPen(QPen(preferences.foreground.isValid() ? textColor : palette.color(QPalette::Highlight), std::max(1.0, size * 0.018), Qt::SolidLine, Qt::RoundCap));
+            QColor needle = descriptor.kind == SensorKind::Voltage ? appearance.voltageNeedle : appearance.needle;
+            if (preferences.foreground.isValid()) needle = textColor;
+            painter.setPen(QPen(needle, std::max(1.0, size * 0.018), Qt::SolidLine, Qt::RoundCap));
             painter.drawLine(center, tip);
             if (style.size >= 96) {
                 painter.setPen(textColor);
