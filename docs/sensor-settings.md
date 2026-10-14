@@ -13,8 +13,12 @@ Disable all sensors clears both selections across the catalog (including search
 results that are hidden), and takes effect on Apply or OK. Reset sensor preferences also
 returns that sensor to disabled.
 
-The dialog opens on Sensors, sized from its layout and bounded to 90% of the
-available screen. Its editor scrolls when screen space is limited. The resizable browser groups sensors under collapsible source
+The dialog opens on Sensors, sized for all four browser columns and the largest
+fully populated sensor-editor tab, bounded to 90% of the available screen.
+Splitter widths are assigned to those measured content widths, and both panes
+remain accessible. Qt font/style metrics account for scaling. The editor
+scrolls only when screen space is limited or the user deliberately narrows the
+window/pane; long sensor lists still scroll vertically. The resizable browser groups sensors under collapsible source
 headings, naturally sorts source and display names (Core 2 before Core 18), and
 keeps unavailable sensors in a separate group. Search matches display names,
 original names, sources and stable IDs. Dashboard and tray checkboxes are directly

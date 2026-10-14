@@ -23,6 +23,8 @@
 #include <QCollator>
 #include <QLocale>
 #include <QScreen>
+#include <QStyle>
+#include <QFontMetrics>
 #include <QSignalBlocker>
 #include <QShowEvent>
 #include <QHideEvent>
@@ -184,6 +186,7 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     m_trayControls = createPresentationPage(true);
     m_sensorTabs->addTab(m_trayControls.page, tr("Systray"));
     scroll->setWidget(m_editor);
+    sensors->setChildrenCollapsible(false);
     sensors->setStretchFactor(0, 1);
     sensors->setStretchFactor(1, 1);
     tabs->addTab(sensors, tr("Sensors"));
@@ -248,7 +251,42 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
         if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].rangeUpper = fromDisplay(value, false);
     });
     updateCatalog(catalog);
-    resize(sizeHint().boundedTo(available * .9));
+
+    // QScrollArea caps its size hint. Measure the actual editor instead, with
+    // every optional section/tab present, so switching sensors/tabs also fits.
+    // This happens before showing; loadSensor restores the selected sensor's UI.
+    if (m_sensorTabs->indexOf(m_trayControls.page) < 0)
+        m_sensorTabs->addTab(m_trayControls.page, tr("Systray"));
+    m_gauge->show();
+    m_gaugeRange->show();
+    m_memoryDisplay->show();
+    m_editor->ensurePolished();
+    m_editor->layout()->activate();
+    const QSize editorHint = m_editor->sizeHint().expandedTo(m_editor->minimumSizeHint());
+    loadSensor(m_currentId);
+
+    // The browser needs the entire header width, not its small generic hint.
+    // Reserve the list's vertical scrollbar, which is expected for long catalogs.
+    const int headerMargin = 2 * m_list->header()->style()->pixelMetric(QStyle::PM_HeaderMargin);
+    const QFontMetrics headerMetrics(m_list->header()->font());
+    for (int column = 0; column < m_list->columnCount(); ++column) {
+        const int labelWidth = headerMetrics.horizontalAdvance(m_list->headerItem()->text(column)) + headerMargin;
+        m_list->setColumnWidth(column, std::max(m_list->columnWidth(column), labelWidth));
+    }
+    const int scrollbarWidth = style()->pixelMetric(QStyle::PM_ScrollBarExtent);
+    const int browserWidth = m_list->header()->length() + 2 * m_list->frameWidth() + scrollbarWidth;
+    // Spare scrollbar width also keeps the editor horizontally usable if a small
+    // screen requires vertical scrolling, or a unit suffix grows slightly.
+    const int editorWidth = editorHint.width() + 2 * scroll->frameWidth() + scrollbarWidth;
+    const int contentHeight = std::max(editorHint.height() + 2 * scroll->frameWidth(), browser->sizeHint().height());
+    layout->activate();
+    const QSize outerHint = sizeHint();
+    const QSize splitterHint = sensors->sizeHint();
+    const QSize chrome(std::max(0, outerHint.width() - splitterHint.width()),
+                       std::max(0, outerHint.height() - splitterHint.height()));
+    const QSize content(browserWidth + sensors->handleWidth() + editorWidth, contentHeight);
+    resize((content + chrome).boundedTo(available * .9));
+    sensors->setSizes({browserWidth, editorWidth});
 }
 
 SettingsDialog::PresentationControls SettingsDialog::createPresentationPage(bool tray)
