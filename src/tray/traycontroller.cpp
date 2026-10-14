@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <utility>
 
 namespace qsensors {
@@ -36,10 +37,32 @@ namespace qsensors {
 // only a bounded set of physical-resolution/font fits, without reading history.
 struct TrayFontSizingState {
     QHash<QByteArray, int> pixelLimits;
+    QHash<QByteArray, int> pointLimits;
+    QStringList fitTemplates;
     quint64 generation = 0;
 };
 
 namespace {
+
+QStringList trayFitTemplates(SensorKind kind)
+{
+    switch (kind) {
+    case SensorKind::Frequency:
+        return {QStringLiteral("####"), QStringLiteral("###K"), QStringLiteral("###G")};
+    case SensorKind::Memory:
+        return {QStringLiteral("###M"), QStringLiteral("###G"), QStringLiteral("###T"), QStringLiteral("###P"),
+                QStringLiteral("-##M"), QStringLiteral("-##G"), QStringLiteral("-##T"), QStringLiteral("-##P")};
+    case SensorKind::Fan:
+    case SensorKind::Voltage:
+        return {QStringLiteral("##.#"), QStringLiteral("-##.#")};
+    case SensorKind::Temperature:
+    case SensorKind::Humidity:
+    case SensorKind::Percentage:
+        return {QStringLiteral("####"), QStringLiteral("-###")};
+    default:
+        return {QStringLiteral("####"), QStringLiteral("-##.#"), QStringLiteral("#.##e+##")};
+    }
+}
 
 QString compactValue(const SensorDescriptor &descriptor, double value)
 {
@@ -166,28 +189,65 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
     auto &cache = trayFontCache();
     if (sizing.generation != cache.generation) {
         sizing.pixelLimits.clear();
+        sizing.pointLimits.clear();
         sizing.generation = cache.generation;
     }
-    // Smooth fonts may shrink for a wider new reading, but never grow as the
-    // value fluctuates. Native bitmap strikes keep their existing fit policy.
-    if (!bitmap) requested = sizing.pixelLimits.value(sizingKey, requested);
+    // Seed from the format envelope; retain the fit across fluctuating values.
+    // Exceptional readings beyond the envelope may still shrink the font.
+    const bool seedFit = !sizing.pixelLimits.contains(sizingKey) && !sizing.pointLimits.contains(sizingKey);
+    requested = sizing.pixelLimits.value(sizingKey, requested);
     QByteArray fitKey;
     QDataStream keyStream(&fitKey, QIODevice::WriteOnly);
-    keyStream << font << available << pixmap.logicalDpiX() << pixmap.logicalDpiY() << text << requested;
+    keyStream << font << available << pixmap.logicalDpiX() << pixmap.logicalDpiY()
+              << text << requested << sizing.pointLimits.value(sizingKey, 0) << seedFit << sizing.fitTemplates;
     FontFit fitted;
     if (const auto *cached = cache.fits.object(fitKey)) {
         fitted = *cached;
     } else {
         QRect bounds;
         auto fits = [&] {
-            bounds = QFontMetrics(font, &pixmap).tightBoundingRect(text);
-            return !bounds.isEmpty() && bounds.width() <= available.width()
-                && bounds.height() <= available.height();
+            const QFontMetrics metrics(font, &pixmap);
+            bounds = metrics.tightBoundingRect(text);
+            if (bounds.isEmpty() || bounds.width() > available.width() || bounds.height() > available.height())
+                return false;
+            if (!seedFit) return true;
+            // Reserve all digit widths before the first reading. Per-character
+            // advances plus bearing margins avoid fitting just one lucky set of
+            // narrow digits such as 1111. This work runs only when seeding a fit.
+            int digitAdvance = 0;
+            int digitLeft = 0, digitRight = 0;
+            for (const QChar digit : QStringLiteral("0123456789")) {
+                const QRect ink = metrics.tightBoundingRect(QString(digit));
+                digitAdvance = std::max(digitAdvance, metrics.horizontalAdvance(digit));
+                digitLeft = std::max(digitLeft, -ink.left());
+                digitRight = std::max(digitRight, ink.left() + ink.width() - metrics.horizontalAdvance(digit));
+            }
+            for (const auto &pattern : sizing.fitTemplates) {
+                int width = 0, left = digitLeft, right = digitRight;
+                QString glyphs = QStringLiteral("0123456789");
+                for (const QChar character : pattern) {
+                    if (character == QLatin1Char('#')) {
+                        width += digitAdvance;
+                    } else {
+                        const QRect ink = metrics.tightBoundingRect(QString(character));
+                        const int advance = metrics.horizontalAdvance(character);
+                        width += advance;
+                        left = std::max(left, -ink.left());
+                        right = std::max(right, ink.left() + ink.width() - advance);
+                        glyphs.append(character);
+                    }
+                }
+                if (width + left + right > available.width()
+                    || metrics.tightBoundingRect(glyphs).height() > available.height()) return false;
+            }
+            return true;
         };
         auto fitFont = [&](bool nativeBitmap) {
             if (nativeBitmap) {
                 // Only native strikes: never resample a bitmap font.
+                const int limit = sizing.pointLimits.value(sizingKey, std::numeric_limits<int>::max());
                 for (int points : traits.strikes) {
+                    if (points > limit) continue;
                     font.setPointSize(points);
                     if (fits()) return true;
                 }
@@ -197,7 +257,7 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
             font.setPixelSize(requested);
             if (fits()) return true;
             // Estimate from one reference measurement, then bracket the actual
-            // hinted ink bounds. At 128px this takes at most 13 measurements,
+            // hinted ink bounds. At 128px this takes at most 13 size probes,
             // rather than a descending scan of up to 256 sizes.
             font.setPixelSize(32);
             const QRect reference = QFontMetrics(font, &pixmap).tightBoundingRect(text);
@@ -230,7 +290,8 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
             bounds = bestBounds;
             return true;
         };
-        if (!fitFont(bitmap)) {
+        const bool retainedOutline = bitmap && sizing.pixelLimits.contains(sizingKey);
+        if (retainedOutline || !fitFont(bitmap)) {
             // Preserve the complete reading if no native bitmap strike fits.
             font = QFont(QStringLiteral("sans-serif"));
             font.setHintingPreference(QFont::PreferFullHinting);
@@ -242,10 +303,16 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
     }
     font = fitted.font;
     const QRect bounds = fitted.bounds;
-    if (!bitmap && font.pixelSize() > 0) {
-        if (!sizing.pixelLimits.contains(sizingKey) && sizing.pixelLimits.size() >= 16)
-            sizing.pixelLimits.clear();
+    if (seedFit && sizing.pixelLimits.size() + sizing.pointLimits.size() >= 16) {
+        sizing.pixelLimits.clear();
+        sizing.pointLimits.clear();
+    }
+    if (font.pixelSize() > 0) {
+        sizing.pointLimits.remove(sizingKey);
         sizing.pixelLimits.insert(sizingKey, font.pixelSize());
+    } else if (font.pointSize() > 0) {
+        sizing.pixelLimits.remove(sizingKey);
+        sizing.pointLimits.insert(sizingKey, font.pointSize());
     }
     // Integral device-pixel baselines retain bitmap sharpness. Reserve room
     // for the shadow, then paint the foreground last without any outline.
@@ -584,11 +651,13 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
         + QStringLiteral("|%1|%2|%3").arg(preferences.trayShadow)
             .arg(preferences.trayTransparent).arg(preferences.trayTransparent ? QString() :
                 (preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base)).name(QColor::HexArgb));
-    const QString sizingKey = font.toString() + QStringLiteral("|%1|%2")
-        .arg(preferences.trayDigital).arg(preferences.trayShadow);
+    const QString sizingKey = font.toString() + QStringLiteral("|%1|%2|%3")
+        .arg(preferences.trayDigital).arg(preferences.trayShadow).arg(static_cast<int>(descriptor.kind));
     if (!entry.fontSizing || entry.fontSizingKey != sizingKey) {
+        entry.renderKey.clear();
         entry.fontSizingKey = sizingKey;
         entry.fontSizing = std::make_shared<TrayFontSizingState>();
+        entry.fontSizing->fitTemplates = trayFitTemplates(descriptor.kind);
     }
     if (key != entry.renderKey) {
         entry.renderKey = key;
