@@ -326,6 +326,7 @@ void TrayController::reconcileIcons()
                 QFont readingFont = entry.menu->font();
                 readingFont.setBold(true);
                 entry.reading->setFont(readingFont);
+                entry.menu->setDefaultAction(entry.reading);
                 connect(entry.reading, &QAction::triggered, this, [this, id] {
                     emit showRequested();
                     emit sensorSettingsRequested(id);
@@ -377,6 +378,11 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
             : compactValue(descriptor, sample.value);
     const QString label = !preferences.label.isEmpty() ? preferences.label
         : descriptor.label.isEmpty() ? id : descriptor.label;
+    // Names are literal text, not menu mnemonics. Do not export a menu label
+    // update on every value change; full readings remain in the icon tooltip.
+    QString menuLabel = label;
+    menuLabel.replace(QLatin1Char('&'), QStringLiteral("&&"));
+    if (entry.reading->text() != menuLabel) entry.reading->setText(menuLabel);
     const auto formatted = formatSensorValue(descriptor, sample.value);
     const QString value = available && descriptor.kind == SensorKind::Frequency
         ? QLocale(QLocale::English, QLocale::UnitedStates).toString(sample.value * 1000000, 'f', 0) + QStringLiteral(" Hz")
@@ -390,7 +396,6 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
     if (tooltip != entry.tooltip) {
         entry.tooltip = tooltip;
         entry.icon->setToolTip(tooltip);
-        entry.reading->setText(tr("%1: %2").arg(label, value));
     }
     const QColor color = preferences.trayForeground.isValid() ? preferences.trayForeground
         : !preferences.trayTransparent && preferences.trayBackground.isValid()

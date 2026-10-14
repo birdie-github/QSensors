@@ -11,8 +11,9 @@ Temporarily missing selected sensors remain checked until explicitly removed.
 
 One QSystemTrayIcon represents each selected sensor. No selection produces one
 ordinary application icon. Each sensor icon's menu has a direct, bold, enabled reading
-entry using its configured display name (or original name), plus the current
-value. Selecting it opens that sensor's Systray settings, reusing an open dialog
+entry using only its configured display name (or original name). It is marked
+as the default menu action and requests a bold font; actual emphasis depends
+on the menu style and tray host. Selecting it opens that sensor's Systray settings, reusing an open dialog
 and retaining unapplied edits. Unavailable sensors remain configurable.
 Tooltips show devices, full readings/units and availability. Temperature/humidity use integers,
 fans use thousands of RPM with one decimal (the tooltip explicitly uses RPM),
