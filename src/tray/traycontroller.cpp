@@ -193,8 +193,10 @@ QIcon numericIcon(const QString &text, const QColor &color, const QFont &font, c
 TrayController::TrayController(QWidget *window, SensorPreferencesStore *preferences, QObject *parent)
     : QObject(parent), m_window(window), m_preferences(preferences), m_menu(std::make_unique<QMenu>())
 {
-    m_showAction = m_menu->addAction(tr("Show Dashboard"));
-    m_hideAction = m_menu->addAction(tr("Hide Dashboard"));
+    m_dashboardAction = m_menu->addAction(tr("Hide Dashboard"));
+    // Separate actions remain available to the dashboard's File menu.
+    m_showAction = new QAction(tr("Show Dashboard"), this);
+    m_hideAction = new QAction(tr("Hide Dashboard"), this);
     m_menu->addSeparator();
     m_settingsAction = m_menu->addAction(tr("Settings…"));
     m_rescanAction = m_menu->addAction(tr("Rescan"));
@@ -205,6 +207,7 @@ TrayController::TrayController(QWidget *window, SensorPreferencesStore *preferen
     m_settingsAction->setShortcut(QKeySequence::Preferences);
     m_rescanAction->setShortcut(QKeySequence(Qt::Key_F5));
     m_quitAction->setShortcut(QKeySequence::Quit);
+    connect(m_dashboardAction, &QAction::triggered, this, &TrayController::toggleRequested);
     connect(m_showAction, &QAction::triggered, this, &TrayController::showRequested);
     connect(m_hideAction, &QAction::triggered, this, &TrayController::hideRequested);
     connect(m_settingsAction, &QAction::triggered, this, &TrayController::openSettings);
@@ -262,18 +265,20 @@ QSystemTrayIcon *TrayController::createIcon()
 void TrayController::checkAvailability()
 {
     const bool available = QSystemTrayIcon::isSystemTrayAvailable();
-    m_hideAction->setEnabled(available && m_dashboardVisible);
     if (available != m_available) {
         m_available = available;
         emit availabilityChanged(available);
         if (!available && !m_dashboardVisible)
             emit showRequested();
     }
+    setDashboardVisible(m_dashboardVisible);
 }
 
 void TrayController::setDashboardVisible(bool visible)
 {
     m_dashboardVisible = visible;
+    m_dashboardAction->setText(visible ? tr("Hide Dashboard") : tr("Show Dashboard"));
+    m_dashboardAction->setEnabled(!visible || m_available);
     m_showAction->setEnabled(!visible);
     m_hideAction->setEnabled(visible && m_available);
 }

@@ -35,8 +35,9 @@ size. Icon images change only when compact text, colors or font parameters
 change; full-value tooltip/menu text can update independently. Settings selects per-sensor text/tray colors; invalid colors use the application
 palette. Alarm colors/actions follow in phase 6.
 
-Every icon shares Show Dashboard, Hide Dashboard, Settings, Rescan, About and
-Quit actions with the application menus. Single activation toggles the dashboard
+Every tray menu has a single dashboard action: Hide Dashboard while visible,
+Show Dashboard while hidden or minimized. Settings, Rescan, About and Quit
+remain shared with the application menus. Single activation toggles the dashboard
 where the host delivers it; there is no dependency on double-click or wheel
 support. Explicit Show/Hide actions remain available through the context menu.
 

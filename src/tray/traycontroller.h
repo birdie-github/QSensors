@@ -68,6 +68,7 @@ private:
     QWidget *m_window;
     SensorPreferencesStore *m_preferences;
     std::unique_ptr<QMenu> m_menu;
+    QAction *m_dashboardAction;
     QAction *m_showAction;
     QAction *m_hideAction;
     QAction *m_settingsAction;
