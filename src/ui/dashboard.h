@@ -46,6 +46,7 @@ protected:
     void changeEvent(QEvent *event) override;
 
 private:
+    void chooseCustomTileSize();
     void updateVisibleIds();
     void saveWindowGeometry();
     void setControlsVisible(bool visible);

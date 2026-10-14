@@ -12,6 +12,9 @@ class QPainter;
 
 namespace qsensors {
 
+inline constexpr int minimumTileSize = 16;
+inline constexpr int maximumTileSize = 2048;
+
 struct GaugeRange {
     double lower = 0;
     double upper = 1;

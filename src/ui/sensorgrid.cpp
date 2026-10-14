@@ -34,7 +34,7 @@ SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
     QSettings settings;
     bool valid = false;
     const int size = settings.value(QStringLiteral("Dashboard/tileSize"), 128).toInt(&valid);
-    m_style = SensorTileRenderer::style(valid && size >= 48 && size <= 2048 ? size : 128, font());
+    m_style = SensorTileRenderer::style(valid && size >= minimumTileSize && size <= maximumTileSize ? size : 128, font());
     const auto preferencesById = m_preferences->values();
     QStringList ids = preferencesById.keys();
     std::sort(ids.begin(), ids.end());
@@ -81,7 +81,7 @@ void SensorGrid::setCompactView(bool compact)
 }
 void SensorGrid::setTileSize(int size)
 {
-    size = std::clamp(size, 48, 2048);
+    size = std::clamp(size, minimumTileSize, maximumTileSize);
     if (size == tileSize()) return;
     finishDrag(false);
     m_style = SensorTileRenderer::style(size, font());

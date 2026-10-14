@@ -8,6 +8,7 @@
 #include <QCoreApplication>
 #include <QComboBox>
 #include <QIntValidator>
+#include <QInputDialog>
 #include <QLineEdit>
 #include <QSettings>
 #include <QScreen>
@@ -108,24 +109,30 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
             m_tileSize->setEditText(QString::number(size));
         });
     }
+    sizes->addSeparator();
+    connect(sizes->addAction(tr("Custom…")), &QAction::triggered, this, &Dashboard::chooseCustomTileSize);
     toolbar->addSeparator();
     toolbar->addWidget(new QLabel(tr("Tile size: "), toolbar));
     m_tileSize = new QComboBox(toolbar);
     m_tileSize->setEditable(true);
     m_tileSize->setInsertPolicy(QComboBox::NoInsert);
-    m_tileSize->setValidator(new QIntValidator(48, 2048, m_tileSize));
+    m_tileSize->setValidator(new QIntValidator(minimumTileSize, maximumTileSize, m_tileSize));
     for (int size : {64, 96, 128, 192, 256, 512, 1024, 2048})
         m_tileSize->addItem(QString::number(size));
+    m_tileSize->addItem(tr("Custom…"), true);
     m_tileSize->setCurrentText(QString::number(m_grid->tileSize()));
     m_tileSize->setMinimumContentsLength(4);
-    m_tileSize->setToolTip(tr("Square tile size in logical pixels (48–2048)."));
+    m_tileSize->setToolTip(tr("Square tile size in logical pixels (%1–%2).").arg(minimumTileSize).arg(maximumTileSize));
     m_tileSize->setAccessibleName(tr("Tile size in logical pixels"));
     toolbar->addWidget(m_tileSize);
     connect(m_tileSize, &QComboBox::currentTextChanged, this, [this](const QString &text) {
         bool valid = false;
         const int size = text.toInt(&valid);
-        if (valid && size >= 48 && size <= 2048)
+        if (valid && size >= minimumTileSize && size <= maximumTileSize)
             m_grid->setTileSize(size);
+    });
+    connect(m_tileSize, &QComboBox::activated, this, [this](int index) {
+        if (m_tileSize->itemData(index).toBool()) chooseCustomTileSize();
     });
     connect(m_tileSize->lineEdit(), &QLineEdit::editingFinished, this, [this] {
         const QSignalBlocker blocker(m_tileSize);
@@ -289,6 +296,30 @@ void Dashboard::saveWindowGeometry()
     }
     if (m_compact ? bool(m_expandedState & Qt::WindowMaximized) : isMaximized()) settings.setValue(QStringLiteral("Dashboard/maximized"), true);
     else settings.remove(QStringLiteral("Dashboard/maximized"));
+}
+
+void Dashboard::chooseCustomTileSize()
+{
+    // Remove the action label immediately, including on Cancel. Clearing its
+    // index prevents Enter on a later direct numeric edit from reopening it.
+    {
+        const QSignalBlocker blocker(m_tileSize);
+        m_tileSize->setCurrentIndex(-1);
+        m_tileSize->setEditText(QString::number(m_grid->tileSize()));
+    }
+    auto *dialog = new QInputDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle(tr("Custom Tile Size"));
+    dialog->setLabelText(tr("Tile size in logical pixels (%1–%2):").arg(minimumTileSize).arg(maximumTileSize));
+    dialog->setInputMode(QInputDialog::IntInput);
+    dialog->setIntRange(minimumTileSize, maximumTileSize);
+    dialog->setIntStep(1);
+    dialog->setIntValue(m_grid->tileSize());
+    connect(dialog, &QInputDialog::intValueSelected, this, [this](int size) {
+        // The existing text-change path applies, persists and refits the grid.
+        m_tileSize->setEditText(QString::number(size));
+    });
+    dialog->open();
 }
 
 void Dashboard::applySnapshot(const SensorSnapshot &snapshot)

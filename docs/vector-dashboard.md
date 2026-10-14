@@ -3,10 +3,13 @@
 ## Controls
 
 Tiles are the default view. **View → Table View** restores the existing table.
-The chosen view is saved. **Tile size** accepts any integer from 48 to 2048
+The chosen view is saved. **Tile size** accepts any integer from 16 to 2048
 logical pixels; its default is 128. Presets are 64, 96, 128, 192, 256, 512, 1024
-and 2048, also available under View. Incomplete edits revert to the current
-valid size when editing finishes. Each sensor's Dashboard settings independently
+and 2048, also available under View. Both the View → Tile Size menu and toolbar
+selector have Custom…: an integer dialog initialized to the current size,
+limited to 16–2048 with step 1, and only OK/Cancel buttons. OK applies and saves
+the size; Cancel leaves it unchanged. Direct toolbar edits remain available;
+incomplete edits revert to the current valid size when editing finishes. Each sensor's Dashboard settings independently
 choose Normal/Digital text and Show gauge; Uptime has no gauge. The previous
 global gauge menu item is replaced by these per-sensor choices.
 
