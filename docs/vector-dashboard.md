@@ -6,7 +6,9 @@ Tiles are the default view. **View → Table View** restores the existing table.
 The chosen view is saved. **Tile size** accepts any integer from 48 to 2048
 logical pixels; its default is 128. Presets are 64, 96, 128, 192, 256, 512, 1024
 and 2048, also available under View. Incomplete edits revert to the current
-valid size when editing finishes. **View → Show Gauges** toggles the gauges.
+valid size when editing finishes. Each sensor's Dashboard settings independently
+choose Normal/Digital text and Show gauge; Uptime has no gauge. The previous
+global gauge menu item is replaced by these per-sensor choices.
 
 The dashboard is a fixed rectangular field of square cells. Resizing the window
 changes the visible area and scrollbars, never tile positions or the field's
@@ -69,8 +71,8 @@ accidentally restore the deleted tile.
 
 Settings chooses which discovered channels appear on the dashboard; table mode
 uses the same selection. Full Unicode labels, device names, values and units
-remain available through tooltips. Device text appears at tile sizes of 192 or
-more. At small sizes gauge endpoint labels are omitted.
+remain available through tooltips. Sources are omitted from tile faces at all
+sizes. At small sizes gauge endpoint labels are omitted.
 
 ## Rendering and ranges
 
@@ -131,7 +133,7 @@ it. Sensor positions, internal gaps and control visibility survive restart.
 Layouts are written only on selection/layout changes, never sample updates.
 Invalid/conflicting coordinates are discarded and placed into free cells.
 
-Tile size, gauges, table view, control visibility and plain window geometry stay
+Tile size, table view, control visibility and plain window geometry stay
 under Dashboard. Only visible sensor tiles (including a visible drag preview)
 request readings; canvas growth creates no monitoring demand itself.
 

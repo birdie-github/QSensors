@@ -12,9 +12,11 @@ IDs contain package and kernel core IDs, independently of display names.
 | Average frequency | Arithmetic mean of one current MHz reading per online physical core. |
 | Maximum frequency | Highest current MHz reading among those physical cores, not a rated maximum or boost specification. |
 | Core X frequency | Current reported MHz from the lowest-numbered online logical thread of that physical core. |
-| RAM usage | `(MemTotal - MemAvailable) / MemTotal * 100`, with the fallback below. |
+| RAM usage (%) | `(MemTotal - MemAvailable) / MemTotal * 100`, with the fallback below. |
+| RAM usage (MiB) | `MemTotal - MemAvailable` (same fallback), converted from kernel KiB to MiB. |
+| Swap usage (MiB) | `SwapTotal - SwapFree`, converted to MiB; zero when no swap is configured. |
 | Available RAM | MemAvailable in canonical MiB, or as a percentage of MemTotal after optional calibration. |
-| Swap usage | `(SwapTotal - SwapFree) / SwapTotal * 100`; no swap gives zero plus an explicit state in Settings/tooltips. |
+| Swap usage (%) | `(SwapTotal - SwapFree) / SwapTotal * 100`; no swap gives zero plus an explicit state in Settings/tooltips. |
 | Uptime | Dashboard-only clock from the first `/proc/uptime` field, without 32-bit integer conversions. |
 
 ## Physical-core frequencies
@@ -54,7 +56,43 @@ both the current reading and provider maximum; nonpositive/invalid maxima omit
 the automatic gauge. The instantaneous Maximum frequency reading retains its
 existing meaning; this change fixes normalization, not the measured value.
 
-## Compact display
+## Dashboard text styles
+
+Normal retains the existing font/compact-unit readouts. Digital reuses the
+Uptime vector segment engine, with glyphs for decimal separators, unit letters,
+percentages and a small square degree marker. Readouts fit both the width and
+height available, reserving room for strokes and shadows. CPU frequencies use
+filled, chamfered seven-segment digits, following KSensors 0.7.3's CpuPanel
+QLCDNumber::Filled appearance. No per-tile widgets, bitmaps or timers are added.
+The source footer is removed for every tile; the sensor label remains.
+
+| Digital reading | Format |
+| --- | --- |
+| Memory | Rounded whole M/G/T/P value, no space, e.g. `1520M`. Units are binary (1024 per step) and promote when rounding would exceed 9999 of the current unit. Values below one MiB show `0M`. |
+| Voltage | At most two decimals, no space, e.g. `5.09V` or `5V`. |
+| Temperature | One decimal, nearest-tenth rounding, then a square degree mark for C/F. Kelvin uses K, e.g. `298.1K`. The displayed symbol is vector geometry, not a square Unicode placeholder. |
+| Fan | Rounded whole value plus ` RPM`, e.g. `2000 RPM`. |
+| CPU frequency | Rounded whole MHz in filled watch digits, with a small MHz unit underneath. |
+| Percentage / humidity | At most one decimal plus %, e.g. `37.2%`. |
+| Current / power / energy | At most two decimals followed by the canonical unit. |
+
+Normal temperature readings also use one decimal, including Kelvin. Formatting
+never changes samples, calibration, gauge calculations, table sort keys or tray
+settings. Normal/Digital and Show gauge are independent, so all four combinations
+work for gauge-capable sensors. Uptime supports both styles and remains gauge-free.
+
+RAM and Swap each have independent percentage and MiB sensors. Existing IDs and
+preferences for percentage readings are retained; the new MiB IDs are
+`system/memory/ram-used` and `system/memory/swap-used`, initially disabled. MiB
+readings have their own labels, calibration, gauge bounds, dashboard/tray
+selections and intervals. This avoids changing the units of an existing
+calibration or duplicating the underlying meminfo file read: all RAM readings
+share one parsed RAM result, all Swap readings share one parsed Swap result,
+and those use the same meminfo snapshot. Automatic MiB gauge upper bounds use
+total RAM/swap capacity from that snapshot. No-swap MiB readings show `0M` in
+Digital mode with the existing explanatory tooltip, and omit the zero-span gauge.
+
+## Normal, table and tray compact display
 
 Frequency uses MHz below 1000 MHz and GHz at/above 1000 MHz. Tiles, Settings and
 the table show full units; numeric tray icons append M or G. Examples: 900 MHz /
@@ -89,8 +127,9 @@ Below 100 hours, the tile has a small digital HH:MM legend, a large digital time
 and a small digital UPTIME footer. From 100 hours onward it omits the top legend,
 shows X days and the remaining HH:MM underneath, and retains the UPTIME footer.
 The cutoff interprets 99:59 as hours:minutes; exactly 100 hours is 4 days / 04:00.
-The footer is fixed UPTIME; a custom sensor name still applies in Settings/table
-and tooltips. Settings and the table also display the formatted time.
+Digital defaults to the UPTIME footer; a custom sensor name replaces it using
+normal text so arbitrary names remain legible. Normal displays the same time
+and days with regular fonts and the sensor label. Settings and the table also display the formatted time.
 
 The readout defaults to red with an offset dark-red shadow. Its existing sensor
 foreground setting becomes Readout color; the shadow is derived by darkening
@@ -113,7 +152,7 @@ Settings preview temporarily requests the catalog as before.
 
 CPU usage needs two valid counter snapshots. Counter decreases, malformed input,
 overflow and zero intervals invalidate a reading without presenting the old value
-as current. Rescan or a batch without Usage demand resets its baseline. RAM uses
+as current. Rescan resets its baseline; partial batches for other sensors retain it. RAM uses
 MemAvailable when present; otherwise estimated availability is free + buffers +
 cache + reclaimable slab − shared memory, bounded to total, with a tooltip note.
 These are host figures, not cgroup limits or zram compression measurements.
@@ -131,6 +170,15 @@ ctest --test-dir build --output-on-failure
 ```
 
 Manual checks:
+
+- For each type, try Normal/Digital with gauges on/off; Uptime must have no gauge.
+- Check readout fit, labels, decimal points, square degree markers, shadows and
+  transparency at 48/128/512/2048 pixels, including negative and unavailable readings.
+- Test memory transitions around 9999.5 M/G/T and voltage trailing-zero removal.
+- Compare RAM/Swap MiB and percentage readings against the same meminfo snapshot;
+  enable both and verify independent calibration/settings survive restart.
+- Check that absent new gauge/text keys use their defaults; obsolete
+  presentation/global-gauge keys must not affect the new controls.
 
 - Rescan and compare frequency-row count with physical cores from `lscpu`.
   On SMT systems there must be one row per physical core, not one per thread.

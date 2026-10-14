@@ -85,10 +85,9 @@ private:
     QTabWidget *m_sensorTabs;
     PresentationControls m_dashboardControls;
     PresentationControls m_trayControls;
-    QGroupBox *m_types;
-    QRadioButton *m_globalType;
-    QRadioButton *m_gaugeType;
-    QRadioButton *m_textType;
+    QCheckBox *m_gauge;
+    QRadioButton *m_normalText;
+    QRadioButton *m_digitalText;
     QGroupBox *m_gaugeRange;
     QFontComboBox *m_trayFont;
     QSpinBox *m_trayFontSize;

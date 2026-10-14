@@ -14,8 +14,7 @@ namespace qsensors {
 // Safe cell span even for 2048-pixel tiles plus the eight-pixel gap.
 inline constexpr int dashboardCellLimit = (std::numeric_limits<int>::max() / 2056 - 4) / 2;
 
-// Global preserves the existing toolbar gauge choice.
-enum class DashboardPresentation { Global, Gauge, Text };
+enum class DashboardTextStyle { Normal, Digital };
 inline constexpr double minimumRefreshSeconds = 0.05;
 inline constexpr double maximumRefreshSeconds = 3600;
 
@@ -43,16 +42,17 @@ struct SensorPreferences {
     double trayInterval = 5;
     bool dashboardUseGlobal = true;
     bool trayUseGlobal = true;
-    DashboardPresentation presentation = DashboardPresentation::Global;
+    bool dashboardGauge = true;
+    DashboardTextStyle dashboardTextStyle = DashboardTextStyle::Normal;
     bool dashboardShadow = false;
     bool dashboardTransparent = false;
     QColor trayForeground;
     QColor trayBackground;
-    bool trayShadow = true; // Preserve the old outlined numeric icons.
+    bool trayShadow = true; // Contrasting outline and shadow for numeric icons.
     bool trayTransparent = true;
     QString trayFontFamily; // Empty follows the system fixed font.
     int trayFontSize = 10; // Reference point size at a 24-pixel tray icon.
-    bool trayFontAutoFit = true; // Preserve legacy icons until the font size is edited.
+    bool trayFontAutoFit = true; // Automatic fitting until an explicit size is chosen.
     bool memoryAsPercent = false; // Available RAM display; canonical correction/range stays MiB.
     bool customRange = false;
     double rangeLower = 0; // Canonical absolute values, never alarm thresholds.

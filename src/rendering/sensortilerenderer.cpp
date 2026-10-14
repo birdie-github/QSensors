@@ -102,6 +102,7 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
     result.available = sample.available && std::isfinite(sample.value) && sample.timestamp.isValid();
     if (!result.available) {
         result.text = QStringLiteral("—");
+        result.digitalText = result.text;
         return result;
     }
     if (descriptor.id == QStringLiteral("system/uptime")) {
@@ -109,6 +110,7 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
         result.available = sample.value >= 0;
         result.text = uptime.time;
         result.days = uptime.days;
+        result.digitalText = uptime.time;
         result.unit.clear();
         result.valueColor = preferences.foreground.isValid() ? preferences.foreground : QColor(Qt::red);
         return result;
@@ -116,10 +118,15 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
     const QLocale locale;
     const auto formatted = formatSensorValue(descriptor, sample.value);
     result.unit = formatted.unit;
+    result.digitalText = formatDigitalSensorValue(descriptor, sample.value, unit == TemperatureUnit::Kelvin);
+    if (descriptor.kind == SensorKind::Frequency) result.digitalUnit = QStringLiteral("MHz");
     switch (descriptor.kind) {
-    case SensorKind::Temperature:
-        result.text = locale.toString(sample.value, 'f', unit == TemperatureUnit::Kelvin ? 2 : 1);
+    case SensorKind::Temperature: {
+        const double rounded = std::abs(sample.value) <= std::numeric_limits<double>::max() / 10
+            ? std::round(sample.value * 10) / 10 : sample.value;
+        result.text = locale.toString(rounded == 0 ? 0.0 : rounded, 'f', 1);
         break;
+    }
     case SensorKind::Humidity: result.text = locale.toString(sample.value, 'f', 1); break;
     case SensorKind::Percentage: result.text = formatted.number; break;
     case SensorKind::Frequency:
@@ -137,6 +144,8 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
     if (!preferences.customRange && descriptor.kind == SensorKind::Frequency)
         result.range = std::isfinite(sample.maximum) && sample.maximum > 0
             ? GaugeRange{0, sample.maximum} : GaugeRange{0, 0};
+    if (!preferences.customRange && descriptor.kind == SensorKind::Memory && std::isfinite(sample.maximum))
+        result.range = {0, std::max(0.0, sample.maximum)};
     // Memory's canonical unit stays MiB even when its display descriptor is %.
     if (descriptor.id == QStringLiteral("system/memory/available") && preferences.memoryAsPercent && std::isfinite(sample.reference) && sample.reference > 0 && preferences.customRange) {
         result.range.lower = result.range.lower / sample.reference * 100;
@@ -163,12 +172,10 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
 void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
                              const SensorDescriptor &descriptor, const TileReading &reading,
                              const TileStyle &style, const QPalette &palette,
-                             bool gauge, bool selected, const SensorPreferences &preferences)
+                             bool selected, const SensorPreferences &preferences)
 {
-    if (preferences.presentation != DashboardPresentation::Global)
-        gauge = preferences.presentation == DashboardPresentation::Gauge;
-    gauge = gauge && descriptor.kind != SensorKind::Duration;
-    if (descriptor.kind == SensorKind::Frequency)
+    bool gauge = preferences.dashboardGauge && sensorSupportsGauge(descriptor.id, descriptor.kind);
+    if (descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory)
         gauge = gauge && std::isfinite(reading.range.upper) && reading.range.upper > reading.range.lower;
     painter.save();
     painter.setClipRect(rect, Qt::IntersectClip);
@@ -184,7 +191,8 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
     const QColor textColor = palette.color(reading.available ? QPalette::Active : QPalette::Disabled,
                                           QPalette::Text);
     painter.setPen(textColor);
-    if (descriptor.id == QStringLiteral("system/uptime")) {
+    const bool digital = preferences.dashboardTextStyle == DashboardTextStyle::Digital;
+    if (descriptor.id == QStringLiteral("system/uptime") && digital) {
         // Small legends default to black; invert on dark tile backgrounds for readability.
         const QColor legend = palette.color(QPalette::Base).lightness() >= 128 ? QColor(Qt::black) : QColor(Qt::white);
         const QColor base = reading.available ? (reading.valueColor.isValid() ? reading.valueColor : QColor(Qt::red))
@@ -203,15 +211,34 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
             fittedText(painter, daysRect, reading.days, style.valueFont, false);
             drawDigitalText(painter, QRectF(padding, size * .44, size - 2 * padding, size * .29), reading.text, base, preferences.dashboardShadow);
         }
-        drawDigitalText(painter, QRectF(padding, size * .83, size - 2 * padding, size * .10), QStringLiteral("UPTIME"), legend);
+        const QRectF labelRect(padding, size * .84, size - 2 * padding, size * .11);
+        if (preferences.label.isEmpty()) drawDigitalText(painter, labelRect, QStringLiteral("UPTIME"), legend);
+        else {
+            painter.setPen(textColor);
+            fittedText(painter, labelRect, descriptor.label, style.labelFont, true, preferences.dashboardShadow);
+        }
         painter.restore();
         return;
     }
     const bool compact = style.size < 96;
-    fittedText(painter, QRectF(padding, size * (gauge ? 0.07 : 0.20), size - 2 * padding, size * 0.32),
-               reading.text, style.valueFont, false, preferences.dashboardShadow);
-    fittedText(painter, QRectF(padding, size * (gauge ? 0.36 : 0.52), size - 2 * padding, std::max(9.0, size * 0.13)),
-               reading.unit, style.unitFont, true, preferences.dashboardShadow);
+    if (digital) {
+        const bool watch = descriptor.kind == SensorKind::Frequency;
+        const QRectF readout(padding, size * (gauge ? .07 : .12), size - 2 * padding,
+                             size * (gauge ? (watch ? .29 : .38) : (watch ? .53 : .66)));
+        drawDigitalText(painter, readout, reading.digitalText, textColor, preferences.dashboardShadow, watch);
+        if (!reading.digitalUnit.isEmpty())
+            fittedText(painter, QRectF(padding, size * (gauge ? .38 : .68), size - 2 * padding, size * .11),
+                       reading.digitalUnit, style.unitFont, true, preferences.dashboardShadow);
+    } else {
+        const QColor ink = reading.valueColor.isValid() && reading.available ? reading.valueColor : textColor;
+        painter.setPen(ink);
+        fittedText(painter, QRectF(padding, size * (gauge ? .07 : .20), size - 2 * padding, size * .32),
+                   reading.text, style.valueFont, false, preferences.dashboardShadow);
+        painter.setPen(textColor);
+        const QString detail = reading.days.isEmpty() ? reading.unit : reading.days;
+        fittedText(painter, QRectF(padding, size * (gauge ? .36 : .56), size - 2 * padding, std::max(9.0, size * .13)),
+                   detail, style.unitFont, true, preferences.dashboardShadow);
+    }
 
     if (gauge) {
         const QRectF arc = compact ? QRectF(size * 0.28, size * 0.53, size * 0.44, size * 0.44)
@@ -241,11 +268,8 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
         }
     }
     painter.setPen(textColor);
-    fittedText(painter, QRectF(padding, size * (compact ? 0.81 : 0.85), size - 2 * padding, std::max(8.0, size * 0.09)),
+    fittedText(painter, QRectF(padding, size * (compact ? .83 : .87), size - 2 * padding, size * .10),
                descriptor.label, style.labelFont, true, preferences.dashboardShadow);
-    if (style.size >= 192)
-        fittedText(painter, QRectF(padding, size * 0.94, size - 2 * padding, size * 0.05),
-                   descriptor.device, style.detailFont, true);
     painter.restore();
 }
 

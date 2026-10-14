@@ -15,6 +15,10 @@ namespace qsensors {
 inline bool sensorSupportsTray(const QString &id) { return id != QStringLiteral("system/uptime"); }
 
 enum class SensorKind { Temperature, Fan, Voltage, Current, Power, Energy, Humidity, Percentage, Frequency, Duration, Memory };
+inline bool sensorSupportsGauge(const QString &id, SensorKind kind)
+{
+    return kind != SensorKind::Duration && id != QStringLiteral("system/uptime");
+}
 
 // Copied metadata; canonical units are C, RPM, V, A, W, J, %, MHz, seconds and MiB.
 // IDs belong to the provider and must be unique and independent of labels.

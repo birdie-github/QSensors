@@ -33,18 +33,21 @@ preferences restores all of this sensor's defaults, including both enabled state
 
 Dashboard and Systray have independent enablement, timing, foreground/background
 colors, transparency and shadows. Disabling either page deactivates its controls
-without clearing any preferences. Dashboard types are Gauge and Text, with a
-Use global gauge setting option preserving the toolbar's behavior. Uptime has
-only its existing digital style and no Type section or Systray tab. Gauge bounds
-appear only for a gauge presentation; hiding them retains their saved values.
+without clearing any preferences. Dashboard text style is Normal or Digital,
+independent of its Show gauge checkbox. Uptime supports both text styles but has
+no gauge controls or Systray tab. Gauge bounds appear only when Show gauge is
+checked; hiding them retains their saved values. Gauge defaults to on (except
+Uptime); text defaults to Normal (Digital for Uptime). Only the new settings
+keys are read; old presentation/global-gauge choices are ignored. There is no
+compatibility or migration reader for them. The global gauge menu item is removed.
 Available RAM's MiB/percentage choice remains shared with the tray and table.
 
 The tray font uses a family selector and a 1–72 pt reference size for a 24-pixel
 icon. Explicit sizes scale for the host and are reduced if necessary to fit the
-complete value. Existing icons retain automatic fitting until the size is edited;
+complete value. Automatic fitting is the default until the size is edited;
 font Reset restores the system fixed font, size 10 and automatic fitting without
-changing colors, shadows or backgrounds. Cast shadow also retains the legacy
-contrasting outline for tray readability. Uptime's existing shadow stays enabled
+changing colors, shadows or backgrounds. Cast shadow includes a contrasting
+outline for tray readability. Uptime's existing shadow stays enabled
 by default; other dashboard sensors default to no shadow.
 
 Reset color uses the system palette. A custom solid background with no custom
@@ -123,12 +126,10 @@ Resetting all preferences removes that sensor's section. A disabled sensor with
 a custom label, color or calibration still has an override and is retained.
 Missing devices retain their customizations until reset.
 
-Existing Sensor sections remain compatible: calibration, labels, ranges,
-selections, positions and colors are retained. The old shared foreground
-initializes the independent tray foreground when its new key is absent. The
-first save writes that tray color explicitly (or `default` for the system palette)
-so later dashboard edits cannot silently change it. No configuration reset is
-required. Edit the file while QSensors is stopped. Qt may reorder keys/sections and
+Only current sensor settings are read; there is no compatibility reader for
+older gauge/presentation choices or shared tray colors. Missing keys use the
+current defaults. The tray foreground is independent (`default` means the
+system palette). Edit the file while QSensors is stopped. Qt may reorder keys/sections and
 rewrite comments when saving; this is an editable settings file, not a comment-
 preserving document. Sensor section names are regenerated on Apply/OK; identity comes
 from `id`, not the section number. Duplicate identity sections should be avoided.
@@ -167,8 +168,9 @@ X11 supports position restoration while Wayland controls placement. Selected das
 are no separate Tile sections or saved dimensions. Layout saves preserve other
 preferences, and an open Settings draft does not overwrite newer positions.
 Deselecting a dashboard sensor releases its cell. `controlsVisible` remembers
-menu/toolbar/status-bar visibility. Tile size, gauges and view remain
-`tileSize`, `gauges` and `tableView`. `[Monitoring] intervalSeconds` is unchanged.
+menu/toolbar/status-bar visibility. Tile size and view remain
+`tileSize` and `tableView`. The obsolete global `gauges` key is ignored and
+removed on save. `[Monitoring] intervalSeconds` is unchanged.
 Sensor preferences are written on Apply/OK, not on measurements. Opening Settings and
 pressing OK without modifications does not dump the discovered catalog.
 
@@ -194,15 +196,15 @@ periodic work. Discovery, recovery and Apply may force immediate refreshes.
 
 Additional persisted keys (implicit defaults):
 
-- `dashboardUseGlobal=true`, `dashboardInterval=5`, `presentation=Global`
-  (`Gauge` or `Text` for overrides).
+- `dashboardUseGlobal=true`, `dashboardInterval=5`, `dashboardGauge=true`
+  (false for Uptime), `dashboardTextStyle=Normal` (Digital for Uptime).
 - `dashboardShadow=false` (true for Uptime), `dashboardTransparent=false`.
 - `trayUseGlobal=true`, `trayInterval=5`, `trayForeground=default`,
   `trayBackground=`, `trayShadow=true`, `trayTransparent=true`.
 - `trayFontFamily=` (system fixed font), `trayFontSize=10`, `trayFontAutoFit=true`.
 
 Custom intervals, backgrounds and gauge limits are persisted even when their
-corresponding global/transparent/text option is selected. Disabled dashboard
+corresponding global/transparent/gauge-off option is selected. Disabled dashboard
 sensors release their cell; re-enabling fills the first available empty cell
 and grows the rectangular field if needed.
 

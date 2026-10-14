@@ -67,9 +67,11 @@ SensorDiscovery SystemSensorProvider::discover()
         {QStringLiteral("system/cpu/activity"), QStringLiteral("Usage"), SensorKind::Percentage, QStringLiteral("%"), cpu},
         {QStringLiteral("system/cpu/frequency"), QStringLiteral("Average frequency"), SensorKind::Frequency, QStringLiteral("MHz"), cpu},
         {QStringLiteral("system/cpu/maximum-frequency"), QStringLiteral("Maximum frequency"), SensorKind::Frequency, QStringLiteral("MHz"), cpu},
-        {QStringLiteral("system/memory/ram"), QStringLiteral("RAM usage"), SensorKind::Percentage, QStringLiteral("%"), QStringLiteral("Memory")},
+        {QStringLiteral("system/memory/ram"), QStringLiteral("RAM usage (%)"), SensorKind::Percentage, QStringLiteral("%"), QStringLiteral("Memory")},
+        {QStringLiteral("system/memory/ram-used"), QStringLiteral("RAM usage (MiB)"), SensorKind::Memory, QStringLiteral("MiB"), QStringLiteral("Memory")},
+        {QStringLiteral("system/memory/swap-used"), QStringLiteral("Swap usage (MiB)"), SensorKind::Memory, QStringLiteral("MiB"), QStringLiteral("Memory")},
         {QStringLiteral("system/memory/available"), QStringLiteral("Available RAM"), SensorKind::Memory, QStringLiteral("MiB"), QStringLiteral("Memory")},
-        {QStringLiteral("system/memory/swap"), QStringLiteral("Swap usage"), SensorKind::Percentage, QStringLiteral("%"), QStringLiteral("Memory")},
+        {QStringLiteral("system/memory/swap"), QStringLiteral("Swap usage (%)"), SensorKind::Percentage, QStringLiteral("%"), QStringLiteral("Memory")},
         {QStringLiteral("system/uptime"), QStringLiteral("Uptime"), SensorKind::Duration, QStringLiteral("s"), QStringLiteral("System")}
     };
     int index = 0;
@@ -125,9 +127,11 @@ QList<SensorSample> SystemSensorProvider::readBatch(const QStringList &ids)
     if (cpu) m_previousCpu = current;
     double average = 0, maximum = 0;
     for (double value : frequencies) { average += value / std::max<qsizetype>(1, frequencies.size()); maximum = std::max(maximum, value); }
-    const bool ramWanted = ids.contains(QStringLiteral("system/memory/ram")) || ids.contains(QStringLiteral("system/memory/available"));
+    const bool ramWanted = ids.contains(QStringLiteral("system/memory/ram")) || ids.contains(QStringLiteral("system/memory/available"))
+        || ids.contains(QStringLiteral("system/memory/ram-used"));
     const auto ram = ramWanted ? systemmetrics::memoryUsage(mem, false) : std::optional<systemmetrics::Usage>();
-    const auto swap = ids.contains(QStringLiteral("system/memory/swap")) ? systemmetrics::memoryUsage(mem, true) : std::optional<systemmetrics::Usage>();
+    const bool swapWanted = ids.contains(QStringLiteral("system/memory/swap")) || ids.contains(QStringLiteral("system/memory/swap-used"));
+    const auto swap = swapWanted ? systemmetrics::memoryUsage(mem, true) : std::optional<systemmetrics::Usage>();
     QList<SensorSample> result;
     for (const auto &id : ids) {
         if (QThread::currentThread()->isInterruptionRequested()) break;
@@ -150,10 +154,23 @@ QList<SensorSample> SystemSensorProvider::readBatch(const QStringList &ids)
             if (ram) {
                 value = id.endsWith(QStringLiteral("available")) ? ram->availableMiB : ram->percent;
                 sample.reference = ram->totalMiB;
+                if (id.endsWith(QStringLiteral("available"))) sample.maximum = ram->totalMiB;
                 sample.detail = ram->detail;
             }
-        } else if (id == QStringLiteral("system/memory/swap")) {
-            if (swap) { value = swap->percent; sample.detail = swap->detail; }
+        } else if (id == QStringLiteral("system/memory/ram-used")) {
+            if (ram) {
+                value = std::max(0.0, ram->totalMiB - ram->availableMiB);
+                sample.reference = ram->totalMiB;
+                sample.maximum = ram->totalMiB;
+                sample.detail = ram->detail;
+            }
+        } else if (id == QStringLiteral("system/memory/swap") || id == QStringLiteral("system/memory/swap-used")) {
+            if (swap) {
+                value = id.endsWith(QStringLiteral("swap-used")) ? std::max(0.0, swap->totalMiB - swap->availableMiB) : swap->percent;
+                sample.reference = swap->totalMiB;
+                sample.maximum = swap->totalMiB;
+                sample.detail = swap->detail;
+            }
         } else if (id == QStringLiteral("system/uptime")) value = systemmetrics::uptimeSeconds(up);
         else sample.error = QStringLiteral("Unknown system sensor");
         if (value && std::isfinite(*value)) { sample.value = *value; sample.available = true; sample.error.clear(); }

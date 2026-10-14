@@ -7,7 +7,7 @@ with Qt 6 Widgets and modern libsensors. No KDE dependencies.
 
 Phase 7 adds optional system readings: aggregate CPU usage (including SMT), physical-core average/maximum/per-core
 frequencies with CPU model metadata, RAM usage, available RAM, swap usage and
-uptime. Available RAM supports MiB or percent display; frequency and memory
+uptime. RAM/Swap usage have separate percentage and MiB readings. Available RAM supports MiB or percent display; frequency and memory
 readings choose compact units automatically. Hardware and
 system sensors use the same Settings, dashboard and numeric tray selections.
 New sensors default to disabled. Settings groups sensors by source, supports
@@ -17,6 +17,10 @@ available. Each selected sensor has General, Dashboard and (when supported)
 Systray tabs, with independent refresh timing and appearance. Apply saves the
 current draft; Cancel discards changes since the last Apply. Numeric editors
 show two or three decimals without reducing untouched stored precision.
+Dashboard sensors independently select Normal/Digital text and gauge visibility.
+Digital readouts use scalable vector segments; CPU frequencies use filled watch
+segments, while temperatures retain one decimal and a square degree mark. Tile
+source footers are omitted; sources remain in Settings, table rows and tooltips.
 Phase 6 (alarms) is deferred.
 
 Vector tiles default to 128 logical pixels; the toolbar accepts 48–2048, with

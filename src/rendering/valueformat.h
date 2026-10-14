@@ -6,5 +6,7 @@ namespace qsensors {
 struct UptimeValue { QString time; QString days; };
 UptimeValue formatUptime(double seconds);
 struct FormattedValue { QString number; QString unit; };
+// Dashboard-only digital formatting; never used for calibration or sorting.
+QString formatDigitalSensorValue(const SensorDescriptor &descriptor, double value, bool kelvin = false);
 FormattedValue formatSensorValue(const SensorDescriptor &descriptor, double value, bool tray = false);
 }

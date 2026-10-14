@@ -21,6 +21,8 @@ struct TileReading {
     bool available = false;
     QString text;
     QString unit;
+    QString digitalText;
+    QString digitalUnit;
     QString days;
     QColor valueColor;
     double fraction = 0;
@@ -45,7 +47,7 @@ public:
                                const SensorPreferences &preferences, TemperatureUnit unit);
     static void draw(QPainter &painter, const QRectF &rect, const SensorDescriptor &descriptor,
                      const TileReading &reading, const TileStyle &style,
-                     const QPalette &palette, bool gauge, bool selected, const SensorPreferences &preferences);
+                     const QPalette &palette, bool selected, const SensorPreferences &preferences);
 };
 
 } // namespace qsensors

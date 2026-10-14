@@ -67,7 +67,10 @@ QString sensorInternalId(const QString &id)
 SensorPreferences defaultSensorPreferences(const QString &id)
 {
     SensorPreferences p;
-    p.dashboardShadow = id == QStringLiteral("system/uptime");
+    const bool uptime = id == QStringLiteral("system/uptime");
+    p.dashboardShadow = uptime;
+    p.dashboardGauge = !uptime;
+    p.dashboardTextStyle = uptime ? DashboardTextStyle::Digital : DashboardTextStyle::Normal;
     return p;
 }
 
@@ -78,7 +81,8 @@ bool SensorPreferences::operator==(const SensorPreferences &other) const
         && foreground == other.foreground && background == other.background
         && dashboardInterval == other.dashboardInterval && trayInterval == other.trayInterval
         && dashboardUseGlobal == other.dashboardUseGlobal && trayUseGlobal == other.trayUseGlobal
-        && presentation == other.presentation && dashboardShadow == other.dashboardShadow
+        && dashboardGauge == other.dashboardGauge && dashboardTextStyle == other.dashboardTextStyle
+        && dashboardShadow == other.dashboardShadow
         && dashboardTransparent == other.dashboardTransparent
         && trayForeground == other.trayForeground && trayBackground == other.trayBackground
         && trayShadow == other.trayShadow && trayTransparent == other.trayTransparent
@@ -132,10 +136,8 @@ SensorPreferences readPreferences(QSettings &settings, const QString &id)
     p.offset = number(settings, QStringLiteral("offset"), 0, 1e12);
     p.foreground = QColor(settings.value(QStringLiteral("foreground")).toString());
     p.background = QColor(settings.value(QStringLiteral("background")).toString());
-    // The old foreground was shared. Missing new keys inherit it exactly once.
     const QString trayColor = settings.value(QStringLiteral("trayForeground")).toString();
-    p.trayForeground = settings.contains(QStringLiteral("trayForeground"))
-        ? (trayColor == QStringLiteral("default") ? QColor() : QColor(trayColor)) : p.foreground;
+    p.trayForeground = trayColor == QStringLiteral("default") ? QColor() : QColor(trayColor);
     p.trayBackground = QColor(settings.value(QStringLiteral("trayBackground")).toString());
     p.dashboardShadow = boolean(settings, QStringLiteral("dashboardShadow"), p.dashboardShadow);
     p.dashboardTransparent = boolean(settings, QStringLiteral("dashboardTransparent"), false);
@@ -149,9 +151,11 @@ SensorPreferences readPreferences(QSettings &settings, const QString &id)
     };
     p.dashboardInterval = interval(QStringLiteral("dashboardInterval"));
     p.trayInterval = interval(QStringLiteral("trayInterval"));
-    const QString style = settings.value(QStringLiteral("presentation")).toString();
-    if (style == QStringLiteral("Gauge")) p.presentation = DashboardPresentation::Gauge;
-    else if (style == QStringLiteral("Text")) p.presentation = DashboardPresentation::Text;
+    p.dashboardGauge = boolean(settings, QStringLiteral("dashboardGauge"), p.dashboardGauge)
+        && id != QStringLiteral("system/uptime");
+    const QString style = settings.value(QStringLiteral("dashboardTextStyle")).toString();
+    if (style == QStringLiteral("Normal")) p.dashboardTextStyle = DashboardTextStyle::Normal;
+    else if (style == QStringLiteral("Digital")) p.dashboardTextStyle = DashboardTextStyle::Digital;
     p.trayFontAutoFit = boolean(settings, QStringLiteral("trayFontAutoFit"), true);
     p.trayFontFamily = settings.value(QStringLiteral("trayFontFamily")).toString();
     bool sizeOk = false;
@@ -174,8 +178,7 @@ bool validPreferences(const SensorPreferences &p)
         && std::isfinite(p.dashboardInterval) && p.dashboardInterval >= minimumRefreshSeconds && p.dashboardInterval <= maximumRefreshSeconds
         && std::isfinite(p.trayInterval) && p.trayInterval >= minimumRefreshSeconds && p.trayInterval <= maximumRefreshSeconds
         && p.trayFontSize >= 1 && p.trayFontSize <= 72
-        && (p.presentation == DashboardPresentation::Global || p.presentation == DashboardPresentation::Gauge
-            || p.presentation == DashboardPresentation::Text);
+        && (p.dashboardTextStyle == DashboardTextStyle::Normal || p.dashboardTextStyle == DashboardTextStyle::Digital);
 }
 }
 
@@ -304,8 +307,9 @@ bool SensorPreferencesStore::write(const QHash<QString, SensorPreferences> &valu
         if (!p.trayUseGlobal) settings.setValue(QStringLiteral("trayUseGlobal"), false);
         if (p.dashboardInterval != 5) settings.setValue(QStringLiteral("dashboardInterval"), p.dashboardInterval);
         if (p.trayInterval != 5) settings.setValue(QStringLiteral("trayInterval"), p.trayInterval);
-        if (p.presentation != DashboardPresentation::Global) settings.setValue(QStringLiteral("presentation"),
-            p.presentation == DashboardPresentation::Gauge ? QStringLiteral("Gauge") : QStringLiteral("Text"));
+        if (p.dashboardGauge != defaults.dashboardGauge) settings.setValue(QStringLiteral("dashboardGauge"), p.dashboardGauge);
+        if (p.dashboardTextStyle != defaults.dashboardTextStyle) settings.setValue(QStringLiteral("dashboardTextStyle"),
+            p.dashboardTextStyle == DashboardTextStyle::Digital ? QStringLiteral("Digital") : QStringLiteral("Normal"));
         if (!p.trayFontFamily.isEmpty()) settings.setValue(QStringLiteral("trayFontFamily"), p.trayFontFamily);
         if (!p.trayFontAutoFit) settings.setValue(QStringLiteral("trayFontAutoFit"), false);
         if (p.trayFontSize != 10) settings.setValue(QStringLiteral("trayFontSize"), p.trayFontSize);
@@ -315,6 +319,7 @@ bool SensorPreferencesStore::write(const QHash<QString, SensorPreferences> &valu
         if (p.rangeUpper != 100) settings.setValue(QStringLiteral("rangeUpper"), p.rangeUpper);
         settings.endGroup();
     }
+    settings.remove(QStringLiteral("Dashboard/gauges"));
     settings.sync();
     if (settings.status() != QSettings::NoError) {
         error = tr("The new settings could not be saved. Check configuration-directory permissions.");

@@ -14,11 +14,9 @@ class SensorGrid final : public QAbstractScrollArea {
 public:
     explicit SensorGrid(SensorPreferencesStore *preferences, QWidget *parent = nullptr);
     int tileSize() const { return m_style.size; }
-    bool gaugesVisible() const { return m_gauges; }
     QSize fieldSize() const;
     void setCompactView(bool compact);
     void setTileSize(int size);
-    void setGaugesVisible(bool visible);
     void setDescriptors(const QList<SensorDescriptor> &descriptors);
     void applySamples(const QList<SensorSample> &samples, bool incremental = false);
     QStringList visibleIds() const;
@@ -68,7 +66,6 @@ private:
     QStringList m_lastVisible;
     QRect m_bounds{0, 0, 1, 1};
     TileStyle m_style;
-    bool m_gauges = true;
     bool m_compact = false;
     bool m_windowPressed = false;
     QPoint m_windowGrabOffset;

@@ -23,7 +23,6 @@
 #include <QCollator>
 #include <QLocale>
 #include <QScreen>
-#include <QSettings>
 #include <QSignalBlocker>
 #include <QShowEvent>
 #include <QHideEvent>
@@ -339,24 +338,23 @@ SettingsDialog::PresentationControls SettingsDialog::createPresentationPage(bool
         connect(m_memoryDisplay, &QComboBox::currentIndexChanged, this, [this](int index) {
             if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].memoryAsPercent = index == 1;
         });
-        m_types = new QGroupBox(tr("Type"), c.options);
-        auto *types = new QVBoxLayout(m_types);
-        m_globalType = new QRadioButton(tr("Use global gauge setting"), m_types);
-        m_gaugeType = new QRadioButton(tr("Gauge"), m_types);
-        m_textType = new QRadioButton(tr("Text"), m_types);
-        types->addWidget(m_globalType);
-        types->addWidget(m_gaugeType);
-        types->addWidget(m_textType);
-        options->addWidget(m_types);
-        const auto type = [this](QRadioButton *button, DashboardPresentation style) {
-            connect(button, &QRadioButton::toggled, this, [this, style](bool checked) {
-                if (!m_loading && checked && !m_currentId.isEmpty()) m_draft[m_currentId].presentation = style;
-                updatePresentationControls();
-            });
-        };
-        type(m_globalType, DashboardPresentation::Global);
-        type(m_gaugeType, DashboardPresentation::Gauge);
-        type(m_textType, DashboardPresentation::Text);
+        auto *textStyle = new QGroupBox(tr("Text style"), c.options);
+        auto *styles = new QVBoxLayout(textStyle);
+        m_normalText = new QRadioButton(tr("Normal"), textStyle);
+        m_digitalText = new QRadioButton(tr("Digital"), textStyle);
+        styles->addWidget(m_normalText);
+        styles->addWidget(m_digitalText);
+        options->addWidget(textStyle);
+        connect(m_digitalText, &QRadioButton::toggled, this, [this](bool checked) {
+            if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].dashboardTextStyle =
+                checked ? DashboardTextStyle::Digital : DashboardTextStyle::Normal;
+        });
+        m_gauge = new QCheckBox(tr("Show gauge"), c.options);
+        options->addWidget(m_gauge);
+        connect(m_gauge, &QCheckBox::toggled, this, [this](bool checked) {
+            if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].dashboardGauge = checked;
+            updatePresentationControls();
+        });
         m_gaugeRange = new QGroupBox(tr("Gauge range"), c.options);
         auto *range = new QFormLayout(m_gaugeRange);
         m_customRange = new QCheckBox(tr("Use custom gauge range"), m_gaugeRange);
@@ -445,11 +443,9 @@ void SettingsDialog::updatePresentationControls()
         c.interval->setEnabled(c.custom->isChecked());
         c.background->setEnabled(c.solid->isChecked());
     }
-    const bool gaugeCapable = m_catalog.value(m_currentId).kind != SensorKind::Duration;
-    m_types->setVisible(gaugeCapable);
-    const bool gauge = m_gaugeType->isChecked() || (m_globalType->isChecked()
-        && QSettings().value(QStringLiteral("Dashboard/gauges"), true).toBool());
-    m_gaugeRange->setVisible(gaugeCapable && gauge);
+    const bool gaugeCapable = sensorSupportsGauge(m_currentId, m_catalog.value(m_currentId).kind);
+    m_gauge->setVisible(gaugeCapable);
+    m_gaugeRange->setVisible(gaugeCapable && m_gauge->isChecked());
     m_lower->setEnabled(m_customRange->isChecked());
     m_upper->setEnabled(m_customRange->isChecked());
 }
@@ -703,16 +699,16 @@ void SettingsDialog::loadSensor(const QString &id)
     m_label->setText(p.label.isEmpty() ? descriptor.label : p.label);
     m_label->setPlaceholderText(descriptor.label);
     m_memoryDisplay->setCurrentIndex(p.memoryAsPercent ? 1 : 0);
-    const bool memory = descriptor.kind == SensorKind::Memory || id == QStringLiteral("system/memory/available");
+    const bool memory = id == QStringLiteral("system/memory/available");
     m_memoryDisplay->setVisible(memory);
     const int trayIndex = m_sensorTabs->indexOf(m_trayControls.page);
     if (!sensorSupportsTray(id) && trayIndex >= 0) m_sensorTabs->removeTab(trayIndex);
     else if (sensorSupportsTray(id) && trayIndex < 0) m_sensorTabs->addTab(m_trayControls.page, tr("Systray"));
     loadPresentation(m_dashboardControls, false);
     loadPresentation(m_trayControls, true);
-    m_globalType->setChecked(p.presentation == DashboardPresentation::Global);
-    m_gaugeType->setChecked(p.presentation == DashboardPresentation::Gauge);
-    m_textType->setChecked(p.presentation == DashboardPresentation::Text);
+    m_gauge->setChecked(p.dashboardGauge && sensorSupportsGauge(id, descriptor.kind));
+    m_normalText->setChecked(p.dashboardTextStyle == DashboardTextStyle::Normal);
+    m_digitalText->setChecked(p.dashboardTextStyle == DashboardTextStyle::Digital);
     QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     if (!p.trayFontFamily.isEmpty()) font.setFamily(p.trayFontFamily);
     m_trayFont->setCurrentFont(font);

@@ -101,10 +101,6 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
         }
         emit sensorDisabled(id);
     });
-    auto *gauges = view->addAction(tr("Show Gauges"));
-    gauges->setCheckable(true);
-    gauges->setChecked(m_grid->gaugesVisible());
-    connect(gauges, &QAction::toggled, m_grid, &SensorGrid::setGaugesVisible);
     auto *sizes = view->addMenu(tr("Tile Size"));
     for (int size : {64, 96, 128, 192, 256, 512, 1024, 2048}) {
         auto *preset = sizes->addAction(tr("%1 × %1").arg(size));

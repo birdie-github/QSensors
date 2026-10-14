@@ -6,5 +6,5 @@
 class QPainter;
 namespace qsensors {
 void drawDigitalText(QPainter &painter, const QRectF &rect, const QString &text,
-                     const QColor &color, bool shadow = false);
+                     const QColor &color, bool shadow = false, bool filledSegments = false);
 }

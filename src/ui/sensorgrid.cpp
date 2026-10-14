@@ -35,7 +35,6 @@ SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
     bool valid = false;
     const int size = settings.value(QStringLiteral("Dashboard/tileSize"), 128).toInt(&valid);
     m_style = SensorTileRenderer::style(valid && size >= 48 && size <= 2048 ? size : 128, font());
-    m_gauges = settings.value(QStringLiteral("Dashboard/gauges"), true).toBool();
     const auto preferencesById = m_preferences->values();
     QStringList ids = preferencesById.keys();
     std::sort(ids.begin(), ids.end());
@@ -90,13 +89,6 @@ void SensorGrid::setTileSize(int size)
     updateLayout();
     ensureVisible(m_order.indexOf(m_selected));
     emit fieldSizeChanged();
-}
-void SensorGrid::setGaugesVisible(bool visible)
-{
-    if (m_gauges == visible) return;
-    m_gauges = visible;
-    QSettings().setValue(QStringLiteral("Dashboard/gauges"), visible);
-    viewport()->update();
 }
 QPoint SensorGrid::firstEmptyCell()
 {
@@ -191,11 +183,11 @@ void SensorGrid::applySamples(const QList<SensorSample> &samples, bool increment
         sample.id = m_order[i];
         const auto preferences = m_preferences->value(tile.descriptor.id);
         const auto reading = SensorTileRenderer::prepare(tile.descriptor, sample, preferences, m_preferences->temperatureUnit());
-        const bool gauge = preferences.presentation == DashboardPresentation::Gauge
-            || (preferences.presentation == DashboardPresentation::Global && m_gauges);
+        const bool gauge = preferences.dashboardGauge && sensorSupportsGauge(tile.descriptor.id, tile.descriptor.kind);
+        const bool digital = preferences.dashboardTextStyle == DashboardTextStyle::Digital;
         const bool different = reading.available != tile.reading.available
-            || reading.text != tile.reading.text
-            || reading.unit != tile.reading.unit
+            || (digital ? (reading.digitalText != tile.reading.digitalText || reading.digitalUnit != tile.reading.digitalUnit)
+                        : (reading.text != tile.reading.text || reading.unit != tile.reading.unit))
             || reading.days != tile.reading.days
             || reading.valueColor != tile.reading.valueColor
             || (gauge && (reading.fraction != tile.reading.fraction
@@ -309,7 +301,7 @@ void SensorGrid::paintEvent(QPaintEvent *event)
         if (prefs.foreground.isValid() || prefs.background.isValid()) colors.setColor(QPalette::Text, dashboardTextColor(prefs, colors.color(QPalette::Text)));
         if (prefs.dashboardTransparent) colors.setColor(QPalette::Base, palette().color(QPalette::Window));
         else if (prefs.background.isValid()) colors.setColor(QPalette::Base, prefs.background);
-        SensorTileRenderer::draw(painter, rect, tile.descriptor, tile.reading, m_style, colors, m_gauges, id == m_selected, prefs);
+        SensorTileRenderer::draw(painter, rect, tile.descriptor, tile.reading, m_style, colors, id == m_selected, prefs);
     };
     for (int i = 0; i < m_order.size(); ++i) {
         if (m_dragging && m_order[i] == m_pressed) continue;
