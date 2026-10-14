@@ -88,6 +88,10 @@ private:
     QRadioButton *m_normalText;
     QRadioButton *m_digitalText;
     QGroupBox *m_gaugeRange;
+    QGroupBox *m_trayTextStyle;
+    QRadioButton *m_trayNormal;
+    QRadioButton *m_trayDigital;
+    QWidget *m_trayFontControls;
     QFontComboBox *m_trayFont;
     QDoubleSpinBox *m_multiplier;
     QDoubleSpinBox *m_offset;

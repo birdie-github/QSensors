@@ -258,6 +258,7 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
         m_sensorTabs->addTab(m_trayControls.page, tr("Systray"));
     m_gauge->show();
     m_gaugeRange->show();
+    m_trayTextStyle->show();
     m_memoryDisplay->show();
     m_editor->ensurePolished();
     m_editor->layout()->activate();
@@ -315,13 +316,29 @@ SettingsDialog::PresentationControls SettingsDialog::createPresentationPage(bool
     auto *appearance = new QGroupBox(tr("Appearance"), c.options);
     auto *form = new QFormLayout(appearance);
     if (tray) {
+        m_trayTextStyle = new QGroupBox(tr("Text style"), c.options);
+        auto *styles = new QHBoxLayout(m_trayTextStyle);
+        m_trayNormal = new QRadioButton(tr("Normal"), m_trayTextStyle);
+        m_trayDigital = new QRadioButton(tr("Digital"), m_trayTextStyle);
+        m_trayDigital->setToolTip(tr("Whole MHz from 1 to 9999, without a suffix. Values outside this range show ERR."));
+        styles->addWidget(m_trayNormal);
+        styles->addWidget(m_trayDigital);
+        options->addWidget(m_trayTextStyle);
+        connect(m_trayDigital, &QRadioButton::toggled, this, [this](bool checked) {
+            if (!m_loading && !m_currentId.isEmpty()) {
+                m_draft[m_currentId].trayDigital = checked;
+                updatePresentationControls();
+            }
+        });
         m_trayFont = new QFontComboBox(appearance);
         m_trayFont->setToolTip(tr("Text automatically fits the tray icon. Bitmap fonts use native sizes. Values too wide for the smallest bitmap size use a scalable font."));
         auto *reset = new QPushButton(tr("Reset"), appearance);
-        auto *fontRow = new QHBoxLayout;
+        m_trayFontControls = new QWidget(appearance);
+        auto *fontRow = new QHBoxLayout(m_trayFontControls);
+        fontRow->setContentsMargins(0, 0, 0, 0);
         fontRow->addWidget(m_trayFont, 1);
         fontRow->addWidget(reset);
-        form->addRow(tr("Font:"), fontRow);
+        form->addRow(tr("Font:"), m_trayFontControls);
         connect(m_trayFont, &QFontComboBox::currentFontChanged, this, [this](const QFont &font) {
             if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].trayFontFamily = font.family();
         });
@@ -468,6 +485,9 @@ void SettingsDialog::updatePresentationControls()
         c.interval->setEnabled(c.custom->isChecked());
         c.background->setEnabled(c.solid->isChecked());
     }
+    const bool frequency = m_catalog.value(m_currentId).kind == SensorKind::Frequency;
+    m_trayTextStyle->setVisible(frequency);
+    m_trayFontControls->setEnabled(!frequency || !m_trayDigital->isChecked());
     const bool gaugeCapable = sensorSupportsGauge(m_currentId, m_catalog.value(m_currentId).kind);
     m_gauge->setVisible(gaugeCapable);
     m_gaugeRange->setVisible(gaugeCapable && m_gauge->isChecked());
@@ -737,6 +757,8 @@ void SettingsDialog::loadSensor(const QString &id)
     QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     if (!p.trayFontFamily.isEmpty()) font.setFamily(p.trayFontFamily);
     m_trayFont->setCurrentFont(font);
+    m_trayNormal->setChecked(!p.trayDigital);
+    m_trayDigital->setChecked(p.trayDigital);
     loadNumber(m_multiplier, p.multiplier);
     const QString unit = currentIsTemperature() ? temperatureUnitText(m_unit) : descriptor.unit;
     m_offset->setSuffix(unit.isEmpty() ? QString() : QLatin1Char(' ') + unit);

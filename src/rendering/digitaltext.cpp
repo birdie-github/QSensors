@@ -5,6 +5,7 @@
 #include <QLineF>
 #include <QPainterPath>
 #include <array>
+#include <utility>
 #include <algorithm>
 
 namespace qsensors {
@@ -90,6 +91,13 @@ const QHash<QChar, QPainterPath> &watchDigits()
             for (int segment = 0; segment < 7; ++segment)
                 if (masks[digit] & (1u << segment)) path.addPath(segments[segment]);
             result.insert(QChar('0' + digit), path);
+        }
+        // Seven-segment error letters: E and the conventional lowercase r.
+        for (const auto &letter : {std::pair<char, unsigned>{'E', 0x79}, {'R', 0x50}}) {
+            QPainterPath path;
+            for (int segment = 0; segment < 7; ++segment)
+                if (letter.second & (1u << segment)) path.addPath(segments[segment]);
+            result.insert(QLatin1Char(letter.first), path);
         }
         result.insert(QLatin1Char('-'), segments[6]);
         result.insert(QChar(0x2014), segments[6]);

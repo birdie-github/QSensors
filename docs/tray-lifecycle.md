@@ -16,6 +16,14 @@ fans use thousands of RPM with one decimal (the tooltip explicitly uses RPM),
 and voltage uses one decimal. Other types use compact significant digits;
 large values use scientific notation. Unavailable channels show an em dash.
 
+Frequency sensors offer Normal and Digital styles in the Systray tab. Digital
+uses the dashboard's filled seven-segment digits, scaled to the icon, with no
+unit suffix. Readings from 1 through 9999 MHz are rounded to whole MHz;
+values outside that inclusive range show a digital ERR (seven-segment Err).
+Unavailable readings retain the dash. The font selector is disabled in Digital
+mode, but its choice is retained for Normal mode. Color, background and the
+one-pixel offset shadow apply to both styles. Tooltips retain grouped raw Hz.
+
 Transparent numeric icons are painted directly at 16, 22, 24, 32, 48, 64 and
 128 physical pixels. Text has a contrasting outline for legibility on different
 panel backgrounds. This is a bounded resolution set independent of dashboard

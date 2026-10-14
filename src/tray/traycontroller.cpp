@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "tray/traycontroller.h"
 #include "rendering/valueformat.h"
+#include "rendering/digitaltext.h"
 #include "settings/sensorpreferences.h"
 
 #include <QAction>
@@ -69,6 +70,19 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
     QPixmap pixmap(size);
     pixmap.fill(preferences.trayTransparent ? QColor(Qt::transparent)
         : preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base));
+
+    if (preferences.trayDigital) {
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const int shadow = preferences.trayShadow && std::min(size.width(), size.height()) >= 8 ? 1 : 0;
+        const QRectF area(QPointF(0, 0), QSizeF(size - QSize(shadow, shadow)));
+        if (shadow) {
+            const QColor ink = color.lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white);
+            drawDigitalText(painter, area.translated(shadow, shadow), text, ink, false, true);
+        }
+        drawDigitalText(painter, area, text, color, false, true);
+        return pixmap;
+    }
 
     font.setBold(false);
     font.setItalic(false);
@@ -341,8 +355,13 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
     const auto descriptor = m_descriptors.value(id);
     const auto sample = m_samples.value(id);
     const bool available = m_descriptors.contains(id) && sample.available && std::isfinite(sample.value) && sample.timestamp.isValid();
-    const QString text = available ? compactValue(descriptor, sample.value) : QStringLiteral("—");
-    const auto preferences = m_preferences->value(id);
+    auto preferences = m_preferences->value(id);
+    preferences.trayDigital = preferences.trayDigital && descriptor.kind == SensorKind::Frequency;
+    const QString text = !available ? QStringLiteral("—")
+        : preferences.trayDigital
+            ? (sample.value < 1 || sample.value > 9999 ? QStringLiteral("ERR")
+                : QString::number(std::round(sample.value), 'f', 0))
+            : compactValue(descriptor, sample.value);
     const QString label = !preferences.label.isEmpty() ? preferences.label
         : descriptor.label.isEmpty() ? id : descriptor.label;
     const auto formatted = formatSensorValue(descriptor, sample.value);
@@ -366,7 +385,7 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
             : QApplication::palette().color(QPalette::Text);
     QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     if (!preferences.trayFontFamily.isEmpty()) font.setFamily(preferences.trayFontFamily);
-    const QString key = text + QStringLiteral("|") + color.name(QColor::HexArgb) + font.toString()
+    const QString key = QString::number(preferences.trayDigital) + QLatin1Char('|') + text + QStringLiteral("|") + color.name(QColor::HexArgb) + font.toString()
         + QStringLiteral("|%1|%2|%3").arg(preferences.trayShadow)
             .arg(preferences.trayTransparent).arg(preferences.trayTransparent ? QString() :
                 (preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base)).name(QColor::HexArgb));
