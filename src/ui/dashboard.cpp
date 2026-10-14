@@ -103,7 +103,7 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
         emit sensorDisabled(id);
     });
     auto *sizes = view->addMenu(tr("Tile Size"));
-    for (int size : {64, 96, 128, 192, 256, 512, 1024, 2048}) {
+    for (int size : {64, 96, 128, 192, 256, 384, 512, 1024}) {
         auto *preset = sizes->addAction(tr("%1 × %1").arg(size));
         connect(preset, &QAction::triggered, this, [this, size] {
             m_tileSize->setEditText(QString::number(size));
@@ -117,7 +117,7 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     m_tileSize->setEditable(true);
     m_tileSize->setInsertPolicy(QComboBox::NoInsert);
     m_tileSize->setValidator(new QIntValidator(minimumTileSize, maximumTileSize, m_tileSize));
-    for (int size : {64, 96, 128, 192, 256, 512, 1024, 2048})
+    for (int size : {64, 96, 128, 192, 256, 384, 512, 1024})
         m_tileSize->addItem(QString::number(size));
     m_tileSize->addItem(tr("Custom…"), true);
     m_tileSize->setCurrentText(QString::number(m_grid->tileSize()));

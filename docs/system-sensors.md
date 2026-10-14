@@ -173,7 +173,7 @@ Manual checks:
 
 - For each type, try Normal/Digital with gauges on/off; Uptime must have no gauge.
 - Check readout fit, labels, decimal points, square degree markers, shadows and
-  transparency at 48/128/512/2048 pixels, including negative and unavailable readings.
+  transparency at 64/128/512/1024 pixels, including negative and unavailable readings.
 - Test memory transitions around 9999.5 M/G/T and voltage trailing-zero removal.
 - Compare RAM/Swap MiB and percentage readings against the same meminfo snapshot;
   enable both and verify independent calibration/settings survive restart.
@@ -191,7 +191,7 @@ Manual checks:
 - Toggle Available RAM between MiB and percentage, including with calibration
   and custom ranges; Apply, restart and confirm persistence.
 - Compare Available RAM with `/proc/meminfo`; sub-MiB values display zero.
-- Check uptime at 48/128/512/2048 logical pixels, reset/change readout color,
+- Check uptime at 64/128/512/1024 logical pixels, reset/change readout color,
   and ensure no uptime tray checkbox/icon exists, even with `tray=true` in the INI.
   Parser/format fixtures cover 99:59 and 100-hour boundaries; exercising them
   visually still needs a local test environment.

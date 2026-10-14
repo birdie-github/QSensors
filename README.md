@@ -23,7 +23,7 @@ segments, while temperatures retain one decimal and a square degree mark. Tile
 source footers are omitted; sources remain in Settings, table rows and tooltips.
 Phase 6 (alarms) is deferred.
 
-Vector tiles default to 128 logical pixels; the toolbar accepts 16–2048, with
+Vector tiles default to 128 logical pixels; the toolbar accepts 64–2048, with
 presets under View. Both Tile Size selectors offer Custom… for an integer-entry
 dialog with OK/Cancel; Cancel leaves the current size unchanged. **View → Table View** retains the sensor table. Use Settings
 to choose dashboard/tray sensors and **Sensors → Rescan** (F5) after hardware
