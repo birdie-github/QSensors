@@ -94,15 +94,18 @@ TileStyle SensorTileRenderer::style(int size, const QFont &baseFont)
 }
 
 TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, const SensorSample &sample,
-                                       const SensorPreferences &preferences, TemperatureUnit unit)
+                                       const SensorPreferences &preferences, TemperatureUnit unit, bool gaugeLabels)
 {
     TileReading result;
-    result.unit = descriptor.unit;
+    const bool digital = preferences.dashboardTextStyle == DashboardTextStyle::Digital;
+    if (!digital) result.unit = descriptor.unit;
     if (descriptor.kind == SensorKind::Frequency) result.range = {0, 0};
     result.available = sample.available && std::isfinite(sample.value) && sample.timestamp.isValid();
     if (!result.available) {
-        result.text = QStringLiteral("—");
-        result.digitalText = result.text;
+        if (digital && descriptor.id != QStringLiteral("system/uptime")) result.digitalText = QStringLiteral("—");
+        else result.text = QStringLiteral("—");
+        // Uptime's digital painter uses the shared clock text field.
+        if (descriptor.id == QStringLiteral("system/uptime")) result.digitalText = result.text;
         return result;
     }
     if (descriptor.id == QStringLiteral("system/uptime")) {
@@ -116,27 +119,34 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
         return result;
     }
     const QLocale locale;
-    const auto formatted = formatSensorValue(descriptor, sample.value);
-    result.unit = formatted.unit;
-    result.digitalText = formatDigitalSensorValue(descriptor, sample.value, unit == TemperatureUnit::Kelvin);
-    if (descriptor.kind == SensorKind::Frequency) result.digitalUnit = QStringLiteral("MHz");
-    switch (descriptor.kind) {
-    case SensorKind::Temperature: {
-        const double rounded = std::abs(sample.value) <= std::numeric_limits<double>::max() / 10
-            ? std::round(sample.value * 10) / 10 : sample.value;
-        result.text = locale.toString(rounded == 0 ? 0.0 : rounded, 'f', 1);
-        break;
+    if (digital) {
+        result.digitalText = formatDigitalSensorValue(descriptor, sample.value, unit == TemperatureUnit::Kelvin);
+        if (descriptor.kind == SensorKind::Frequency) result.digitalUnit = QStringLiteral("MHz");
+    } else {
+        switch (descriptor.kind) {
+        case SensorKind::Temperature: {
+            const double rounded = std::abs(sample.value) <= std::numeric_limits<double>::max() / 10
+                ? std::round(sample.value * 10) / 10 : sample.value;
+            result.text = locale.toString(rounded == 0 ? 0.0 : rounded, 'f', 1);
+            break;
+        }
+        case SensorKind::Humidity: result.text = locale.toString(sample.value, 'f', 1); break;
+        case SensorKind::Percentage:
+        case SensorKind::Frequency:
+        case SensorKind::Memory: {
+            const auto formatted = formatSensorValue(descriptor, sample.value);
+            result.text = formatted.number;
+            result.unit = formatted.unit;
+            break;
+        }
+        case SensorKind::Fan: result.text = locale.toString(sample.value, 'f', 0); break;
+        default: result.text = locale.toString(sample.value, 'g', 6); break;
+        }
+        // Keep essential numbers readable at the smallest tile size.
+        if (result.text.size() > 9)
+            result.text = locale.toString(sample.value, 'g', 4);
     }
-    case SensorKind::Humidity: result.text = locale.toString(sample.value, 'f', 1); break;
-    case SensorKind::Percentage: result.text = formatted.number; break;
-    case SensorKind::Frequency:
-    case SensorKind::Memory: result.text = formatted.number; break;
-    case SensorKind::Fan: result.text = locale.toString(sample.value, 'f', 0); break;
-    default: result.text = locale.toString(sample.value, 'g', 6); break;
-    }
-    // Keep essential numbers readable at the smallest tile size.
-    if (result.text.size() > 9)
-        result.text = locale.toString(sample.value, 'g', 4);
+    if (!preferences.dashboardGauge || !sensorSupportsGauge(descriptor.id, descriptor.kind)) return result;
     const bool temperature = descriptor.kind == SensorKind::Temperature;
     const double canonicalValue = temperature ? temperatureFromDisplay(sample.value, unit) : sample.value;
     result.range = preferences.customRange ? GaugeRange{preferences.rangeLower, preferences.rangeUpper}
@@ -155,17 +165,20 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
         result.range.lower = temperatureToDisplay(result.range.lower, unit);
         result.range.upper = temperatureToDisplay(result.range.upper, unit);
     }
-    result.lowerText = locale.toString(result.range.lower, 'g', 6);
-    result.upperText = locale.toString(result.range.upper, 'g', 6);
-    if (descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory) {
-        const auto lower = formatSensorValue(descriptor, result.range.lower);
-        const auto upper = formatSensorValue(descriptor, result.range.upper);
-        result.lowerText = lower.number + lower.unit;
-        result.upperText = upper.number + upper.unit;
-    }
     const double span = result.range.upper - result.range.lower;
     if (span > 0 && std::isfinite(span))
         result.fraction = std::clamp((sample.value - result.range.lower) / span, 0.0, 1.0);
+    // Endpoint labels are drawn only on sufficiently large, valid gauges.
+    if (gaugeLabels && span > 0 && std::isfinite(span)) {
+        result.lowerText = locale.toString(result.range.lower, 'g', 6);
+        result.upperText = locale.toString(result.range.upper, 'g', 6);
+        if (descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory) {
+            const auto lower = formatSensorValue(descriptor, result.range.lower);
+            const auto upper = formatSensorValue(descriptor, result.range.upper);
+            result.lowerText = lower.number + lower.unit;
+            result.upperText = upper.number + upper.unit;
+        }
+    }
     return result;
 }
 

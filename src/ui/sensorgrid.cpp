@@ -100,7 +100,14 @@ void SensorGrid::setTileSize(int size, bool persist)
     size = std::clamp(size, minimumTileSize, maximumTileSize);
     if (size == tileSize()) return;
     finishDrag(false);
+    const bool labelsChanged = (tileSize() >= 96) != (size >= 96);
     m_style = SensorTileRenderer::style(size, font());
+    if (labelsChanged) {
+        // Gauge endpoint labels enter/leave the painted layout at this boundary.
+        for (auto &tile : m_tiles)
+            tile.reading = SensorTileRenderer::prepare(tile.descriptor, tile.sample,
+                m_preferences->value(tile.descriptor.id), m_preferences->temperatureUnit(), size >= 96);
+    }
     if (persist) saveTileSize();
     updateLayout();
     ensureVisible(m_order.indexOf(m_selected));
@@ -147,7 +154,8 @@ void SensorGrid::setDescriptors(const QList<SensorDescriptor> &descriptors)
     for (const auto &descriptor : descriptors) {
         Tile tile = m_tiles.value(descriptor.id);
         tile.descriptor = descriptor;
-        tile.reading = SensorTileRenderer::prepare(descriptor, tile.sample, m_preferences->value(descriptor.id), m_preferences->temperatureUnit());
+        tile.reading = SensorTileRenderer::prepare(descriptor, tile.sample, m_preferences->value(descriptor.id),
+                                                   m_preferences->temperatureUnit(), tileSize() >= 96);
         tiles.insert(descriptor.id, tile);
         m_order.append(descriptor.id);
         if (!m_positions.contains(descriptor.id)) { m_positions.insert(descriptor.id, firstEmptyCell()); changed = true; }
@@ -168,7 +176,8 @@ void SensorGrid::setDescriptors(const QList<SensorDescriptor> &descriptors)
         tile.sample = SensorSample{};
         tile.sample.id = id;
         tile.sample.error = tr("Sensor is not currently detected");
-        tile.reading = SensorTileRenderer::prepare(tile.descriptor, tile.sample, m_preferences->value(id), m_preferences->temperatureUnit());
+        tile.reading = SensorTileRenderer::prepare(tile.descriptor, tile.sample, m_preferences->value(id),
+                                                   m_preferences->temperatureUnit(), tileSize() >= 96);
         tiles.insert(id, tile);
         m_order.append(id);
     }
@@ -211,7 +220,8 @@ void SensorGrid::applySamples(const QList<SensorSample> &samples, bool increment
         auto sample = batch.value(m_order[i]);
         sample.id = m_order[i];
         const auto preferences = m_preferences->value(tile.descriptor.id);
-        const auto reading = SensorTileRenderer::prepare(tile.descriptor, sample, preferences, m_preferences->temperatureUnit());
+        const auto reading = SensorTileRenderer::prepare(tile.descriptor, sample, preferences,
+                                                        m_preferences->temperatureUnit(), tileSize() >= 96);
         const bool gauge = preferences.dashboardGauge && sensorSupportsGauge(tile.descriptor.id, tile.descriptor.kind);
         const bool digital = preferences.dashboardTextStyle == DashboardTextStyle::Digital;
         const bool different = reading.available != tile.reading.available

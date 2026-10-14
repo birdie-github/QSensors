@@ -46,8 +46,10 @@ struct TileStyle {
 class SensorTileRenderer {
 public:
     static TileStyle style(int size, const QFont &baseFont);
+    // Prepare only the selected readout and enabled gauge data; the grid tells
+    // us whether endpoint labels are present at its current tile size.
     static TileReading prepare(const SensorDescriptor &descriptor, const SensorSample &sample,
-                               const SensorPreferences &preferences, TemperatureUnit unit);
+                               const SensorPreferences &preferences, TemperatureUnit unit, bool gaugeLabels);
     static void draw(QPainter &painter, const QRectF &rect, const SensorDescriptor &descriptor,
                      const TileReading &reading, const TileStyle &style,
                      const QPalette &palette, bool selected, const SensorPreferences &preferences);
