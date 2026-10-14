@@ -46,6 +46,7 @@ signals:
     void availabilityChanged(bool available);
     void selectionChanged(const QStringList &ids);
     void settingsRequested();
+    void sensorSettingsRequested(const QString &id);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -53,6 +54,7 @@ protected:
 private:
     struct Entry {
         QSystemTrayIcon *icon = nullptr;
+        QMenu *menu = nullptr; // Owns this sensor's reading action.
         QAction *reading = nullptr;
         QString renderKey;
         QString tooltip;
@@ -66,7 +68,6 @@ private:
     QWidget *m_window;
     SensorPreferencesStore *m_preferences;
     std::unique_ptr<QMenu> m_menu;
-    QMenu *m_readingsMenu;
     QAction *m_showAction;
     QAction *m_hideAction;
     QAction *m_settingsAction;

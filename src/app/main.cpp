@@ -155,6 +155,11 @@ int main(int argc, char *argv[])
         if (!id.isEmpty()) settingsDialog->selectSensor(id);
     };
     QObject::connect(&tray, &qsensors::TrayController::settingsRequested, &dashboard, [showSettings] { showSettings({}); });
+    QObject::connect(&tray, &qsensors::TrayController::sensorSettingsRequested, &dashboard,
+                     [showSettings, &settingsDialog](const QString &id) {
+        showSettings(id);
+        settingsDialog->selectTraySensor(id);
+    });
     QObject::connect(&dashboard, &qsensors::Dashboard::sensorConfigureRequested, &dashboard, showSettings);
     QObject::connect(&dashboard, &qsensors::Dashboard::sensorDisabled, &dashboard, [&settingsDialog](const QString &id) {
         if (settingsDialog) settingsDialog->disableDashboardSensor(id);

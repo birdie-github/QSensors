@@ -523,6 +523,14 @@ void SettingsDialog::selectSensor(const QString &id)
         }
     }
 }
+
+void SettingsDialog::selectTraySensor(const QString &id)
+{
+    selectSensor(id);
+    if (m_currentId == id && m_sensorTabs->indexOf(m_trayControls.page) >= 0)
+        m_sensorTabs->setCurrentWidget(m_trayControls.page);
+}
+
 void SettingsDialog::disableDashboardSensor(const QString &id)
 {
     // Preserve unrelated unapplied edits, but do not resurrect an externally deleted tile on OK.

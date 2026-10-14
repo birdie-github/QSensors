@@ -10,8 +10,11 @@ An open Settings window preserves unapplied checkboxes across a rescan.
 Temporarily missing selected sensors remain checked until explicitly removed.
 
 One QSystemTrayIcon represents each selected sensor. No selection produces one
-ordinary application icon. Tooltips and the Selected Sensors menu show labels,
-devices, full readings/units and availability. Temperature/humidity use integers,
+ordinary application icon. Each sensor icon's menu has a direct, bold, enabled reading
+entry using its configured display name (or original name), plus the current
+value. Selecting it opens that sensor's Systray settings, reusing an open dialog
+and retaining unapplied edits. Unavailable sensors remain configurable.
+Tooltips show devices, full readings/units and availability. Temperature/humidity use integers,
 fans use thousands of RPM with one decimal (the tooltip explicitly uses RPM),
 and voltage uses one decimal. Other types use compact significant digits;
 large values use scientific notation. Unavailable channels show an em dash.

@@ -198,7 +198,6 @@ TrayController::TrayController(QWidget *window, SensorPreferencesStore *preferen
     m_menu->addSeparator();
     m_settingsAction = m_menu->addAction(tr("Settings…"));
     m_rescanAction = m_menu->addAction(tr("Rescan"));
-    m_readingsMenu = m_menu->addMenu(tr("Selected Sensors"));
     m_menu->addSeparator();
     m_aboutAction = m_menu->addAction(tr("About QSensors"));
     m_quitAction = m_menu->addAction(tr("Quit"));
@@ -232,9 +231,11 @@ TrayController::TrayController(QWidget *window, SensorPreferencesStore *preferen
 TrayController::~TrayController()
 {
     qApp->removeEventFilter(this);
-    // Delete icons before their shared menu; QSystemTrayIcon does not own it.
-    for (const auto &entry : m_entries)
+    // QSystemTrayIcon does not own its menu. Remove icons before menus.
+    for (const auto &entry : m_entries) {
         delete entry.icon;
+        delete entry.menu;
+    }
     delete m_fallback;
 }
 
@@ -298,7 +299,7 @@ void TrayController::reconcileIcons()
             continue;
         }
         delete it->icon;
-        delete it->reading;
+        delete it->menu;
         it = m_entries.erase(it);
     }
     if (m_selected.isEmpty()) {
@@ -315,8 +316,21 @@ void TrayController::reconcileIcons()
             if (!m_entries.contains(id)) {
                 Entry entry;
                 entry.icon = createIcon();
-                entry.reading = m_readingsMenu->addAction(id);
-                entry.reading->setEnabled(false);
+                entry.menu = new QMenu;
+                // Reuse application actions while keeping the reading specific
+                // to the icon whose context menu was opened.
+                for (auto *action : m_menu->actions()) {
+                    entry.menu->addAction(action);
+                    if (action == m_rescanAction) entry.reading = entry.menu->addAction(id);
+                }
+                QFont readingFont = entry.menu->font();
+                readingFont.setBold(true);
+                entry.reading->setFont(readingFont);
+                connect(entry.reading, &QAction::triggered, this, [this, id] {
+                    emit showRequested();
+                    emit sensorSettingsRequested(id);
+                });
+                entry.icon->setContextMenu(entry.menu);
                 m_entries.insert(id, entry);
             }
             auto &entry = m_entries[id];
@@ -324,7 +338,6 @@ void TrayController::reconcileIcons()
             entry.icon->show(); // Qt automatically registers with a later/restarted host.
         }
     }
-    m_readingsMenu->menuAction()->setVisible(!m_selected.isEmpty());
 }
 
 void TrayController::applySnapshot(const SensorSnapshot &snapshot)
@@ -377,7 +390,7 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
     if (tooltip != entry.tooltip) {
         entry.tooltip = tooltip;
         entry.icon->setToolTip(tooltip);
-        entry.reading->setText(tr("%1 — %2: %3").arg(label, descriptor.device, value));
+        entry.reading->setText(tr("%1: %2").arg(label, value));
     }
     const QColor color = preferences.trayForeground.isValid() ? preferences.trayForeground
         : !preferences.trayTransparent && preferences.trayBackground.isValid()
