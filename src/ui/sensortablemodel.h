@@ -15,6 +15,7 @@ class SensorTableModel final : public QAbstractTableModel {
     Q_OBJECT
 
 public:
+    enum { SortRole = Qt::UserRole };
     explicit SensorTableModel(SensorPreferencesStore *preferences, QObject *parent = nullptr);
     int rowCount(const QModelIndex &parent = {}) const override;
     int columnCount(const QModelIndex &parent = {}) const override;

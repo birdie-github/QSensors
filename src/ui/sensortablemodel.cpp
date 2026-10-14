@@ -32,6 +32,8 @@ QVariant SensorTableModel::data(const QModelIndex &index, int role) const
         return {};
     const auto &descriptor = m_descriptors[index.row()];
     const auto &sample = m_samples[index.row()];
+    if (role == SortRole && index.column() == 2)
+        return sample.available ? QVariant(sample.value) : QVariant();
     const auto preferences = m_preferences->value(descriptor.id);
     if (role == Qt::ForegroundRole && (preferences.foreground.isValid() || preferences.background.isValid()))
         return dashboardTextColor(preferences, QApplication::palette().color(QPalette::Text));
@@ -44,7 +46,7 @@ QVariant SensorTableModel::data(const QModelIndex &index, int role) const
             return sample.error;
         return sample.detail;
     }
-    if (role != Qt::DisplayRole)
+    if (role != Qt::DisplayRole && role != SortRole)
         return {};
     switch (index.column()) {
     case 0: return descriptor.label;
@@ -115,7 +117,7 @@ void SensorTableModel::applySamples(const QList<SensorSample> &samples, bool inc
             || (sample.available && sample.value != previous.value);
         m_samples[row] = sample;
         if (changed)
-            emit dataChanged(index(row, 2), index(row, 3), {Qt::DisplayRole, Qt::ToolTipRole});
+            emit dataChanged(index(row, 2), index(row, 3), {Qt::DisplayRole, Qt::ToolTipRole, SortRole});
     }
 }
 

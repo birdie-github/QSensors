@@ -56,7 +56,13 @@ changes since the last successful Apply, including resets. Rescan preserves unap
 updates the catalog; saved missing-device preferences are never removed merely
 because hardware is absent. Duplicate labels are independent because IDs are
 used for persistence. The empty tile view explains how to select sensors.
-The table and tiles use the same dashboard selection. Tray selection stays
+The table and tiles use the same dashboard selection. All dashboard table
+columns can be resized by dragging their header boundaries, or fitted by
+double-clicking a boundary. Clicking any header sorts that column and toggles
+ascending/descending order. Values sort by calibrated numeric readings before
+compact unit formatting; unavailable readings stay last in either direction.
+The chosen sort stays active during readings, rescans and settings changes,
+and manual column widths are not replaced by those updates. Tray selection stays
 independent and works when the dashboard is hidden.
 
 While Settings is visible, its value preview temporarily requests every detected

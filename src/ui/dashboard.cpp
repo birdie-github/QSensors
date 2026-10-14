@@ -15,6 +15,7 @@
 #include <QCloseEvent>
 #include <QEvent>
 #include <QHeaderView>
+#include <QFontMetrics>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLayout>
@@ -23,6 +24,7 @@
 #include <QMenuBar>
 #include <QSignalBlocker>
 #include <QSpinBox>
+#include <QSortFilterProxyModel>
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QTableView>
@@ -32,6 +34,25 @@
 #include <algorithm>
 
 namespace qsensors {
+namespace {
+class SensorSortModel final : public QSortFilterProxyModel {
+public:
+    explicit SensorSortModel(QObject *parent) : QSortFilterProxyModel(parent) {}
+protected:
+    bool lessThan(const QModelIndex &left, const QModelIndex &right) const override
+    {
+        if (left.column() == 2) {
+            const bool leftAvailable = sourceModel()->data(left, sortRole()).isValid();
+            const bool rightAvailable = sourceModel()->data(right, sortRole()).isValid();
+            // The proxy reverses comparisons for descending order. Compensate
+            // here so unavailable readings remain last in either direction.
+            if (leftAvailable != rightAvailable)
+                return sortOrder() == Qt::AscendingOrder ? leftAvailable : rightAvailable;
+        }
+        return QSortFilterProxyModel::lessThan(left, right);
+    }
+};
+}
 
 Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preferences, QWidget *parent)
     : QMainWindow(parent), m_preferences(preferences)
@@ -122,15 +143,27 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     empty->setMargin(16);
     stack->addWidget(empty);
     auto *table = new QTableView(stack);
-    table->setModel(model);
+    auto *sortModel = new SensorSortModel(table);
+    sortModel->setSourceModel(model);
+    sortModel->setDynamicSortFilter(true);
+    sortModel->setSortRole(SensorTableModel::SortRole);
+    sortModel->setSortCaseSensitivity(Qt::CaseInsensitive);
+    sortModel->setSortLocaleAware(true);
+    table->setModel(sortModel);
+    // Keep provider/catalog order until the user chooses a sort column.
+    table->horizontalHeader()->setSortIndicator(-1, Qt::AscendingOrder);
+    table->setSortingEnabled(true);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setAlternatingRowColors(true);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->verticalHeader()->hide();
-    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    table->horizontalHeader()->setStretchLastSection(false);
+    const int characterWidth = table->fontMetrics().horizontalAdvance(QLatin1Char('M'));
+    table->setColumnWidth(0, 24 * characterWidth);
+    table->setColumnWidth(1, 28 * characterWidth);
+    table->setColumnWidth(2, 12 * characterWidth);
+    table->setColumnWidth(3, 8 * characterWidth);
     stack->addWidget(m_grid);
     stack->addWidget(table);
     setCentralWidget(stack);
