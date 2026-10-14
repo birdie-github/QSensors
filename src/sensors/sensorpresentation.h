@@ -26,7 +26,10 @@ private:
     SensorPreferencesStore *m_preferences;
     QList<SensorDescriptor> m_catalog;
     QHash<QString, SensorKind> m_kinds;
-    QList<SensorSample> m_samples;
+    QHash<QString, SensorSample> m_samples;
+    QStringList m_dashboardRefreshIds;
+    QStringList m_trayRefreshIds;
+    bool m_incremental = false;
     QString m_error;
 };
 

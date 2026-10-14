@@ -35,7 +35,7 @@ QVariant SensorTableModel::data(const QModelIndex &index, int role) const
     const auto preferences = m_preferences->value(descriptor.id);
     if (role == Qt::ForegroundRole && (preferences.foreground.isValid() || preferences.background.isValid()))
         return dashboardTextColor(preferences, QApplication::palette().color(QPalette::Text));
-    if (role == Qt::BackgroundRole && preferences.background.isValid())
+    if (role == Qt::BackgroundRole && !preferences.dashboardTransparent && preferences.background.isValid())
         return preferences.background;
     if (role == Qt::ToolTipRole) {
         if (index.column() <= 1)
@@ -86,7 +86,7 @@ void SensorTableModel::setDescriptors(const QList<SensorDescriptor> &descriptors
     endResetModel();
 }
 
-void SensorTableModel::applySamples(const QList<SensorSample> &samples)
+void SensorTableModel::applySamples(const QList<SensorSample> &samples, bool incremental)
 {
     QHash<QString, SensorSample> batch;
     batch.reserve(samples.size());
@@ -94,6 +94,7 @@ void SensorTableModel::applySamples(const QList<SensorSample> &samples)
         batch.insert(sample.id, sample);
     for (int row = 0; row < rowCount(); ++row) {
         const QString &id = m_descriptors[row].id;
+        if (incremental && !batch.contains(id)) continue;
         auto sample = batch.value(id);
         sample.id = id;
         if (sample.available && (!std::isfinite(sample.value) || !sample.timestamp.isValid())) {

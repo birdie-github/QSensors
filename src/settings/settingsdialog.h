@@ -15,6 +15,10 @@ class QComboBox;
 class QPushButton;
 class QLabel;
 class QGroupBox;
+class QTabWidget;
+class QRadioButton;
+class QFontComboBox;
+class QSpinBox;
 
 namespace qsensors {
 
@@ -42,7 +46,24 @@ private:
     void filterSensors();
     void syncCurrentItem();
     void loadSensor(const QString &id);
-    void chooseColor(bool background);
+    struct PresentationControls {
+        QWidget *page;
+        QWidget *options;
+        QCheckBox *enabled;
+        QRadioButton *global;
+        QRadioButton *custom;
+        QDoubleSpinBox *interval;
+        QPushButton *foreground;
+        QPushButton *background;
+        QCheckBox *shadow;
+        QRadioButton *solid;
+        QRadioButton *transparent;
+    };
+    PresentationControls createPresentationPage(bool tray);
+    void loadPresentation(const PresentationControls &controls, bool tray);
+    void updatePresentationControls();
+    bool applyChanges();
+    void chooseColor(bool background, bool tray = false);
     void updateColorButtons();
     bool currentIsTemperature() const;
     double fromDisplay(double value, bool difference) const;
@@ -61,20 +82,25 @@ private:
     QLineEdit *m_search;
     QGroupBox *m_editor;
     QLineEdit *m_label;
-    QCheckBox *m_dashboard;
-    QCheckBox *m_tray;
+    QTabWidget *m_sensorTabs;
+    PresentationControls m_dashboardControls;
+    PresentationControls m_trayControls;
+    QGroupBox *m_types;
+    QRadioButton *m_globalType;
+    QRadioButton *m_gaugeType;
+    QRadioButton *m_textType;
+    QGroupBox *m_gaugeRange;
+    QFontComboBox *m_trayFont;
+    QSpinBox *m_trayFontSize;
     QDoubleSpinBox *m_multiplier;
     QDoubleSpinBox *m_offset;
     QCheckBox *m_customRange;
     QDoubleSpinBox *m_lower;
     QDoubleSpinBox *m_upper;
-    QPushButton *m_foreground;
-    QPushButton *m_background;
     QComboBox *m_temperatureUnit;
     QComboBox *m_memoryDisplay;
     QCheckBox *m_autostart;
     QLabel *m_identity;
-    QLabel *m_foregroundLabel;
 };
 
 } // namespace qsensors

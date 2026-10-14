@@ -20,7 +20,7 @@ public:
     void setTileSize(int size);
     void setGaugesVisible(bool visible);
     void setDescriptors(const QList<SensorDescriptor> &descriptors);
-    void applySamples(const QList<SensorSample> &samples);
+    void applySamples(const QList<SensorSample> &samples, bool incremental = false);
     QStringList visibleIds() const;
 signals:
     void visibleIdsChanged(const QStringList &ids);

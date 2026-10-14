@@ -177,7 +177,7 @@ void SensorGrid::saveLayout()
     if (!m_preferences->savePositions(m_positions, error)) emit layoutSaveFailed(error);
     else m_layoutDirty = false;
 }
-void SensorGrid::applySamples(const QList<SensorSample> &samples)
+void SensorGrid::applySamples(const QList<SensorSample> &samples, bool incremental)
 {
     QHash<QString, SensorSample> batch;
     batch.reserve(samples.size());
@@ -185,16 +185,20 @@ void SensorGrid::applySamples(const QList<SensorSample> &samples)
         batch.insert(sample.id, sample);
     QRegion changed;
     for (int i = 0; i < m_order.size(); ++i) {
+        if (incremental && !batch.contains(m_order[i])) continue;
         auto &tile = m_tiles[m_order[i]];
         auto sample = batch.value(m_order[i]);
         sample.id = m_order[i];
-        const auto reading = SensorTileRenderer::prepare(tile.descriptor, sample, m_preferences->value(tile.descriptor.id), m_preferences->temperatureUnit());
+        const auto preferences = m_preferences->value(tile.descriptor.id);
+        const auto reading = SensorTileRenderer::prepare(tile.descriptor, sample, preferences, m_preferences->temperatureUnit());
+        const bool gauge = preferences.presentation == DashboardPresentation::Gauge
+            || (preferences.presentation == DashboardPresentation::Global && m_gauges);
         const bool different = reading.available != tile.reading.available
             || reading.text != tile.reading.text
             || reading.unit != tile.reading.unit
             || reading.days != tile.reading.days
             || reading.valueColor != tile.reading.valueColor
-            || (m_gauges && (reading.fraction != tile.reading.fraction
+            || (gauge && (reading.fraction != tile.reading.fraction
                 || reading.range.lower != tile.reading.range.lower || reading.range.upper != tile.reading.range.upper));
         tile.sample = sample;
         tile.reading = reading;
@@ -303,8 +307,9 @@ void SensorGrid::paintEvent(QPaintEvent *event)
         QPalette colors = palette();
         const auto prefs = m_preferences->value(id);
         if (prefs.foreground.isValid() || prefs.background.isValid()) colors.setColor(QPalette::Text, dashboardTextColor(prefs, colors.color(QPalette::Text)));
-        if (prefs.background.isValid()) colors.setColor(QPalette::Base, prefs.background);
-        SensorTileRenderer::draw(painter, rect, tile.descriptor, tile.reading, m_style, colors, m_gauges, id == m_selected);
+        if (prefs.dashboardTransparent) colors.setColor(QPalette::Base, palette().color(QPalette::Window));
+        else if (prefs.background.isValid()) colors.setColor(QPalette::Base, prefs.background);
+        SensorTileRenderer::draw(painter, rect, tile.descriptor, tile.reading, m_style, colors, m_gauges, id == m_selected, prefs);
     };
     for (int i = 0; i < m_order.size(); ++i) {
         if (m_dragging && m_order[i] == m_pressed) continue;

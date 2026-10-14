@@ -9,6 +9,10 @@
 #include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
+#include <QFontComboBox>
+#include <QFontDatabase>
+#include <QRadioButton>
+#include <QSpinBox>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -19,11 +23,14 @@
 #include <QCollator>
 #include <QLocale>
 #include <QScreen>
+#include <QSettings>
 #include <QSignalBlocker>
 #include <QShowEvent>
 #include <QHideEvent>
 
 #include <cmath>
+#include <functional>
+#include <utility>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
@@ -34,16 +41,64 @@
 #include <algorithm>
 
 namespace qsensors {
+namespace {
+// QDoubleSpinBox retains three editable decimal places. Compact text is presentation
+// only: loading these controls never writes their rounded value back to the draft.
+class ConfigurationNumber final : public QDoubleSpinBox {
+public:
+    explicit ConfigurationNumber(QWidget *parent) : QDoubleSpinBox(parent)
+    {
+        setDecimals(3);
+        setKeyboardTracking(false);
+        setSingleStep(.01);
+        connect(lineEdit(), &QLineEdit::textEdited, this, [this] { m_textEdited = true; });
+        connect(this, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+            if (m_editHandler) m_editHandler(value);
+        });
+        connect(this, &QDoubleSpinBox::editingFinished, this, [this] {
+            if (!std::exchange(m_textEdited, false)) return;
+            // An explicit edit matching the rounded display still replaces the
+            // higher-precision draft. Mere focus/acceptance never does.
+            if (m_editHandler) m_editHandler(value());
+        });
+    }
+    void loadValue(double value)
+    {
+        m_textEdited = false;
+        setValue(value);
+    }
+    void setEditHandler(std::function<void(double)> handler) { m_editHandler = std::move(handler); }
+protected:
+    QString textFromValue(double value) const override
+    {
+        const double thousandths = std::round(value * 1000);
+        const int digits = std::fmod(std::abs(thousandths), 10.0) < .5 ? 2 : 3;
+        return locale().toString(value, 'f', digits);
+    }
+private:
+    bool m_textEdited = false;
+    std::function<void(double)> m_editHandler;
+};
+void loadNumber(QDoubleSpinBox *control, double value)
+{
+    static_cast<ConfigurationNumber *>(control)->loadValue(value);
+    control->setToolTip(QObject::tr("Stored value (unchanged unless edited): %1").arg(control->locale().toString(value, 'g', 17)));
+}
+void onNumberEdited(QDoubleSpinBox *control, std::function<void(double)> handler)
+{
+    static_cast<ConfigurationNumber *>(control)->setEditHandler(std::move(handler));
+}
+}
 
 SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<SensorDescriptor> &catalog,
                                QWidget *parent)
     : QDialog(parent), m_store(store), m_draft(store->values()), m_unit(store->temperatureUnit()),
       m_initialAutostart(Autostart::enabled())
 {
+    m_loading = true;
     setWindowTitle(tr("QSensors Settings"));
     setAttribute(Qt::WA_DeleteOnClose);
     const QSize available = screen()->availableGeometry().size();
-    resize(QSize(1120, 760).boundedTo(available * 0.9));
     auto *layout = new QVBoxLayout(this);
     auto *tabs = new QTabWidget(this);
     layout->addWidget(tabs);
@@ -85,7 +140,7 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     m_list->setColumnWidth(3, 130);
     browserLayout->addWidget(m_list);
     auto *disableAll = new QPushButton(tr("Disable all sensors"), browser);
-    disableAll->setToolTip(tr("Clear dashboard and tray selections, including sensors hidden by search. Changes take effect on OK."));
+    disableAll->setToolTip(tr("Clear dashboard and tray selections, including sensors hidden by search. Changes take effect on Apply or OK."));
     browserLayout->addWidget(disableAll);
     sensors->addWidget(browser);
     browser->setMinimumWidth(340);
@@ -101,96 +156,59 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     sensors->addWidget(scroll);
     scroll->setWidgetResizable(true);
     m_editor = new QGroupBox(tr("Sensor"), scroll);
-    auto *form = new QFormLayout(m_editor);
+    auto *editorLayout = new QVBoxLayout(m_editor);
     m_identity = new QLabel(m_editor);
     m_identity->setWordWrap(true);
     m_identity->setTextFormat(Qt::PlainText);
     m_identity->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    form->addRow(m_identity);
-    m_dashboard = new QCheckBox(tr("Show on dashboard"), m_editor);
-    m_tray = new QCheckBox(tr("Show numeric tray icon"), m_editor);
-    form->addRow(m_dashboard);
-    form->addRow(m_tray);
-    m_label = new QLineEdit(m_editor);
+    editorLayout->addWidget(m_identity);
+    m_sensorTabs = new QTabWidget(m_editor);
+    editorLayout->addWidget(m_sensorTabs);
+    auto *properties = new QWidget(m_sensorTabs);
+    auto *form = new QFormLayout(properties);
+    m_label = new QLineEdit(properties);
     form->addRow(tr("Display name:"), m_label);
-    m_memoryDisplay = new QComboBox(m_editor);
-    m_memoryDisplay->addItem(tr("MiB (automatic MiB/GiB/TiB/PiB)"), false);
-    m_memoryDisplay->addItem(tr("Percentage of total RAM"), true);
-    form->addRow(tr("Available RAM display:"), m_memoryDisplay);
-    connect(m_memoryDisplay, &QComboBox::currentIndexChanged, this, [this](int index) {
-        if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].memoryAsPercent = index == 1;
-    });
-    m_label->setToolTip(tr("Rename this sensor on the dashboard, in the table and in tray tooltips. Clear to restore the original name."));
-    auto *resetName = new QPushButton(tr("Use original name"), m_editor);
+    auto *resetName = new QPushButton(tr("Use original"), properties);
     form->addRow(resetName);
-    connect(resetName, &QPushButton::clicked, this, [this] {
-        if (!m_currentId.isEmpty()) {
-            m_draft[m_currentId].label.clear();
-            loadSensor(m_currentId);
-        }
-    });
-    const auto spin = [this](double limit, int decimals) {
-        auto *spin = new QDoubleSpinBox(m_editor);
-        spin->setRange(-limit, limit);
-        spin->setDecimals(decimals);
-        spin->setKeyboardTracking(false);
-        return spin;
-    };
-    m_multiplier = spin(1e6, 12);
-    m_offset = spin(1.8e12, 9); // Fahrenheit differences need 1.8 times the canonical limit.
+    m_multiplier = new ConfigurationNumber(properties);
+    m_multiplier->setRange(-1e6, 1e6);
+    m_offset = new ConfigurationNumber(properties);
     form->addRow(tr("Multiplier:"), m_multiplier);
     form->addRow(tr("Offset:"), m_offset);
-    auto *identityCalibration = new QPushButton(tr("Reset calibration"), m_editor);
+    auto *identityCalibration = new QPushButton(tr("Reset calibration"), properties);
     form->addRow(identityCalibration);
-    m_customRange = new QCheckBox(tr("Use custom gauge range"), m_editor);
-    m_customRange->setToolTip(tr("Display bounds only; these do not trigger alarms."));
-    form->addRow(m_customRange);
-    m_lower = spin(1.8e12 + 300, 9);
-    m_upper = spin(1.8e12 + 300, 9);
-    form->addRow(tr("Gauge minimum:"), m_lower);
-    form->addRow(tr("Gauge maximum:"), m_upper);
-    m_foreground = new QPushButton(m_editor);
-    m_background = new QPushButton(m_editor);
-    auto *resetForeground = new QPushButton(tr("Reset"), m_editor);
-    auto *resetBackground = new QPushButton(tr("Reset"), m_editor);
-    auto *fgLayout = new QHBoxLayout;
-    fgLayout->addWidget(m_foreground, 1);
-    fgLayout->addWidget(resetForeground);
-    auto *bgLayout = new QHBoxLayout;
-    bgLayout->addWidget(m_background, 1);
-    bgLayout->addWidget(resetBackground);
-    m_foregroundLabel = new QLabel(tr("Text / tray color:"), m_editor);
-    form->addRow(m_foregroundLabel, fgLayout);
-    form->addRow(tr("Tile background:"), bgLayout);
-    auto *defaults = new QPushButton(tr("Reset sensor preferences"), m_editor);
+    auto *defaults = new QPushButton(tr("Reset sensor preferences"), properties);
     form->addRow(defaults);
+    m_sensorTabs->addTab(properties, tr("General"));
+    m_dashboardControls = createPresentationPage(false);
+    m_sensorTabs->addTab(m_dashboardControls.page, tr("Dashboard"));
+    m_trayControls = createPresentationPage(true);
+    m_sensorTabs->addTab(m_trayControls.page, tr("Systray"));
     scroll->setWidget(m_editor);
     sensors->setStretchFactor(0, 1);
     sensors->setStretchFactor(1, 1);
-    sensors->setSizes({600, 460});
     tabs->addTab(sensors, tr("Sensors"));
     tabs->setCurrentWidget(sensors);
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel, this);
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(buttons->button(QDialogButtonBox::Apply), &QPushButton::clicked, this, [this] { applyChanges(); });
     connect(m_list, &QTreeWidget::currentItemChanged, this,
             [this](QTreeWidgetItem *item, QTreeWidgetItem *) {
         loadSensor(item ? item->data(0, Qt::UserRole).toString() : QString());
     });
     connect(m_list, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *item, int column) {
         const QString id = item->data(0, Qt::UserRole).toString();
-        if (id.isEmpty() || (column != 1 && column != 2) || (column == 2 && !sensorSupportsTray(id)))
-            return;
+        if (id.isEmpty() || (column != 1 && column != 2) || (column == 2 && !sensorSupportsTray(id))) return;
         auto &p = m_draft[id];
         if (column == 1) p.dashboard = item->checkState(1) == Qt::Checked;
         else p.tray = item->checkState(2) == Qt::Checked;
-        if (id == m_currentId)
-            loadSensor(id);
+        if (id == m_currentId) loadSensor(id);
     });
     connect(m_temperatureUnit, &QComboBox::currentIndexChanged, this, [this](int index) {
         m_unit = static_cast<TemperatureUnit>(index);
-        loadSensor(m_currentId); // Reload converted controls without rewriting canonical draft values.
+        loadSensor(m_currentId);
     });
     connect(m_label, &QLineEdit::textEdited, this, [this](const QString &text) {
         if (!m_loading && !m_currentId.isEmpty()) {
@@ -198,47 +216,8 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
             syncCurrentItem();
         }
     });
-    connect(m_dashboard, &QCheckBox::toggled, this, [this](bool checked) {
-        if (!m_loading && !m_currentId.isEmpty()) {
-            m_draft[m_currentId].dashboard = checked;
-            syncCurrentItem();
-        }
-    });
-    connect(m_tray, &QCheckBox::toggled, this, [this](bool checked) {
-        if (!m_loading && !m_currentId.isEmpty()) {
-            m_draft[m_currentId].tray = checked;
-            syncCurrentItem();
-        }
-    });
-    connect(m_multiplier, &QDoubleSpinBox::valueChanged, this, [this](double value) {
-        if (!m_loading && !m_currentId.isEmpty())
-            m_draft[m_currentId].multiplier = value;
-    });
-    connect(m_offset, &QDoubleSpinBox::valueChanged, this, [this](double value) {
-        if (!m_loading && !m_currentId.isEmpty())
-            m_draft[m_currentId].offset = fromDisplay(value, true);
-    });
-    connect(m_customRange, &QCheckBox::toggled, this, [this](bool checked) {
-        m_lower->setEnabled(checked);
-        m_upper->setEnabled(checked);
-        if (!m_loading && !m_currentId.isEmpty())
-            m_draft[m_currentId].customRange = checked;
-    });
-    connect(m_lower, &QDoubleSpinBox::valueChanged, this, [this](double value) {
-        if (!m_loading && !m_currentId.isEmpty())
-            m_draft[m_currentId].rangeLower = fromDisplay(value, false);
-    });
-    connect(m_upper, &QDoubleSpinBox::valueChanged, this, [this](double value) {
-        if (!m_loading && !m_currentId.isEmpty())
-            m_draft[m_currentId].rangeUpper = fromDisplay(value, false);
-    });
-    connect(m_foreground, &QPushButton::clicked, this, [this] { chooseColor(false); });
-    connect(m_background, &QPushButton::clicked, this, [this] { chooseColor(true); });
-    connect(resetForeground, &QPushButton::clicked, this, [this] {
-        if (!m_currentId.isEmpty()) { m_draft[m_currentId].foreground = QColor(); updateColorButtons(); }
-    });
-    connect(resetBackground, &QPushButton::clicked, this, [this] {
-        if (!m_currentId.isEmpty()) { m_draft[m_currentId].background = QColor(); updateColorButtons(); }
+    connect(resetName, &QPushButton::clicked, this, [this] {
+        if (!m_currentId.isEmpty()) { m_draft[m_currentId].label.clear(); loadSensor(m_currentId); }
     });
     connect(identityCalibration, &QPushButton::clicked, this, [this] {
         if (!m_currentId.isEmpty()) {
@@ -248,9 +227,231 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
         }
     });
     connect(defaults, &QPushButton::clicked, this, [this] {
-        if (!m_currentId.isEmpty()) { m_draft[m_currentId] = {}; loadSensor(m_currentId); }
+        if (!m_currentId.isEmpty()) {
+            m_draft[m_currentId] = defaultSensorPreferences(m_currentId);
+            loadSensor(m_currentId);
+        }
+    });
+    onNumberEdited(m_multiplier, [this](double value) {
+        if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].multiplier = value;
+    });
+    onNumberEdited(m_offset, [this](double value) {
+        if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].offset = fromDisplay(value, true);
+    });
+    connect(m_customRange, &QCheckBox::toggled, this, [this](bool checked) {
+        if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].customRange = checked;
+        updatePresentationControls();
+    });
+    onNumberEdited(m_lower, [this](double value) {
+        if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].rangeLower = fromDisplay(value, false);
+    });
+    onNumberEdited(m_upper, [this](double value) {
+        if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].rangeUpper = fromDisplay(value, false);
     });
     updateCatalog(catalog);
+    resize(sizeHint().boundedTo(available * .9));
+}
+
+SettingsDialog::PresentationControls SettingsDialog::createPresentationPage(bool tray)
+{
+    PresentationControls c{};
+    c.page = new QWidget(m_sensorTabs);
+    auto *layout = new QVBoxLayout(c.page);
+    c.enabled = new QCheckBox(tr("Enabled"), c.page);
+    layout->addWidget(c.enabled);
+    c.options = new QWidget(c.page);
+    auto *options = new QVBoxLayout(c.options);
+    options->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(c.options);
+    auto *timing = new QGroupBox(tr("Update interval"), c.options);
+    auto *timingLayout = new QVBoxLayout(timing);
+    c.global = new QRadioButton(tr("Use global"), timing);
+    c.custom = new QRadioButton(tr("Every"), timing);
+    c.interval = new ConfigurationNumber(timing);
+    c.interval->setRange(minimumRefreshSeconds, maximumRefreshSeconds);
+    c.interval->setSuffix(tr(" seconds"));
+    timingLayout->addWidget(c.global);
+    auto *customRow = new QHBoxLayout;
+    customRow->addWidget(c.custom);
+    customRow->addWidget(c.interval, 1);
+    timingLayout->addLayout(customRow);
+    options->addWidget(timing);
+    auto *appearance = new QGroupBox(tr("Appearance"), c.options);
+    auto *form = new QFormLayout(appearance);
+    if (tray) {
+        m_trayFont = new QFontComboBox(appearance);
+        m_trayFontSize = new QSpinBox(appearance);
+        m_trayFontSize->setRange(1, 72);
+        m_trayFontSize->setSuffix(tr(" pt"));
+        m_trayFontSize->setToolTip(tr("Reference size at a 24-pixel tray icon; scaled for the host and reduced as needed to fit the complete value. Reset restores automatic sizing."));
+        auto *reset = new QPushButton(tr("Reset"), appearance);
+        auto *fontRow = new QHBoxLayout;
+        fontRow->addWidget(m_trayFontSize, 1);
+        fontRow->addWidget(reset);
+        form->addRow(tr("Font:"), m_trayFont);
+        form->addRow(tr("Font size:"), fontRow);
+        connect(m_trayFont, &QFontComboBox::currentFontChanged, this, [this](const QFont &font) {
+            if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].trayFontFamily = font.family();
+        });
+        connect(m_trayFontSize, &QSpinBox::valueChanged, this, [this](int size) {
+            if (!m_loading && !m_currentId.isEmpty()) {
+                m_draft[m_currentId].trayFontSize = size;
+                m_draft[m_currentId].trayFontAutoFit = false;
+            }
+        });
+        connect(reset, &QPushButton::clicked, this, [this] {
+            if (!m_currentId.isEmpty()) {
+                m_draft[m_currentId].trayFontFamily.clear();
+                m_draft[m_currentId].trayFontSize = 10;
+                m_draft[m_currentId].trayFontAutoFit = true;
+                loadSensor(m_currentId);
+            }
+        });
+    }
+    c.foreground = new QPushButton(appearance);
+    auto *resetColor = new QPushButton(tr("Reset"), appearance);
+    auto *colorRow = new QHBoxLayout;
+    colorRow->addWidget(c.foreground, 1);
+    colorRow->addWidget(resetColor);
+    form->addRow(tr("Color:"), colorRow);
+    c.shadow = new QCheckBox(tr("Cast shadow"), appearance);
+    form->addRow(c.shadow);
+    auto *background = new QGroupBox(tr("Background"), appearance);
+    auto *backgroundLayout = new QVBoxLayout(background);
+    c.solid = new QRadioButton(tr("Color"), background);
+    c.transparent = new QRadioButton(tr("Transparent"), background);
+    c.background = new QPushButton(background);
+    auto *resetBackground = new QPushButton(tr("Reset"), background);
+    auto *solidRow = new QHBoxLayout;
+    solidRow->addWidget(c.solid);
+    solidRow->addWidget(c.background, 1);
+    solidRow->addWidget(resetBackground);
+    backgroundLayout->addLayout(solidRow);
+    backgroundLayout->addWidget(c.transparent);
+    form->addRow(background);
+    options->addWidget(appearance);
+    if (!tray) {
+        m_memoryDisplay = new QComboBox(c.options);
+        m_memoryDisplay->addItem(tr("MiB (automatic MiB/GiB/TiB/PiB)"), false);
+        m_memoryDisplay->addItem(tr("Percentage of total RAM"), true);
+        m_memoryDisplay->setToolTip(tr("Available RAM value format, also used by the tray and sensor table."));
+        options->addWidget(m_memoryDisplay);
+        connect(m_memoryDisplay, &QComboBox::currentIndexChanged, this, [this](int index) {
+            if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].memoryAsPercent = index == 1;
+        });
+        m_types = new QGroupBox(tr("Type"), c.options);
+        auto *types = new QVBoxLayout(m_types);
+        m_globalType = new QRadioButton(tr("Use global gauge setting"), m_types);
+        m_gaugeType = new QRadioButton(tr("Gauge"), m_types);
+        m_textType = new QRadioButton(tr("Text"), m_types);
+        types->addWidget(m_globalType);
+        types->addWidget(m_gaugeType);
+        types->addWidget(m_textType);
+        options->addWidget(m_types);
+        const auto type = [this](QRadioButton *button, DashboardPresentation style) {
+            connect(button, &QRadioButton::toggled, this, [this, style](bool checked) {
+                if (!m_loading && checked && !m_currentId.isEmpty()) m_draft[m_currentId].presentation = style;
+                updatePresentationControls();
+            });
+        };
+        type(m_globalType, DashboardPresentation::Global);
+        type(m_gaugeType, DashboardPresentation::Gauge);
+        type(m_textType, DashboardPresentation::Text);
+        m_gaugeRange = new QGroupBox(tr("Gauge range"), c.options);
+        auto *range = new QFormLayout(m_gaugeRange);
+        m_customRange = new QCheckBox(tr("Use custom gauge range"), m_gaugeRange);
+        m_customRange->setToolTip(tr("Display bounds only; these do not trigger alarms."));
+        m_lower = new ConfigurationNumber(m_gaugeRange);
+        m_upper = new ConfigurationNumber(m_gaugeRange);
+        range->addRow(m_customRange);
+        range->addRow(tr("Gauge minimum:"), m_lower);
+        range->addRow(tr("Gauge maximum:"), m_upper);
+        options->addWidget(m_gaugeRange);
+    }
+    options->addStretch();
+    connect(c.enabled, &QCheckBox::toggled, this, [this, tray](bool checked) {
+        if (!m_loading && !m_currentId.isEmpty()) {
+            auto &p = m_draft[m_currentId];
+            (tray ? p.tray : p.dashboard) = checked;
+            syncCurrentItem();
+        }
+        updatePresentationControls();
+    });
+    connect(c.global, &QRadioButton::toggled, this, [this, tray](bool checked) {
+        if (!m_loading && !m_currentId.isEmpty()) {
+            auto &p = m_draft[m_currentId];
+            (tray ? p.trayUseGlobal : p.dashboardUseGlobal) = checked;
+        }
+        updatePresentationControls();
+    });
+    onNumberEdited(c.interval, [this, tray](double value) {
+        if (!m_loading && !m_currentId.isEmpty()) {
+            auto &p = m_draft[m_currentId];
+            (tray ? p.trayInterval : p.dashboardInterval) = value;
+        }
+    });
+    connect(c.foreground, &QPushButton::clicked, this, [this, tray] { chooseColor(false, tray); });
+    connect(c.background, &QPushButton::clicked, this, [this, tray] { chooseColor(true, tray); });
+    connect(resetColor, &QPushButton::clicked, this, [this, tray] {
+        if (!m_currentId.isEmpty()) {
+            auto &p = m_draft[m_currentId];
+            (tray ? p.trayForeground : p.foreground) = QColor();
+            updateColorButtons();
+        }
+    });
+    connect(resetBackground, &QPushButton::clicked, this, [this, tray] {
+        if (!m_currentId.isEmpty()) {
+            auto &p = m_draft[m_currentId];
+            (tray ? p.trayBackground : p.background) = QColor();
+            updateColorButtons();
+        }
+    });
+    connect(c.shadow, &QCheckBox::toggled, this, [this, tray](bool checked) {
+        if (!m_loading && !m_currentId.isEmpty()) {
+            auto &p = m_draft[m_currentId];
+            (tray ? p.trayShadow : p.dashboardShadow) = checked;
+        }
+    });
+    connect(c.transparent, &QRadioButton::toggled, this, [this, tray](bool checked) {
+        if (!m_loading && !m_currentId.isEmpty()) {
+            auto &p = m_draft[m_currentId];
+            (tray ? p.trayTransparent : p.dashboardTransparent) = checked;
+        }
+        updatePresentationControls();
+    });
+    return c;
+}
+
+void SettingsDialog::loadPresentation(const PresentationControls &c, bool tray)
+{
+    const auto p = m_draft.value(m_currentId);
+    c.enabled->setChecked(tray ? p.tray && sensorSupportsTray(m_currentId) : p.dashboard);
+    const bool global = tray ? p.trayUseGlobal : p.dashboardUseGlobal;
+    c.global->setChecked(global);
+    c.custom->setChecked(!global);
+    loadNumber(c.interval, tray ? p.trayInterval : p.dashboardInterval);
+    c.shadow->setChecked(tray ? p.trayShadow : p.dashboardShadow);
+    const bool transparent = tray ? p.trayTransparent : p.dashboardTransparent;
+    c.transparent->setChecked(transparent);
+    c.solid->setChecked(!transparent);
+}
+
+void SettingsDialog::updatePresentationControls()
+{
+    // Page construction connects signals before both pages are fully installed.
+    if (m_loading) return;
+    for (const auto &c : {m_dashboardControls, m_trayControls}) {
+        c.options->setEnabled(c.enabled->isChecked());
+        c.interval->setEnabled(c.custom->isChecked());
+        c.background->setEnabled(c.solid->isChecked());
+    }
+    const bool gaugeCapable = m_catalog.value(m_currentId).kind != SensorKind::Duration;
+    m_types->setVisible(gaugeCapable);
+    const bool gauge = m_gaugeType->isChecked() || (m_globalType->isChecked()
+        && QSettings().value(QStringLiteral("Dashboard/gauges"), true).toBool());
+    m_gaugeRange->setVisible(gaugeCapable && gauge);
+    m_lower->setEnabled(m_customRange->isChecked());
+    m_upper->setEnabled(m_customRange->isChecked());
 }
 
 void SettingsDialog::updateCatalog(const QList<SensorDescriptor> &catalog)
@@ -313,7 +514,8 @@ void SettingsDialog::applySnapshot(const SensorSnapshot &snapshot)
     if (!isVisible())
         return;
     // Values are already calibrated and converted by SensorPresentation.
-    // Replacing the batch prevents a missing/failed reading from looking current.
+    // This is a shared cache snapshot; a failed acquisition replaces its channel.
+    // Other channels retain the sample from their own acquisition cadence.
     m_samples.clear();
     for (const auto &sample : snapshot.samples)
         m_samples.insert(sample.id, sample);
@@ -502,13 +704,20 @@ void SettingsDialog::loadSensor(const QString &id)
     m_label->setPlaceholderText(descriptor.label);
     m_memoryDisplay->setCurrentIndex(p.memoryAsPercent ? 1 : 0);
     const bool memory = descriptor.kind == SensorKind::Memory || id == QStringLiteral("system/memory/available");
-    static_cast<QFormLayout *>(m_editor->layout())->setRowVisible(m_memoryDisplay, memory);
-    m_dashboard->setChecked(p.dashboard);
-    m_tray->setChecked(p.tray && sensorSupportsTray(id));
-    m_tray->setEnabled(sensorSupportsTray(id));
-    m_foregroundLabel->setText(sensorSupportsTray(id) ? tr("Text / tray color:") : tr("Readout color:"));
-    m_tray->setToolTip(sensorSupportsTray(id) ? QString() : tr("This sensor is dashboard only."));
-    m_multiplier->setValue(p.multiplier);
+    m_memoryDisplay->setVisible(memory);
+    const int trayIndex = m_sensorTabs->indexOf(m_trayControls.page);
+    if (!sensorSupportsTray(id) && trayIndex >= 0) m_sensorTabs->removeTab(trayIndex);
+    else if (sensorSupportsTray(id) && trayIndex < 0) m_sensorTabs->addTab(m_trayControls.page, tr("Systray"));
+    loadPresentation(m_dashboardControls, false);
+    loadPresentation(m_trayControls, true);
+    m_globalType->setChecked(p.presentation == DashboardPresentation::Global);
+    m_gaugeType->setChecked(p.presentation == DashboardPresentation::Gauge);
+    m_textType->setChecked(p.presentation == DashboardPresentation::Text);
+    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    if (!p.trayFontFamily.isEmpty()) font.setFamily(p.trayFontFamily);
+    m_trayFont->setCurrentFont(font);
+    m_trayFontSize->setValue(p.trayFontSize);
+    loadNumber(m_multiplier, p.multiplier);
     const QString unit = currentIsTemperature() ? temperatureUnitText(m_unit) : descriptor.unit;
     m_offset->setSuffix(unit.isEmpty() ? QString() : QLatin1Char(' ') + unit);
     m_lower->setSuffix(m_offset->suffix());
@@ -516,32 +725,34 @@ void SettingsDialog::loadSensor(const QString &id)
     m_offset->setRange(toDisplay(-1e12, true), toDisplay(1e12, true));
     m_lower->setRange(toDisplay(-1e12, false), toDisplay(1e12, false));
     m_upper->setRange(toDisplay(-1e12, false), toDisplay(1e12, false));
-    m_offset->setValue(toDisplay(p.offset, true));
+    loadNumber(m_offset, toDisplay(p.offset, true));
     m_customRange->setChecked(p.customRange);
-    m_lower->setValue(toDisplay(p.rangeLower, false));
-    m_upper->setValue(toDisplay(p.rangeUpper, false));
+    loadNumber(m_lower, toDisplay(p.rangeLower, false));
+    loadNumber(m_upper, toDisplay(p.rangeUpper, false));
     m_lower->setEnabled(p.customRange);
     m_upper->setEnabled(p.customRange);
     updateColorButtons();
     syncCurrentItem();
     m_loading = false;
+    updatePresentationControls();
 }
 
-void SettingsDialog::chooseColor(bool background)
+void SettingsDialog::chooseColor(bool background, bool tray)
 {
     if (m_currentId.isEmpty())
         return;
     const QString id = m_currentId;
     const auto preferences = m_draft.value(id);
-    auto *dialog = new QColorDialog(background ? preferences.background : preferences.foreground, this);
+    const QColor initial = tray ? (background ? preferences.trayBackground : preferences.trayForeground)
+        : (background ? preferences.background : preferences.foreground);
+    auto *dialog = new QColorDialog(initial, this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
-    connect(dialog, &QColorDialog::colorSelected, this, [this, id, background](const QColor &color) {
+    connect(dialog, &QColorDialog::colorSelected, this, [this, id, background, tray](const QColor &color) {
         if (!color.isValid() || !m_draft.contains(id))
             return;
-        if (background)
-            m_draft[id].background = color;
-        else
-            m_draft[id].foreground = color;
+        auto &p = m_draft[id];
+        if (tray) (background ? p.trayBackground : p.trayForeground) = color;
+        else (background ? p.background : p.foreground) = color;
         if (id == m_currentId)
             updateColorButtons();
     });
@@ -556,27 +767,29 @@ void SettingsDialog::updateColorButtons()
         button->setStyleSheet(color.isValid() ? QStringLiteral("background-color: %1; color: %2;")
             .arg(color.name(), color.lightness() > 128 ? QStringLiteral("black") : QStringLiteral("white")) : QString());
     };
-    update(m_foreground, p.foreground);
+    update(m_dashboardControls.foreground, p.foreground);
     if (m_currentId == QStringLiteral("system/uptime") && !p.foreground.isValid()) {
-        m_foreground->setText(tr("Default (red)"));
-        m_foreground->setStyleSheet(QStringLiteral("background-color: #ff0000; color: white;"));
+        m_dashboardControls.foreground->setText(tr("Default (red)"));
+        m_dashboardControls.foreground->setStyleSheet(QStringLiteral("background-color: #ff0000; color: white;"));
     }
-    update(m_background, p.background);
+    update(m_dashboardControls.background, p.background);
+    update(m_trayControls.foreground, p.trayForeground);
+    update(m_trayControls.background, p.trayBackground);
 }
 
-void SettingsDialog::accept()
+bool SettingsDialog::applyChanges()
 {
     for (auto it = m_draft.cbegin(); it != m_draft.cend(); ++it) {
         if (it->customRange && it->rangeLower >= it->rangeUpper) {
             QMessageBox::warning(this, tr("Invalid gauge range"), tr("The minimum must be below the maximum for %1.").arg(it.key()));
-            return;
+            return false;
         }
     }
     QString error;
     const bool autostartChanged = m_autostart->isChecked() != m_initialAutostart;
     if (autostartChanged && !Autostart::setEnabled(m_autostart->isChecked(), error)) {
         QMessageBox::warning(this, tr("Autostart"), error);
-        return;
+        return false;
     }
     if (!m_store->apply(m_draft, m_unit, error)) {
         QString rollbackError;
@@ -585,10 +798,18 @@ void SettingsDialog::accept()
             m_initialAutostart = Autostart::enabled();
         }
         QMessageBox::warning(this, tr("Settings"), error);
-        return;
+        return false;
     }
     m_initialAutostart = m_autostart->isChecked();
-    QDialog::accept();
+    // Rebase the draft after Apply, including positions assigned by the dashboard.
+    m_draft = m_store->values();
+    populate();
+    return true;
+}
+
+void SettingsDialog::accept()
+{
+    if (applyChanges()) QDialog::accept();
 }
 
 } // namespace qsensors

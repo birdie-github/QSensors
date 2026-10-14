@@ -3,6 +3,7 @@
 
 #include <QDateTime>
 #include <QString>
+#include <QStringList>
 #include <QList>
 #include <QMetaType>
 
@@ -44,6 +45,11 @@ struct SensorDiscovery {
 
 struct SensorSnapshot {
     bool rescanned = false;
+    // Acquisition batches may be partial. These lists identify presentations due
+    // for refresh; other presentations keep their last displayed sample.
+    bool incremental = false;
+    QStringList dashboardRefreshIds;
+    QStringList trayRefreshIds;
     QList<SensorDescriptor> descriptors;
     QList<SensorSample> samples;
     QString error;

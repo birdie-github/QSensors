@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
     qsensors::SensorPreferencesStore preferences;
     qsensors::SensorPresentation presentation(&preferences);
     qsensors::SensorTableModel model(&preferences);
-    qsensors::SensorMonitor monitor;
+    qsensors::SensorMonitor monitor(&preferences);
     monitor.setDashboardIds({});
     QList<qsensors::SensorDescriptor> rawCatalog;
     QPointer<qsensors::SettingsDialog> settingsDialog;
@@ -118,7 +118,11 @@ int main(int argc, char *argv[])
             }
             model.setDescriptors(selected);
         }
-        model.applySamples(snapshot.samples);
+        QList<qsensors::SensorSample> samples;
+        for (const auto &sample : snapshot.samples) {
+            if (!snapshot.incremental || snapshot.dashboardRefreshIds.contains(sample.id)) samples.append(sample);
+        }
+        model.applySamples(samples, snapshot.incremental);
     });
     QObject::connect(&presentation, &qsensors::SensorPresentation::snapshotReady,
                      &dashboard, &qsensors::Dashboard::applySnapshot);

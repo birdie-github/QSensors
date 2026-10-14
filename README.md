@@ -13,14 +13,20 @@ system sensors use the same Settings, dashboard and numeric tray selections.
 New sensors default to disabled. Settings groups sensors by source, supports
 renaming and search, and previews live values in resizable columns. Calibration,
 colors, custom gauge ranges, C/F/K units and opt-in desktop autostart remain
-available. Phase 6 (alarms) is deferred.
+available. Each selected sensor has General, Dashboard and (when supported)
+Systray tabs, with independent refresh timing and appearance. Apply saves the
+current draft; Cancel discards changes since the last Apply. Numeric editors
+show two or three decimals without reducing untouched stored precision.
+Phase 6 (alarms) is deferred.
 
 Vector tiles default to 128 logical pixels; the toolbar accepts 48–2048, with
 presets under View. **View → Table View** retains the sensor table. Use Settings
 to choose dashboard/tray sensors and **Sensors → Rescan** (F5) after hardware
-changes. The saved interval is 1–3600 seconds (default 5). Tile mode polls
-visible selected tiles plus tray selections; table mode polls selected dashboard
-sensors. Tile positions are fixed across window resizing; dragging can grow the
+changes. The global interval is 1–3600 seconds (default 5); presentation overrides
+accept 0.05–3600 seconds. A single timer schedules acquisition at each sensor's
+fastest active interval, with separate presentation deadlines using its cache.
+Tile mode requests visible selected tiles plus tray selections; table mode
+requests selected dashboard sensors. Tile positions are fixed across window resizing; dragging can grow the
 rectangular field. New sensors fill its first empty cell. Double-click empty
 space or press Ctrl+Shift+M to show/hide menu, toolbar and status bar.
 Closing hides when a tray host exists; **Quit** exits. Without a tray

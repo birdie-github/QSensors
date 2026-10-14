@@ -47,7 +47,7 @@ GaugeRange gaugeRange(SensorKind kind, double value)
 }
 
 void fittedText(QPainter &painter, const QRectF &rect, const QString &text,
-                QFont font, bool elide)
+                QFont font, bool elide, bool shadow = false)
 {
     const QFontMetricsF metrics(font);
     qreal scale = std::min(1.0, rect.height() / metrics.height());
@@ -64,6 +64,13 @@ void fittedText(QPainter &painter, const QRectF &rect, const QString &text,
         font.setPixelSize(font.pixelSize() - 1);
     painter.setFont(font);
     const QString visible = elide ? QFontMetricsF(font).elidedText(text, Qt::ElideRight, rect.width()) : text;
+    if (shadow) {
+        const QPen ink = painter.pen();
+        painter.setPen(ink.color().lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white));
+        const qreal offset = std::max(.6, rect.height() * .04);
+        painter.drawText(rect.translated(offset, offset), Qt::AlignCenter | Qt::TextSingleLine, visible);
+        painter.setPen(ink);
+    }
     painter.drawText(rect, Qt::AlignCenter | Qt::TextSingleLine, visible);
 }
 
@@ -156,8 +163,10 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
 void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
                              const SensorDescriptor &descriptor, const TileReading &reading,
                              const TileStyle &style, const QPalette &palette,
-                             bool gauge, bool selected)
+                             bool gauge, bool selected, const SensorPreferences &preferences)
 {
+    if (preferences.presentation != DashboardPresentation::Global)
+        gauge = preferences.presentation == DashboardPresentation::Gauge;
     gauge = gauge && descriptor.kind != SensorKind::Duration;
     if (descriptor.kind == SensorKind::Frequency)
         gauge = gauge && std::isfinite(reading.range.upper) && reading.range.upper > reading.range.lower;
@@ -167,7 +176,8 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
     const qreal size = style.size;
     const qreal padding = std::max(3.0, size * 0.05);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.setBrush(palette.brush(QPalette::Base));
+    if (preferences.dashboardTransparent) painter.setBrush(Qt::NoBrush);
+    else painter.setBrush(palette.brush(QPalette::Base));
     painter.setPen(QPen(palette.color(selected ? QPalette::Highlight : QPalette::Mid),
                         std::max(1.0, size * (selected ? 0.014 : 0.006))));
     painter.drawRoundedRect(QRectF(1, 1, size - 2, size - 2), size * 0.06, size * 0.06);
@@ -181,15 +191,17 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
                                              : palette.color(QPalette::Disabled, QPalette::Text);
         if (reading.days.isEmpty()) {
             drawDigitalText(painter, QRectF(padding, size * .08, size - 2 * padding, size * .13), QStringLiteral("HH:MM"), legend);
-            drawDigitalText(painter, QRectF(padding, size * .29, size - 2 * padding, size * .40), reading.text, base, true);
+            drawDigitalText(painter, QRectF(padding, size * .29, size - 2 * padding, size * .40), reading.text, base, preferences.dashboardShadow);
         } else {
             const QRectF daysRect(padding, size * .15, size - 2 * padding, size * .23);
             const qreal offset = std::max(.6, size * .007);
-            painter.setPen(base.darker(200));
-            fittedText(painter, daysRect.translated(offset, offset), reading.days, style.valueFont, false);
+            if (preferences.dashboardShadow) {
+                painter.setPen(base.darker(200));
+                fittedText(painter, daysRect.translated(offset, offset), reading.days, style.valueFont, false);
+            }
             painter.setPen(base);
             fittedText(painter, daysRect, reading.days, style.valueFont, false);
-            drawDigitalText(painter, QRectF(padding, size * .44, size - 2 * padding, size * .29), reading.text, base, true);
+            drawDigitalText(painter, QRectF(padding, size * .44, size - 2 * padding, size * .29), reading.text, base, preferences.dashboardShadow);
         }
         drawDigitalText(painter, QRectF(padding, size * .83, size - 2 * padding, size * .10), QStringLiteral("UPTIME"), legend);
         painter.restore();
@@ -197,9 +209,9 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
     }
     const bool compact = style.size < 96;
     fittedText(painter, QRectF(padding, size * (gauge ? 0.07 : 0.20), size - 2 * padding, size * 0.32),
-               reading.text, style.valueFont, false);
+               reading.text, style.valueFont, false, preferences.dashboardShadow);
     fittedText(painter, QRectF(padding, size * (gauge ? 0.36 : 0.52), size - 2 * padding, std::max(9.0, size * 0.13)),
-               reading.unit, style.unitFont, true);
+               reading.unit, style.unitFont, true, preferences.dashboardShadow);
 
     if (gauge) {
         const QRectF arc = compact ? QRectF(size * 0.28, size * 0.53, size * 0.44, size * 0.44)
@@ -217,7 +229,7 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
             const qreal radius = arc.width() * 0.45;
             const QPointF tip(center.x() + std::cos(angle) * radius,
                               center.y() - std::sin(angle) * radius);
-            painter.setPen(QPen(palette.color(QPalette::Highlight), std::max(1.0, size * 0.018), Qt::SolidLine, Qt::RoundCap));
+            painter.setPen(QPen(preferences.foreground.isValid() ? textColor : palette.color(QPalette::Highlight), std::max(1.0, size * 0.018), Qt::SolidLine, Qt::RoundCap));
             painter.drawLine(center, tip);
             if (style.size >= 96) {
                 painter.setPen(textColor);
@@ -230,7 +242,7 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
     }
     painter.setPen(textColor);
     fittedText(painter, QRectF(padding, size * (compact ? 0.81 : 0.85), size - 2 * padding, std::max(8.0, size * 0.09)),
-               descriptor.label, style.labelFont, true);
+               descriptor.label, style.labelFont, true, preferences.dashboardShadow);
     if (style.size >= 192)
         fittedText(painter, QRectF(padding, size * 0.94, size - 2 * padding, size * 0.05),
                    descriptor.device, style.detailFont, true);

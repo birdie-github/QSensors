@@ -44,13 +44,14 @@ QString compactValue(const SensorDescriptor &descriptor, double value)
     return text;
 }
 
-QIcon numericIcon(const QString &text, const QColor &color, QFont font)
+QIcon numericIcon(const QString &text, const QColor &color, QFont font, const SensorPreferences &preferences)
 {
     QIcon icon;
     const QColor outline = color.lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white);
     for (int size : {16, 22, 24, 32, 48, 64, 128}) {
         QPixmap pixmap(size, size);
-        pixmap.fill(Qt::transparent);
+        pixmap.fill(preferences.trayTransparent ? QColor(Qt::transparent)
+            : preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base));
         font.setPixelSize(size);
         font.setBold(true);
         QPainterPath path;
@@ -58,13 +59,26 @@ QIcon numericIcon(const QString &text, const QColor &color, QFont font)
         const QRectF bounds = path.boundingRect();
         if (bounds.isEmpty())
             continue;
-        const qreal scale = std::min((size * 0.90) / bounds.width(), (size * 0.82) / bounds.height());
+        const qreal fit = std::min((size * 0.90) / bounds.width(), (size * 0.82) / bounds.height());
+        const qreal nominal = preferences.trayFontSize * (96.0 / 72.0) / 24.0;
+        const qreal scale = preferences.trayFontAutoFit ? fit : std::min(fit, nominal);
         QPainter painter(&pixmap);
         painter.setRenderHint(QPainter::Antialiasing);
         painter.translate(size / 2.0, size / 2.0);
         painter.scale(scale, scale);
         painter.translate(-bounds.center());
-        painter.setPen(QPen(outline, (size * 0.045) / scale, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        if (preferences.trayShadow) {
+            painter.save();
+            const qreal offset = size * .035 / scale;
+            painter.translate(offset, offset);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(outline);
+            painter.drawPath(path);
+            painter.restore();
+            painter.setPen(QPen(outline, (size * 0.045) / scale, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        } else {
+            painter.setPen(Qt::NoPen);
+        }
         painter.setBrush(color);
         painter.drawPath(path);
         painter.end();
@@ -225,13 +239,14 @@ void TrayController::applySnapshot(const SensorSnapshot &snapshot)
         }
         m_descriptors = descriptors;
     }
-    m_samples.clear();
+    if (!snapshot.incremental) m_samples.clear();
     for (const auto &sample : snapshot.samples) {
-        if (m_selected.contains(sample.id))
+        if (m_selected.contains(sample.id) && (!snapshot.incremental || snapshot.trayRefreshIds.contains(sample.id)))
             m_samples.insert(sample.id, sample);
     }
-    for (auto it = m_entries.begin(); it != m_entries.end(); ++it)
-        updateEntry(it.key(), it.value());
+    for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
+        if (!snapshot.incremental || snapshot.trayRefreshIds.contains(it.key())) updateEntry(it.key(), it.value());
+    }
 }
 
 void TrayController::updateEntry(const QString &id, Entry &entry)
@@ -256,13 +271,19 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
         entry.icon->setToolTip(tooltip);
         entry.reading->setText(tr("%1 — %2: %3").arg(label, descriptor.device, value));
     }
-    const QColor color = preferences.foreground.isValid() ? preferences.foreground
-        : QApplication::palette().color(QPalette::Text);
-    const QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    const QString key = text + QStringLiteral("|") + color.name(QColor::HexArgb) + font.toString();
+    const QColor color = preferences.trayForeground.isValid() ? preferences.trayForeground
+        : !preferences.trayTransparent && preferences.trayBackground.isValid()
+            ? (preferences.trayBackground.lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white))
+            : QApplication::palette().color(QPalette::Text);
+    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    if (!preferences.trayFontFamily.isEmpty()) font.setFamily(preferences.trayFontFamily);
+    const QString key = text + QStringLiteral("|") + color.name(QColor::HexArgb) + font.toString()
+        + QStringLiteral("|%1|%2|%3|%4|%5").arg(preferences.trayFontSize).arg(preferences.trayShadow)
+            .arg(preferences.trayTransparent).arg(preferences.trayTransparent ? QString() :
+                (preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base)).name(QColor::HexArgb)).arg(preferences.trayFontAutoFit);
     if (key != entry.renderKey) {
         entry.renderKey = key;
-        entry.icon->setIcon(numericIcon(text, color, font));
+        entry.icon->setIcon(numericIcon(text, color, font, preferences));
     }
 }
 

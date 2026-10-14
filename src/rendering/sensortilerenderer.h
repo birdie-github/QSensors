@@ -45,7 +45,7 @@ public:
                                const SensorPreferences &preferences, TemperatureUnit unit);
     static void draw(QPainter &painter, const QRectF &rect, const SensorDescriptor &descriptor,
                      const TileReading &reading, const TileStyle &style,
-                     const QPalette &palette, bool gauge, bool selected);
+                     const QPalette &palette, bool gauge, bool selected, const SensorPreferences &preferences);
 };
 
 } // namespace qsensors

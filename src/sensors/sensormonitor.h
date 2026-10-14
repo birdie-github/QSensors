@@ -7,16 +7,20 @@
 #include <QStringList>
 #include <QThread>
 #include <QTimer>
+#include <QElapsedTimer>
+#include <QHash>
+#include <QSet>
 
 namespace qsensors {
 
 class SensorWorker;
+class SensorPreferencesStore;
 
 // GUI-side demand/scheduling. At most one request and one completion are in flight.
 class SensorMonitor final : public QObject {
     Q_OBJECT
 public:
-    explicit SensorMonitor(QObject *parent = nullptr);
+    explicit SensorMonitor(SensorPreferencesStore *preferences, QObject *parent = nullptr);
     ~SensorMonitor() override;
     int intervalSeconds() const { return m_intervalSeconds; }
     void setDashboardActive(bool active);
@@ -38,6 +42,24 @@ private:
     bool hasDemand() const;
     QStringList demandedIds() const;
 
+    QStringList dashboardDemand() const;
+    qint64 intervalMilliseconds(const QString &id, bool tray) const;
+    qint64 acquisitionMilliseconds(const QString &id) const;
+    void resetSchedule();
+    void pruneDeadlines();
+
+    SensorPreferencesStore *m_preferences;
+    QElapsedTimer m_clock;
+    QHash<QString, qint64> m_acquisitionDue;
+    QHash<QString, qint64> m_acquisitionPeriods;
+    QHash<QString, qint64> m_dashboardDue;
+    QHash<QString, qint64> m_trayDue;
+    QHash<QString, qint64> m_previewDue;
+    QSet<QString> m_failedIds;
+    QString m_discoveryError;
+    QStringList m_requestedIds;
+    QStringList m_dashboardRefreshIds;
+    QStringList m_trayRefreshIds;
     QThread m_thread;
     SensorWorker *m_worker;
     QTimer m_timer;
@@ -54,6 +76,8 @@ private:
     int m_retrySeconds = 10;
     qint64 m_nextRecovery = 0;
     qint64 m_lastCompletion = 0;
+    qint64 m_lastWallCompletion = 0;
+    int m_scheduledDelay = 0;
 };
 
 } // namespace qsensors

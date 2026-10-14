@@ -121,7 +121,8 @@ QList<SensorSample> SystemSensorProvider::readBatch(const QStringList &ids)
     const auto current = cpu ? systemmetrics::cpuCounters(stat) : std::optional<systemmetrics::CpuCounters>();
     if (current && m_previousCpu)
         activity = systemmetrics::cpuActivity(*m_previousCpu, *current);
-    m_previousCpu = current;
+    // Partial batches for other sensors must not discard the CPU baseline.
+    if (cpu) m_previousCpu = current;
     double average = 0, maximum = 0;
     for (double value : frequencies) { average += value / std::max<qsizetype>(1, frequencies.size()); maximum = std::max(maximum, value); }
     const bool ramWanted = ids.contains(QStringLiteral("system/memory/ram")) || ids.contains(QStringLiteral("system/memory/available"));

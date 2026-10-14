@@ -1,19 +1,20 @@
-# Settings and formatting — phase 5
+# Sensor configuration and formatting
 
 ## General and sensor settings
 
 Settings now has two resizable pages. General chooses Celsius/Fahrenheit/Kelvin
 for all temperature displays and optionally starts QSensors at desktop login.
-Polling interval and tile size remain in the dashboard toolbar.
+Global polling interval and tile size remain in the dashboard toolbar. Each
+selected sensor has General, Dashboard and (if supported) Systray tabs.
 
 New sensors default to disabled for both dashboard and tray. A fresh configuration
 therefore has an empty dashboard. Existing saved selections remain unchanged;
 Disable all sensors clears both selections across the catalog (including search
-results that are hidden), and takes effect on OK. Reset sensor preferences also
+results that are hidden), and takes effect on Apply or OK. Reset sensor preferences also
 returns that sensor to disabled.
 
-The dialog opens on Sensors at 1120 × 760 logical pixels, bounded to 90% of the
-available screen. The resizable browser groups sensors under collapsible source
+The dialog opens on Sensors, sized from its layout and bounded to 90% of the
+available screen. Its editor scrolls when screen space is limited. The resizable browser groups sensors under collapsible source
 headings, naturally sorts source and display names (Core 2 before Core 18), and
 keeps unavailable sensors in a separate group. Search matches display names,
 original names, sources and stable IDs. Dashboard and tray checkboxes are directly
@@ -22,19 +23,36 @@ calibration and display units; unapplied edits do not change the preview. All
 columns can be resized by dragging their header boundaries, including the last
 column. Reading updates and rescans leave those widths unchanged. Double-click a
 boundary to fit its contents. Display name contains editable text; Use original
-name clears the override. Renames update the row immediately; the next catalog
+clears the override. Renames update the row immediately; the next catalog
 refresh or dialog opening orders it by the new name.
 
-Sensors lists the complete discovered catalog before any monitoring selection,
-plus saved missing devices. Choose a sensor to edit independent dashboard/tray
-selection, custom label, multiplier/offset, optional custom gauge bounds and
-text/tray/tile-background colors. An empty label uses the libsensors label.
-Reset color uses the system palette; a custom background with no custom text
-color chooses contrasting black/white text. Explicit color combinations are
-respected. Reset calibration restores multiplier 1 and offset 0; Reset sensor
-preferences restores that sensor's defaults, including selections and colors.
+Sensors lists the complete discovered catalog plus saved missing devices.
+General edits the display name, multiplier and offset. Use original changes only
+the name; Reset calibration changes only multiplier/offset; Reset sensor
+preferences restores all of this sensor's defaults, including both enabled states.
 
-OK applies the draft; Cancel discards it. Rescan preserves unapplied drafts and
+Dashboard and Systray have independent enablement, timing, foreground/background
+colors, transparency and shadows. Disabling either page deactivates its controls
+without clearing any preferences. Dashboard types are Gauge and Text, with a
+Use global gauge setting option preserving the toolbar's behavior. Uptime has
+only its existing digital style and no Type section or Systray tab. Gauge bounds
+appear only for a gauge presentation; hiding them retains their saved values.
+Available RAM's MiB/percentage choice remains shared with the tray and table.
+
+The tray font uses a family selector and a 1–72 pt reference size for a 24-pixel
+icon. Explicit sizes scale for the host and are reduced if necessary to fit the
+complete value. Existing icons retain automatic fitting until the size is edited;
+font Reset restores the system fixed font, size 10 and automatic fitting without
+changing colors, shadows or backgrounds. Cast shadow also retains the legacy
+contrasting outline for tray readability. Uptime's existing shadow stays enabled
+by default; other dashboard sensors default to no shadow.
+
+Reset color uses the system palette. A custom solid background with no custom
+text color chooses contrasting black/white text. Transparent retains the saved
+background color for later reuse. Explicit color combinations are respected.
+
+Apply saves the draft without closing; OK saves and closes; Cancel discards
+changes since the last successful Apply, including resets. Rescan preserves unapplied drafts and
 updates the catalog; saved missing-device preferences are never removed merely
 because hardware is absent. Duplicate labels are independent because IDs are
 used for persistence. The empty tile view explains how to select sensors.
@@ -65,7 +83,12 @@ Temperature calibration operates in Celsius. Absolute conversions are
 is 18 °F or 10 K, without adding 32 or 273.15. Custom gauge bounds are absolute
 canonical values, converted for editing/rendering. Changing the General unit
 reloads the controls without rewriting their canonical draft values. Only
-actual numeric edits write those draft fields.
+actual numeric edits write those draft fields. Numeric editors display two
+decimals, or three when the third is nonzero, and accept up to three decimals.
+Their internal spin-box rounding is never copied into the draft while loading.
+Opening and accepting, changing units, visiting another sensor, or editing an
+unrelated field preserves the full precision of untouched stored values. A
+tooltip exposes the precise draft value in the current display units.
 
 A missing device's type may be unknown after restart; its calibration and
 bounds are shown in canonical units until rediscovery, as explained in the
@@ -94,11 +117,14 @@ Resetting all preferences removes that sensor's section. A disabled sensor with
 a custom label, color or calibration still has an override and is retained.
 Missing devices retain their customizations until reset.
 
-The format is intentionally new: there is no old-settings reader or migration.
-Close QSensors and remove or rename the previous configuration before first use.
-Edit the new file while QSensors is stopped. Qt may reorder keys/sections and
+Existing Sensor sections remain compatible: calibration, labels, ranges,
+selections, positions and colors are retained. The old shared foreground
+initializes the independent tray foreground when its new key is absent. The
+first save writes that tray color explicitly (or `default` for the system palette)
+so later dashboard edits cannot silently change it. No configuration reset is
+required. Edit the file while QSensors is stopped. Qt may reorder keys/sections and
 rewrite comments when saving; this is an editable settings file, not a comment-
-preserving document. Sensor section names are regenerated on OK; identity comes
+preserving document. Sensor section names are regenerated on Apply/OK; identity comes
 from `id`, not the section number. Duplicate identity sections should be avoided.
 
 Example (all omitted options use defaults):
@@ -137,7 +163,7 @@ preferences, and an open Settings draft does not overwrite newer positions.
 Deselecting a dashboard sensor releases its cell. `controlsVisible` remembers
 menu/toolbar/status-bar visibility. Tile size, gauges and view remain
 `tileSize`, `gauges` and `tableView`. `[Monitoring] intervalSeconds` is unchanged.
-Sensor preferences are written on OK, not on measurements. Opening Settings and
+Sensor preferences are written on Apply/OK, not on measurements. Opening Settings and
 pressing OK without modifications does not dump the discovered catalog.
 
 Only selected dashboard sensors are exposed by either dashboard view. Tiles
@@ -145,6 +171,34 @@ request those intersecting the viewport, table mode requests the selected
 catalog, and tray selections add background demand. No-selection/no-tray mode
 stops reading while keeping settings accessible. No new polling worker or
 continuous repaint timer is introduced.
+
+Each presentation can use global timing or a retained custom interval in
+0.05–3600 seconds. The existing single-shot timer schedules independent
+acquisition and presentation deadlines; the existing serialized worker reads
+each sensor at the fastest cadence required by its active consumers (including
+the settings preview). A slower presentation uses the shared latest cache when
+its own deadline falls between acquisitions, rather than doing another hardware
+read. Coincident requests are batched and deduplicated. Partial acquisition
+batches replace only the channels read, including failures; untouched channels
+and presentations keep their own last samples. Dashboard/table and tray updates
+are restricted to due IDs. Global interval changes reschedule global consumers
+without resetting custom presentation deadlines. Hidden/off-screen dashboard
+consumers release demand; disabled consumers retain preferences but add no
+periodic work. Discovery, recovery and Apply may force immediate refreshes.
+
+Additional persisted keys (implicit defaults):
+
+- `dashboardUseGlobal=true`, `dashboardInterval=5`, `presentation=Global`
+  (`Gauge` or `Text` for overrides).
+- `dashboardShadow=false` (true for Uptime), `dashboardTransparent=false`.
+- `trayUseGlobal=true`, `trayInterval=5`, `trayForeground=default`,
+  `trayBackground=`, `trayShadow=true`, `trayTransparent=true`.
+- `trayFontFamily=` (system fixed font), `trayFontSize=10`, `trayFontAutoFit=true`.
+
+Custom intervals, backgrounds and gauge limits are persisted even when their
+corresponding global/transparent/text option is selected. Disabled dashboard
+sensors release their cell; re-enabling fills the first available empty cell
+and grows the rectangular field if needed.
 
 ## Autostart
 

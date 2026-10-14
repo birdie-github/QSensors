@@ -276,7 +276,11 @@ void Dashboard::applySnapshot(const SensorSnapshot &snapshot)
         m_grid->setDescriptors(selected);
         if (!m_compact) m_stack->setCurrentIndex(snapshot.descriptors.isEmpty() ? 0 : m_tableView->isChecked() ? 2 : 1);
     }
-    m_grid->applySamples(snapshot.samples);
+    QList<SensorSample> samples;
+    for (const auto &sample : snapshot.samples) {
+        if (!snapshot.incremental || snapshot.dashboardRefreshIds.contains(sample.id)) samples.append(sample);
+    }
+    m_grid->applySamples(samples, snapshot.incremental);
     updateVisibleIds();
 }
 

@@ -64,11 +64,26 @@ QString sensorInternalId(const QString &id)
         + QLatin1Char('/') + QString::fromLatin1(QUrl::toPercentEncoding(id.mid(slash + 1)));
 }
 
+SensorPreferences defaultSensorPreferences(const QString &id)
+{
+    SensorPreferences p;
+    p.dashboardShadow = id == QStringLiteral("system/uptime");
+    return p;
+}
+
 bool SensorPreferences::operator==(const SensorPreferences &other) const
 {
     return position == other.position && dashboard == other.dashboard && tray == other.tray && label == other.label
         && multiplier == other.multiplier && offset == other.offset
         && foreground == other.foreground && background == other.background
+        && dashboardInterval == other.dashboardInterval && trayInterval == other.trayInterval
+        && dashboardUseGlobal == other.dashboardUseGlobal && trayUseGlobal == other.trayUseGlobal
+        && presentation == other.presentation && dashboardShadow == other.dashboardShadow
+        && dashboardTransparent == other.dashboardTransparent
+        && trayForeground == other.trayForeground && trayBackground == other.trayBackground
+        && trayShadow == other.trayShadow && trayTransparent == other.trayTransparent
+        && trayFontFamily == other.trayFontFamily && trayFontSize == other.trayFontSize
+        && trayFontAutoFit == other.trayFontAutoFit
         && memoryAsPercent == other.memoryAsPercent
         && customRange == other.customRange && rangeLower == other.rangeLower && rangeUpper == other.rangeUpper;
 }
@@ -77,7 +92,7 @@ QColor dashboardTextColor(const SensorPreferences &preferences, const QColor &sy
 {
     if (preferences.foreground.isValid())
         return preferences.foreground;
-    if (preferences.background.isValid())
+    if (!preferences.dashboardTransparent && preferences.background.isValid())
         return preferences.background.lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white);
     return systemText;
 }
@@ -100,9 +115,9 @@ double number(QSettings &settings, const QString &key, double fallback, double l
     return valid && std::isfinite(value) && std::abs(value) <= limit ? value : fallback;
 }
 
-SensorPreferences readPreferences(QSettings &settings)
+SensorPreferences readPreferences(QSettings &settings, const QString &id)
 {
-    SensorPreferences p;
+    SensorPreferences p = defaultSensorPreferences(id);
     p.dashboard = boolean(settings, QStringLiteral("dashboard"), false);
     p.tray = boolean(settings, QStringLiteral("tray"), false);
     p.label = settings.value(QStringLiteral("label")).toString();
@@ -117,6 +132,31 @@ SensorPreferences readPreferences(QSettings &settings)
     p.offset = number(settings, QStringLiteral("offset"), 0, 1e12);
     p.foreground = QColor(settings.value(QStringLiteral("foreground")).toString());
     p.background = QColor(settings.value(QStringLiteral("background")).toString());
+    // The old foreground was shared. Missing new keys inherit it exactly once.
+    const QString trayColor = settings.value(QStringLiteral("trayForeground")).toString();
+    p.trayForeground = settings.contains(QStringLiteral("trayForeground"))
+        ? (trayColor == QStringLiteral("default") ? QColor() : QColor(trayColor)) : p.foreground;
+    p.trayBackground = QColor(settings.value(QStringLiteral("trayBackground")).toString());
+    p.dashboardShadow = boolean(settings, QStringLiteral("dashboardShadow"), p.dashboardShadow);
+    p.dashboardTransparent = boolean(settings, QStringLiteral("dashboardTransparent"), false);
+    p.trayShadow = boolean(settings, QStringLiteral("trayShadow"), true);
+    p.trayTransparent = boolean(settings, QStringLiteral("trayTransparent"), true);
+    p.dashboardUseGlobal = boolean(settings, QStringLiteral("dashboardUseGlobal"), true);
+    p.trayUseGlobal = boolean(settings, QStringLiteral("trayUseGlobal"), true);
+    const auto interval = [&settings](const QString &key) {
+        const double value = number(settings, key, 5, maximumRefreshSeconds);
+        return value >= minimumRefreshSeconds ? value : 5;
+    };
+    p.dashboardInterval = interval(QStringLiteral("dashboardInterval"));
+    p.trayInterval = interval(QStringLiteral("trayInterval"));
+    const QString style = settings.value(QStringLiteral("presentation")).toString();
+    if (style == QStringLiteral("Gauge")) p.presentation = DashboardPresentation::Gauge;
+    else if (style == QStringLiteral("Text")) p.presentation = DashboardPresentation::Text;
+    p.trayFontAutoFit = boolean(settings, QStringLiteral("trayFontAutoFit"), true);
+    p.trayFontFamily = settings.value(QStringLiteral("trayFontFamily")).toString();
+    bool sizeOk = false;
+    const int size = settings.value(QStringLiteral("trayFontSize"), 10).toInt(&sizeOk);
+    if (sizeOk && size >= 1 && size <= 72) p.trayFontSize = size;
     p.rangeLower = number(settings, QStringLiteral("rangeLower"), 0, 1e12);
     p.rangeUpper = number(settings, QStringLiteral("rangeUpper"), 100, 1e12);
     p.memoryAsPercent = boolean(settings, QStringLiteral("memoryAsPercent"), false);
@@ -130,7 +170,12 @@ bool validPreferences(const SensorPreferences &p)
         && std::isfinite(p.offset) && std::abs(p.offset) <= 1e12
         && std::isfinite(p.rangeLower) && std::abs(p.rangeLower) <= 1e12
         && std::isfinite(p.rangeUpper) && std::abs(p.rangeUpper) <= 1e12
-        && (!p.customRange || p.rangeLower < p.rangeUpper);
+        && (!p.customRange || p.rangeLower < p.rangeUpper)
+        && std::isfinite(p.dashboardInterval) && p.dashboardInterval >= minimumRefreshSeconds && p.dashboardInterval <= maximumRefreshSeconds
+        && std::isfinite(p.trayInterval) && p.trayInterval >= minimumRefreshSeconds && p.trayInterval <= maximumRefreshSeconds
+        && p.trayFontSize >= 1 && p.trayFontSize <= 72
+        && (p.presentation == DashboardPresentation::Global || p.presentation == DashboardPresentation::Gauge
+            || p.presentation == DashboardPresentation::Text);
 }
 }
 
@@ -145,14 +190,14 @@ SensorPreferencesStore::SensorPreferencesStore(QObject *parent) : QObject(parent
         settings.beginGroup(group);
         const QString id = sensorInternalId(settings.value(QStringLiteral("id")).toString());
         if (!id.isEmpty()) {
-            auto p = readPreferences(settings);
+            auto p = readPreferences(settings, id);
             if (!sensorSupportsTray(id)) p.tray = false;
             m_values.insert(id, p);
         }
         settings.endGroup();
     }
     for (auto it = m_values.begin(); it != m_values.end();) {
-        if (it.value() == SensorPreferences{}) it = m_values.erase(it);
+        if (it.value() == defaultSensorPreferences(it.key())) it = m_values.erase(it);
         else ++it;
     }
 }
@@ -177,7 +222,7 @@ bool SensorPreferencesStore::apply(const QHash<QString, SensorPreferences> &valu
     }
     for (auto it = values.cbegin(); it != values.cend(); ++it) {
         if (it.key().isEmpty() || !validPreferences(it.value())) {
-            error = tr("Invalid calibration or display range for %1.").arg(it.key());
+            error = tr("Invalid calibration, display range, or refresh preferences for %1.").arg(it.key());
             return false;
         }
     }
@@ -188,7 +233,7 @@ bool SensorPreferencesStore::apply(const QHash<QString, SensorPreferences> &valu
         // Settings drafts do not edit layout. A drag may have updated it since the dialog opened.
         p.position = p.dashboard ? m_values.value(it.key()).position : std::nullopt;
         if (!sensorSupportsTray(it.key())) p.tray = false;
-        if (p == SensorPreferences{}) merged.remove(it.key());
+        if (p == defaultSensorPreferences(it.key())) merged.remove(it.key());
         else merged.insert(it.key(), p);
     }
     if (!write(merged, unit, error)) return false;
@@ -247,6 +292,23 @@ bool SensorPreferencesStore::write(const QHash<QString, SensorPreferences> &valu
         if (p.offset != 0) settings.setValue(QStringLiteral("offset"), p.offset);
         if (p.foreground.isValid()) settings.setValue(QStringLiteral("foreground"), p.foreground.name(QColor::HexArgb));
         if (p.background.isValid()) settings.setValue(QStringLiteral("background"), p.background.name(QColor::HexArgb));
+        // Write the split tray foreground explicitly, including its system-default sentinel.
+        settings.setValue(QStringLiteral("trayForeground"), p.trayForeground.isValid() ? p.trayForeground.name(QColor::HexArgb) : QStringLiteral("default"));
+        if (p.trayBackground.isValid()) settings.setValue(QStringLiteral("trayBackground"), p.trayBackground.name(QColor::HexArgb));
+        const auto defaults = defaultSensorPreferences(id);
+        if (p.dashboardShadow != defaults.dashboardShadow) settings.setValue(QStringLiteral("dashboardShadow"), p.dashboardShadow);
+        if (p.dashboardTransparent) settings.setValue(QStringLiteral("dashboardTransparent"), true);
+        if (!p.trayShadow) settings.setValue(QStringLiteral("trayShadow"), false);
+        if (!p.trayTransparent) settings.setValue(QStringLiteral("trayTransparent"), false);
+        if (!p.dashboardUseGlobal) settings.setValue(QStringLiteral("dashboardUseGlobal"), false);
+        if (!p.trayUseGlobal) settings.setValue(QStringLiteral("trayUseGlobal"), false);
+        if (p.dashboardInterval != 5) settings.setValue(QStringLiteral("dashboardInterval"), p.dashboardInterval);
+        if (p.trayInterval != 5) settings.setValue(QStringLiteral("trayInterval"), p.trayInterval);
+        if (p.presentation != DashboardPresentation::Global) settings.setValue(QStringLiteral("presentation"),
+            p.presentation == DashboardPresentation::Gauge ? QStringLiteral("Gauge") : QStringLiteral("Text"));
+        if (!p.trayFontFamily.isEmpty()) settings.setValue(QStringLiteral("trayFontFamily"), p.trayFontFamily);
+        if (!p.trayFontAutoFit) settings.setValue(QStringLiteral("trayFontAutoFit"), false);
+        if (p.trayFontSize != 10) settings.setValue(QStringLiteral("trayFontSize"), p.trayFontSize);
         if (p.memoryAsPercent) settings.setValue(QStringLiteral("memoryAsPercent"), true);
         if (p.customRange) settings.setValue(QStringLiteral("customRange"), true);
         if (p.rangeLower != 0) settings.setValue(QStringLiteral("rangeLower"), p.rangeLower);

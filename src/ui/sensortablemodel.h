@@ -22,7 +22,7 @@ public:
     QVariant headerData(int section, Qt::Orientation orientation,
                         int role = Qt::DisplayRole) const override;
     void setDescriptors(const QList<SensorDescriptor> &descriptors);
-    void applySamples(const QList<SensorSample> &samples);
+    void applySamples(const QList<SensorSample> &samples, bool incremental = false);
 
 private:
     SensorPreferencesStore *m_preferences;
