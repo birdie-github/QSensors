@@ -72,11 +72,13 @@ public:
     TemperatureUnit temperatureUnit() const { return m_unit; }
     QStringList trayIds() const;
     bool apply(const QHash<QString, SensorPreferences> &values, TemperatureUnit unit, QString &error);
+    bool setTemperatureUnit(TemperatureUnit unit, QString &error);
     // Layout-only updates preserve current preferences and do not refresh sensor consumers.
     bool savePositions(const QHash<QString, QPoint> &positions, QString &error);
 
 signals:
     void changed();
+    void temperatureUnitChanged(TemperatureUnit unit);
 
 private:
     bool write(const QHash<QString, SensorPreferences> &values, TemperatureUnit unit, QString &error);

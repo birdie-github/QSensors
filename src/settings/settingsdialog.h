@@ -79,7 +79,6 @@ private:
     QString m_currentId;
     TemperatureUnit m_unit;
     bool m_loading = false;
-    bool m_initialAutostart;
     QTreeWidget *m_list;
     QHash<QString, QTreeWidgetItem *> m_valueItems;
     QLineEdit *m_search;
@@ -102,9 +101,7 @@ private:
     QCheckBox *m_customRange;
     QDoubleSpinBox *m_lower;
     QDoubleSpinBox *m_upper;
-    QComboBox *m_temperatureUnit;
     QComboBox *m_memoryDisplay;
-    QCheckBox *m_autostart;
     QLabel *m_identity;
 };
 

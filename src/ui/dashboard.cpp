@@ -3,6 +3,7 @@
 #include "ui/sensortablemodel.h"
 #include "ui/sensorgrid.h"
 #include "settings/sensorpreferences.h"
+#include "settings/autostart.h"
 
 #include <QSet>
 #include <QAction>
@@ -79,12 +80,26 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     toolbar->addWidget(m_interval);
     connect(m_interval, &QSpinBox::valueChanged, this, &Dashboard::intervalChanged);
 
+    createSettingsMenu();
     auto *view = menuBar()->addMenu(tr("&View"));
-    m_tableView = view->addAction(tr("Table View"));
-    m_tableView->setCheckable(true);
-    m_tableView->setChecked(QSettings().value(QStringLiteral("Dashboard/tableView"), false).toBool());
+    auto *presentationGroup = new QActionGroup(view);
+    m_dashboardView = view->addAction(tr("Dashboard"));
+    m_tableView = view->addAction(tr("Table"));
+    for (auto *action : {m_dashboardView, m_tableView}) {
+        action->setCheckable(true);
+        presentationGroup->addAction(action);
+    }
+    const bool tableView = QSettings().value(QStringLiteral("Dashboard/tableView"), false).toBool();
+    m_tableView->setChecked(tableView);
+    m_dashboardView->setChecked(!tableView);
+    m_controlsAction = view->addAction(tr("Compact Mode"));
+    m_controlsAction->setCheckable(true);
+    m_controlsAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+M")));
+    addAction(m_controlsAction);
+    connect(m_controlsAction, &QAction::toggled, this, [this](bool compact) { setControlsVisible(!compact); });
+    view->addSeparator();
     m_grid = new SensorGrid(preferences, this);
-    auto *paletteMenu = view->addMenu(tr("Dashboard Palette"));
+    auto *paletteMenu = view->addMenu(tr("Palette"));
     auto *paletteGroup = new QActionGroup(paletteMenu);
     const auto addPalette = [this, paletteMenu, paletteGroup](const QString &label, DashboardPalette preset) {
         auto *action = paletteMenu->addAction(label);
@@ -105,7 +120,7 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
         for (auto *action : paletteGroup->actions())
             action->setChecked(action->data().toInt() == static_cast<int>(m_grid->palettePreset()));
     });
-    auto *backgroundMenu = view->addMenu(tr("Dashboard Background"));
+    auto *backgroundMenu = view->addMenu(tr("Background"));
     auto *backgroundGroup = new QActionGroup(backgroundMenu);
     const auto addBackground = [this, backgroundMenu, backgroundGroup](const QString &label, DashboardBackground pattern) {
         auto *action = backgroundMenu->addAction(label);
@@ -117,7 +132,8 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     addBackground(tr("Solid"), DashboardBackground::Solid);
     addBackground(tr("Dots"), DashboardBackground::Dots);
     addBackground(tr("Grid"), DashboardBackground::Grid);
-    auto *styleMenu = view->addMenu(tr("Dashboard Style"));
+    auto *styleMenu = new QMenu(tr("Tile Style"), view);
+    view->insertMenu(paletteMenu->menuAction(), styleMenu);
     auto *styleGroup = new QActionGroup(styleMenu);
     const auto addStyle = [this, styleMenu, styleGroup](const QString &label, DashboardTileShape shape) {
         auto *action = styleMenu->addAction(label);
@@ -183,11 +199,6 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
         }
         finishCompactResize();
     });
-    m_controlsAction = view->addAction(tr("Show Main Window Controls"));
-    m_controlsAction->setCheckable(true);
-    m_controlsAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+M")));
-    addAction(m_controlsAction);
-    connect(m_controlsAction, &QAction::toggled, this, &Dashboard::setControlsVisible);
     connect(m_grid, &SensorGrid::controlsToggleRequested, this, [this] { m_controlsAction->toggle(); });
     connect(m_grid, &SensorGrid::fieldSizeChanged, this, &Dashboard::fitCompactView);
     connect(m_grid, &SensorGrid::configureRequested, this, &Dashboard::sensorConfigureRequested);
@@ -206,7 +217,8 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
         }
         emit sensorDisabled(id);
     });
-    auto *sizes = view->addMenu(tr("Tile Size"));
+    auto *sizes = new QMenu(tr("Tile Size"), view);
+    view->insertMenu(styleMenu->menuAction(), sizes);
     for (int size : {64, 96, 128, 192, 256, 384, 512, 1024}) {
         auto *preset = sizes->addAction(tr("%1 × %1").arg(size));
         connect(preset, &QAction::triggered, this, [this, size] {
@@ -278,6 +290,7 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     connect(m_grid, &SensorGrid::visibleIdsChanged, this, [this] { updateVisibleIds(); });
     connect(m_tableView, &QAction::toggled, this, [this](bool table) {
         QSettings().setValue(QStringLiteral("Dashboard/tableView"), table);
+        if (table && m_compact) setControlsVisible(true);
         if (!m_compact) m_stack->setCurrentIndex(table ? 2 : 1);
         m_tileSize->setEnabled(!table);
         updateVisibleIds();
@@ -289,7 +302,7 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     m_trayWarning->setToolTip(tr("A compatible system tray host is required for background operation."));
     statusBar()->addPermanentWidget(m_trayWarning);
     QSettings settings;
-    m_controlsAction->setChecked(true);
+    m_controlsAction->setChecked(false);
     const bool controlsVisible = settings.value(QStringLiteral("Dashboard/controlsVisible"), true).toBool();
     if (settings.contains(QStringLiteral("Dashboard/width"))) {
         bool widthOk = false, heightOk = false;
@@ -318,6 +331,55 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     if (!controlsVisible) QTimer::singleShot(0, this, [this] { setControlsVisible(false); });
 }
 
+void Dashboard::createSettingsMenu()
+{
+    m_settingsMenu = new QMenu(tr("&Settings"), this);
+    auto *units = m_settingsMenu->addMenu(tr("Temperature Unit"));
+    auto *unitGroup = new QActionGroup(units);
+    const auto syncUnits = [this, unitGroup] {
+        for (auto *action : unitGroup->actions())
+            action->setChecked(action->data().toInt() == static_cast<int>(m_preferences->temperatureUnit()));
+    };
+    const auto addUnit = [this, units, unitGroup, syncUnits](const QString &label, TemperatureUnit unit) {
+        auto *action = units->addAction(label);
+        action->setCheckable(true);
+        action->setData(static_cast<int>(unit));
+        unitGroup->addAction(action);
+        connect(action, &QAction::triggered, this, [this, unit, syncUnits] {
+            QString error;
+            if (!m_preferences->setTemperatureUnit(unit, error))
+                QMessageBox::warning(this, tr("Temperature Unit"), error);
+            syncUnits();
+        });
+    };
+    addUnit(tr("Celsius (°C)"), TemperatureUnit::Celsius);
+    addUnit(tr("Fahrenheit (°F)"), TemperatureUnit::Fahrenheit);
+    addUnit(tr("Kelvin (K)"), TemperatureUnit::Kelvin);
+    syncUnits();
+    connect(m_preferences, &SensorPreferencesStore::temperatureUnitChanged, this, syncUnits);
+    connect(m_settingsMenu->addAction(tr("Global Update Interval…")), &QAction::triggered, this, [this] {
+        bool accepted = false;
+        const int seconds = QInputDialog::getInt(this, tr("Global Update Interval"), tr("Interval (seconds):"),
+                                               m_interval->value(), 1, 3600, 1, &accepted);
+        if (accepted) m_interval->setValue(seconds);
+    });
+    m_settingsMenu->addSeparator();
+    auto *autostart = m_settingsMenu->addAction(tr("Start at Login"));
+    autostart->setCheckable(true);
+    autostart->setChecked(Autostart::enabled());
+    autostart->setToolTip(tr("Starts this executable: %1").arg(QCoreApplication::applicationFilePath()));
+    connect(autostart, &QAction::triggered, this, [this, autostart](bool enabled) {
+        QString error;
+        if (!Autostart::setEnabled(enabled, error)) {
+            autostart->setChecked(Autostart::enabled());
+            QMessageBox::warning(this, tr("Start at Login"), error);
+        }
+    });
+    connect(m_settingsMenu, &QMenu::aboutToShow, this, [autostart] {
+        autostart->setChecked(Autostart::enabled());
+    });
+}
+
 Dashboard::~Dashboard()
 {
     finishCompactResize();
@@ -327,8 +389,9 @@ Dashboard::~Dashboard()
 void Dashboard::setControlsVisible(bool visible)
 {
     const QSignalBlocker blocker(m_controlsAction);
-    m_controlsAction->setChecked(visible);
+    m_controlsAction->setChecked(!visible);
     if (m_compact == !visible) return;
+    if (!visible) m_dashboardView->setChecked(true);
     finishCompactResize();
     const QScopedValueRollback<bool> adjusting(m_adjustingCompact, true);
     const bool wasVisible = isVisible();
@@ -550,19 +613,17 @@ void Dashboard::updateVisibleIds()
         : !m_compact && m_tableView->isChecked() ? m_catalogIds : m_grid->visibleIds());
 }
 
-void Dashboard::setActions(QAction *show, QAction *hide, QAction *settings,
+void Dashboard::setActions(QAction *hide, QAction *settings,
                            QAction *rescan, QAction *about, QAction *quit)
 {
-    auto *file = new QMenu(tr("&File"), menuBar());
-    menuBar()->insertMenu(menuBar()->actions().first(), file);
-    file->addAction(show);
-    file->addAction(hide);
-    file->addSeparator();
-    file->addAction(settings);
-    file->addSeparator();
-    file->addAction(quit);
-    auto *sensors = menuBar()->addMenu(tr("&Sensors"));
-    sensors->addAction(rescan);
+    auto *application = new QMenu(tr("&QSensors"), menuBar());
+    menuBar()->insertMenu(menuBar()->actions().first(), application);
+    application->addAction(settings);
+    application->addAction(rescan);
+    application->addSeparator();
+    application->addAction(hide);
+    application->addAction(quit);
+    menuBar()->addMenu(m_settingsMenu);
     menuBar()->addMenu(tr("&Help"))->addAction(about);
     auto *toolbar = findChild<QToolBar *>(QStringLiteral("sensorsToolbar"));
     toolbar->insertAction(toolbar->actions().first(), rescan);

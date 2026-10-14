@@ -54,8 +54,10 @@ int main(int argc, char *argv[])
     qsensors::Dashboard dashboard(&model, &preferences);
     qsensors::TrayController tray(&dashboard, &preferences);
     dashboard.setIntervalSeconds(monitor.intervalSeconds());
-    dashboard.setActions(tray.showAction(), tray.hideAction(), tray.settingsAction(),
+    dashboard.setActions(tray.hideAction(), tray.settingsAction(),
                          tray.rescanAction(), tray.aboutAction(), tray.quitAction());
+    tray.addApplicationSettingsMenu(dashboard.applicationSettingsMenu());
+    dashboard.addAction(tray.showAction());
 
     const auto showDashboard = [&dashboard] {
         auto state = dashboard.windowState();

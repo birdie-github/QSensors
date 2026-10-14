@@ -16,6 +16,7 @@ class QStackedWidget;
 class QComboBox;
 class QSizeGrip;
 class QResizeEvent;
+class QMenu;
 
 namespace qsensors {
 
@@ -33,7 +34,8 @@ public:
     void clearReadings();
     void setIntervalSeconds(int seconds);
     void setTrayAvailable(bool available);
-    void setActions(QAction *show, QAction *hide, QAction *settings,
+    QMenu *applicationSettingsMenu() const { return m_settingsMenu; }
+    void setActions(QAction *hide, QAction *settings,
                     QAction *rescan, QAction *about, QAction *quit);
 
 signals:
@@ -52,6 +54,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    void createSettingsMenu();
     void chooseCustomTileSize();
     void updateVisibleIds();
     void updatePresentation(const QList<SensorSample> &samples, bool incremental);
@@ -68,7 +71,9 @@ private:
     QStackedWidget *m_stack;
     QComboBox *m_tileSize;
     QAction *m_tableView;
+    QAction *m_dashboardView;
     QAction *m_controlsAction;
+    QMenu *m_settingsMenu;
     QStringList m_catalogIds;
     QSet<QString> m_catalogSet;
     QHash<QString, SensorSample> m_dashboardSamples;

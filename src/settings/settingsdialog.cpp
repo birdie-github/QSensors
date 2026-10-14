@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "settings/settingsdialog.h"
 #include "rendering/valueformat.h"
-#include "settings/autostart.h"
 
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
-#include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFontComboBox>
@@ -92,34 +90,15 @@ void onNumberEdited(QDoubleSpinBox *control, std::function<void(double)> handler
 
 SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<SensorDescriptor> &catalog,
                                QWidget *parent)
-    : QDialog(parent), m_store(store), m_draft(store->values()), m_unit(store->temperatureUnit()),
-      m_initialAutostart(Autostart::enabled())
+    : QDialog(parent), m_store(store), m_draft(store->values()), m_unit(store->temperatureUnit())
 {
     m_loading = true;
-    setWindowTitle(tr("QSensors Settings"));
+    setWindowTitle(tr("Configure Sensors"));
     setAttribute(Qt::WA_DeleteOnClose);
     const QSize available = screen()->availableGeometry().size();
     auto *layout = new QVBoxLayout(this);
-    auto *tabs = new QTabWidget(this);
-    layout->addWidget(tabs);
-    auto *general = new QWidget(tabs);
-    auto *generalForm = new QFormLayout(general);
-    m_temperatureUnit = new QComboBox(general);
-    m_temperatureUnit->addItem(tr("Celsius (°C)"), 0);
-    m_temperatureUnit->addItem(tr("Fahrenheit (°F)"), 1);
-    m_temperatureUnit->addItem(tr("Kelvin (K)"), 2);
-    m_temperatureUnit->setCurrentIndex(static_cast<int>(m_unit));
-    generalForm->addRow(tr("Temperature unit:"), m_temperatureUnit);
-    m_autostart = new QCheckBox(tr("Start QSensors when I log in"), general);
-    m_autostart->setChecked(m_initialAutostart);
-    m_autostart->setToolTip(tr("Starts this executable: %1").arg(QCoreApplication::applicationFilePath()));
-    generalForm->addRow(m_autostart);
-    auto *note = new QLabel(tr("Update interval and tile size are available on the dashboard toolbar. Sensor corrections are applied after libsensors configuration rules. Temperature multipliers operate on Celsius readings; offsets are temperature differences."), general);
-    note->setWordWrap(true);
-    generalForm->addRow(note);
-    tabs->addTab(general, tr("General"));
-
-    auto *sensors = new QSplitter(tabs);
+    auto *sensors = new QSplitter(this);
+    layout->addWidget(sensors);
     auto *browser = new QWidget;
     auto *browserLayout = new QVBoxLayout(browser);
     browserLayout->setContentsMargins(0, 0, 0, 0);
@@ -174,22 +153,22 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     m_multiplier->setRange(-1e6, 1e6);
     m_offset = new ConfigurationNumber(properties);
     form->addRow(tr("Multiplier:"), m_multiplier);
+    form->labelForField(m_multiplier)->setToolTip(tr("Applied after libsensors configuration rules. Temperature multipliers operate on Celsius readings."));
     form->addRow(tr("Offset:"), m_offset);
+    form->labelForField(m_offset)->setToolTip(tr("Applied after the multiplier. Temperature offsets represent differences, not absolute temperatures."));
     auto *identityCalibration = new QPushButton(tr("Reset calibration"), properties);
     form->addRow(identityCalibration);
     auto *defaults = new QPushButton(tr("Reset sensor preferences"), properties);
     form->addRow(defaults);
-    m_sensorTabs->addTab(properties, tr("General"));
+    m_sensorTabs->addTab(properties, tr("Properties"));
     m_dashboardControls = createPresentationPage(false);
     m_sensorTabs->addTab(m_dashboardControls.page, tr("Dashboard"));
     m_trayControls = createPresentationPage(true);
-    m_sensorTabs->addTab(m_trayControls.page, tr("Systray"));
+    m_sensorTabs->addTab(m_trayControls.page, tr("System Tray"));
     scroll->setWidget(m_editor);
     sensors->setChildrenCollapsible(false);
     sensors->setStretchFactor(0, 1);
     sensors->setStretchFactor(1, 1);
-    tabs->addTab(sensors, tr("Sensors"));
-    tabs->setCurrentWidget(sensors);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel, this);
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::accept);
@@ -206,10 +185,6 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
         if (column == 1) p.dashboard = item->checkState(1) == Qt::Checked;
         else p.tray = item->checkState(2) == Qt::Checked;
         if (id == m_currentId) loadSensor(id);
-    });
-    connect(m_temperatureUnit, &QComboBox::currentIndexChanged, this, [this](int index) {
-        m_unit = static_cast<TemperatureUnit>(index);
-        loadSensor(m_currentId);
     });
     connect(m_label, &QLineEdit::textEdited, this, [this](const QString &text) {
         if (!m_loading && !m_currentId.isEmpty()) {
@@ -255,7 +230,7 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     // every optional section/tab present, so switching sensors/tabs also fits.
     // This happens before showing; loadSensor restores the selected sensor's UI.
     if (m_sensorTabs->indexOf(m_trayControls.page) < 0)
-        m_sensorTabs->addTab(m_trayControls.page, tr("Systray"));
+        m_sensorTabs->addTab(m_trayControls.page, tr("System Tray"));
     m_gauge->show();
     m_gaugeRange->show();
     m_trayTextStyle->show();
@@ -287,6 +262,10 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     const QSize content(browserWidth + sensors->handleWidth() + editorWidth, contentHeight);
     resize((content + chrome).boundedTo(available * .9));
     sensors->setSizes({browserWidth, editorWidth});
+    connect(m_store, &SensorPreferencesStore::temperatureUnitChanged, this, [this](TemperatureUnit unit) {
+        m_unit = unit;
+        loadSensor(m_currentId);
+    });
 }
 
 SettingsDialog::PresentationControls SettingsDialog::createPresentationPage(bool tray)
@@ -508,7 +487,6 @@ void SettingsDialog::updateCatalog(const QList<SensorDescriptor> &catalog)
 
 void SettingsDialog::selectSensor(const QString &id)
 {
-    if (auto *tabs = findChild<QTabWidget *>()) tabs->setCurrentIndex(1);
     m_search->clear();
     for (int i = 0; i < m_list->topLevelItemCount(); ++i) {
         auto *group = m_list->topLevelItem(i);
@@ -764,7 +742,7 @@ void SettingsDialog::loadSensor(const QString &id)
     m_memoryDisplay->setVisible(memory);
     const int trayIndex = m_sensorTabs->indexOf(m_trayControls.page);
     if (!sensorSupportsTray(id) && trayIndex >= 0) m_sensorTabs->removeTab(trayIndex);
-    else if (sensorSupportsTray(id) && trayIndex < 0) m_sensorTabs->addTab(m_trayControls.page, tr("Systray"));
+    else if (sensorSupportsTray(id) && trayIndex < 0) m_sensorTabs->addTab(m_trayControls.page, tr("System Tray"));
     loadPresentation(m_dashboardControls, false);
     loadPresentation(m_trayControls, true);
     m_gauge->setChecked(p.dashboardGauge && sensorSupportsGauge(id, descriptor.kind));
@@ -840,21 +818,10 @@ bool SettingsDialog::applyChanges()
         }
     }
     QString error;
-    const bool autostartChanged = m_autostart->isChecked() != m_initialAutostart;
-    if (autostartChanged && !Autostart::setEnabled(m_autostart->isChecked(), error)) {
-        QMessageBox::warning(this, tr("Autostart"), error);
+    if (!m_store->apply(m_draft, m_store->temperatureUnit(), error)) {
+        QMessageBox::warning(this, tr("Configure Sensors"), error);
         return false;
     }
-    if (!m_store->apply(m_draft, m_unit, error)) {
-        QString rollbackError;
-        if (autostartChanged && !Autostart::setEnabled(m_initialAutostart, rollbackError)) {
-            error += QLatin1Char('\n') + rollbackError;
-            m_initialAutostart = Autostart::enabled();
-        }
-        QMessageBox::warning(this, tr("Settings"), error);
-        return false;
-    }
-    m_initialAutostart = m_autostart->isChecked();
     // Rebase the draft after Apply, including positions assigned by the dashboard.
     m_draft = m_store->values();
     populate();

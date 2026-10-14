@@ -29,6 +29,7 @@ public:
     void start();
     void applySnapshot(const SensorSnapshot &snapshot);
     void openSettings();
+    void addApplicationSettingsMenu(QMenu *menu);
     void setDashboardVisible(bool visible);
     QStringList selectedIds() const { return m_selected; }
     QAction *showAction() const { return m_showAction; }

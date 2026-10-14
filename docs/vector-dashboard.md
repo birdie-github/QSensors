@@ -65,11 +65,12 @@ window geometry, maximized state and chosen tile/table view. The controls state
 is saved; compact dimensions do not overwrite the normal window dimensions.
 Compact sizing is reapplied after show/layout events so startup does not retain
 stale central-widget dimensions or transient scrollbars.
-**Ctrl+Shift+M** toggles controls even in table mode.
+**Ctrl+Shift+M** toggles Compact Mode; entering it selects Dashboard. Selecting
+Table exits Compact Mode.
 
 ### Dashboard colors and backgrounds
 
-**View → Dashboard Style** independently selects Rounded Rectangular (the
+**View → Tile Style** independently selects Rounded Rectangular (the
 existing default), Square, or Circular. Square uses a one-logical-pixel palette
 border, with no gaps between cells or padding around the field. Compact window
 dimensions therefore match the square tile field exactly. Sparse empty cells
@@ -87,7 +88,7 @@ are saved as `Dashboard/style` (`rounded`, `square`, `circular`) and
 `Dashboard/circleShrinkPercent`. Missing/unknown styles use Rounded Rectangular;
 malformed shrink values use 20%, and numeric values are clamped to 0–50%.
 
-**View → Dashboard Palette** offers System (the default), Classic KSensors,
+**View → Palette** offers System (the default), Classic KSensors,
 Graphite, and Custom. Classic uses the original 0.7.3 white/black panel colors,
 green/red gauge bands, and blue/teal voltage bands. Graphite uses charcoal panels
 with amber selection and needles. Palettes affect dashboard tiles in both normal
@@ -109,7 +110,7 @@ in sensor settings to follow the palette again; automatic contrast still applies
 when only a custom per-sensor background is set. Shadows remain derived from
 their text color, controlled by the existing per-sensor shadow option.
 
-**View → Dashboard Background** independently selects Solid (default), Dots, or
+**View → Background** independently selects Solid (default), Dots, or
 Grid. Patterns cover the field and show through transparent tiles, while solid
 tiles retain their own background. A cached 16×16 brush repeats across the field;
 no full-dashboard bitmap or animation is allocated. It moves with the tiles when

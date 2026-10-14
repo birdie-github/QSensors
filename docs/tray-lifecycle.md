@@ -2,9 +2,10 @@
 
 ## Usage
 
-The dashboard opens on startup. Settings (from File, the toolbar or any tray
+The dashboard opens on startup. Configure Sensors (from QSensors, the toolbar or any tray
 icon) selects dashboard/tray sensors and configures labels, calibration,
-units, ranges and colors. Alarm controls follow in phase 6. Changes apply on OK, Cancel leaves
+ranges and colors. Global temperature units, interval and Start at Login are
+available through the shared Settings submenu. Alarm controls follow in phase 6. Changes apply on OK, Cancel leaves
 selections unchanged, and selections are stored with readable stable IDs in `[Sensor-NNN]` sections.
 An open Settings window preserves unapplied checkboxes across a rescan.
 Temporarily missing selected sensors remain checked until explicitly removed.
@@ -13,7 +14,7 @@ One QSystemTrayIcon represents each selected sensor. No selection produces one
 ordinary application icon. Each sensor icon's menu has a direct, bold, enabled reading
 entry using only its configured display name (or original name). It is marked
 as the default menu action and requests a bold font; actual emphasis depends
-on the menu style and tray host. Selecting it opens that sensor's Systray settings, reusing an open dialog
+on the menu style and tray host. Selecting it opens that sensor's System Tray settings, reusing an open dialog
 and retaining unapplied edits. Unavailable sensors remain configurable.
 Tooltips show devices, full readings/units and availability. Temperature/humidity use integers,
 fans use thousands of RPM with one decimal (the tooltip explicitly uses RPM),
@@ -43,7 +44,7 @@ support. Explicit Show/Hide actions remain available through the context menu.
 
 ## Visibility and recovery
 
-Closing with a tray host hides the persistent dashboard. File/Tray Quit always
+Closing with a tray host hides the persistent dashboard. QSensors/Tray Quit always
 exits, including from an open Settings window. Selected tray channels keep
 updating in the background; with none selected, hiding/minimizing stops sensor
 polling. Showing restores the chosen view's demand and refreshes stale values:

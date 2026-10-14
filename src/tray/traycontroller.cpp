@@ -440,12 +440,12 @@ TrayController::TrayController(QWidget *window, SensorPreferencesStore *preferen
     : QObject(parent), m_window(window), m_preferences(preferences), m_menu(std::make_unique<QMenu>())
 {
     m_dashboardAction = m_menu->addAction(tr("Hide Dashboard"));
-    // Separate actions remain available to the dashboard's File menu.
+    // Dashboard actions share shortcuts and visibility state with the tray.
     m_showAction = new QAction(tr("Show Dashboard"), this);
     m_hideAction = new QAction(tr("Hide Dashboard"), this);
     m_menu->addSeparator();
-    m_settingsAction = m_menu->addAction(tr("Settings…"));
-    m_rescanAction = m_menu->addAction(tr("Rescan"));
+    m_settingsAction = m_menu->addAction(tr("Configure Sensors…"));
+    m_rescanAction = m_menu->addAction(tr("Rescan Sensors"));
     m_menu->addSeparator();
     m_aboutAction = m_menu->addAction(tr("About QSensors"));
     m_quitAction = m_menu->addAction(tr("Quit"));
@@ -483,6 +483,13 @@ TrayController::TrayController(QWidget *window, SensorPreferencesStore *preferen
             updateEntry(it.key(), it.value());
         }
     });
+}
+
+void TrayController::addApplicationSettingsMenu(QMenu *menu)
+{
+    // Called before start(); sensor icon menus later reuse these same actions.
+    m_menu->insertMenu(m_aboutAction, menu);
+    m_menu->insertSeparator(m_aboutAction);
 }
 
 TrayController::~TrayController()

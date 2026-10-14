@@ -1,11 +1,21 @@
 # Sensor configuration and formatting
 
-## General and sensor settings
+## Application settings and sensor configuration
 
-Settings now has two resizable pages. General chooses Celsius/Fahrenheit/Kelvin
-for all temperature displays and optionally starts QSensors at desktop login.
-Global polling interval and tile size remain in the dashboard toolbar. Each
-selected sensor has General, Dashboard and (if supported) Systray tabs.
+The main menus are QSensors, View, Settings and Help. QSensors contains Configure
+Sensors, Rescan Sensors, Hide Dashboard and Quit. View selects Dashboard/Table,
+Compact Mode, Tile Size, Tile Style, Palette and Background. Compact Mode selects
+Dashboard; selecting Table exits compact mode. Settings is also available from
+all tray menus and shares the same temperature-unit, global-interval and Start
+at Login actions. Menu choices apply immediately; interval dialogs save on OK.
+The global interval remains available on the dashboard toolbar.
+
+Configure Sensors opens directly to the sensor browser/editor, with Properties,
+Dashboard and (if supported) System Tray tabs. It has no outer General/Sensors
+tabs. Its Apply/OK/Cancel behavior concerns sensor drafts. Global unit changes
+refresh an open editor without replacing canonical calibration/range values or
+other draft edits; Apply/OK always use the current global unit. Calibration
+explanations are available on the Properties field labels.
 
 New sensors default to disabled for both dashboard and tray. A fresh configuration
 therefore has an empty dashboard. Existing saved selections remain unchanged;
@@ -13,7 +23,7 @@ Disable all sensors clears both selections across the catalog (including search
 results that are hidden), and takes effect on Apply or OK. Reset sensor preferences also
 returns that sensor to disabled.
 
-The dialog opens on Sensors, sized for all four browser columns and the largest
+The dialog opens directly to the browser/editor, sized for all four browser columns and the largest
 fully populated sensor-editor tab, bounded to 90% of the available screen.
 Splitter widths are assigned to those measured content widths, and both panes
 remain accessible. Qt font/style metrics account for scaling. The editor
@@ -31,11 +41,11 @@ clears the override. Renames update the row immediately; the next catalog
 refresh or dialog opening orders it by the new name.
 
 Sensors lists the complete discovered catalog plus saved missing devices.
-General edits the display name, multiplier and offset. Use original changes only
+Properties edits the display name, multiplier and offset. Use original changes only
 the name; Reset calibration changes only multiplier/offset; Reset sensor
 preferences restores all of this sensor's defaults, including both enabled states.
 
-Dashboard and Systray have independent enablement, timing, foreground/background
+Dashboard and System Tray have independent enablement, timing, foreground/background
 colors, transparency and shadows. Disabling either page deactivates its controls
 without clearing any preferences. Dashboard text style is Normal or Digital,
 independent of its Show gauge checkbox. Uptime supports both text styles but has
@@ -95,7 +105,7 @@ unit changes cannot accumulate conversions.
 Temperature calibration operates in Celsius. Absolute conversions are
 `F = C * 1.8 + 32` and `K = C + 273.15`. Offsets are differences: a 10 °C offset
 is 18 °F or 10 K, without adding 32 or 273.15. Custom gauge bounds are absolute
-canonical values, converted for editing/rendering. Changing the General unit
+canonical values, converted for editing/rendering. Changing the global temperature unit
 reloads the controls without rewriting their canonical draft values. Only
 actual numeric edits write those draft fields. Numeric editors display two
 decimals, or three when the third is nonzero, and accept up to three decimals.
@@ -217,7 +227,7 @@ and grows the rectangular field if needed.
 
 Autostart is opt-in and uses the standard user configuration autostart folder,
 with `io.github.birdie_github.QSensors.desktop`. Exec contains the quoted current
-executable path; the checkbox tooltip shows it. Spaces/backslashes/quotes,
+executable path; the Start at Login action tooltip shows it. Spaces/backslashes/quotes,
 dollar signs/backticks and literal percent characters follow desktop-entry
 escaping rules; no shell is invoked. Paths with newlines or equals signs cannot
 be represented and are rejected. If the executable is later moved, disable and
@@ -225,10 +235,10 @@ re-enable autostart to update its path.
 
 Disabling writes a user `Hidden=true` entry, masking a same-name system entry.
 There is no KDE-specific flag or system-wide installation. Files are replaced
-atomically with QSaveFile; failures are reported and leave the dialog open.
-Active sensor preferences update only after their settings sync succeeds. If
-sensor settings cannot be saved after changing autostart, the dialog attempts
-to restore the previous autostart state and reports any rollback failure.
+atomically with QSaveFile; failures are reported and the action checkmark is
+restored to the actual autostart state. This application setting is independent
+of pending sensor edits. Active sensor preferences update only after their
+settings sync succeeds.
 Desktop-session launch behavior still needs real environment testing.
 
 ## Verification status

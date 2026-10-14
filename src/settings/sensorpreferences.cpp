@@ -236,9 +236,18 @@ bool SensorPreferencesStore::apply(const QHash<QString, SensorPreferences> &valu
     }
     if (!write(merged, unit, error)) return false;
     m_values = merged;
+    const bool unitChanged = m_unit != unit;
     m_unit = unit;
+    if (unitChanged) emit temperatureUnitChanged(unit);
     emit changed();
     return true;
+}
+
+bool SensorPreferencesStore::setTemperatureUnit(TemperatureUnit unit, QString &error)
+{
+    if (unit == m_unit) return true;
+    // An empty sensor delta changes only the global unit and preserves overrides.
+    return apply({}, unit, error);
 }
 
 bool SensorPreferencesStore::savePositions(const QHash<QString, QPoint> &positions, QString &error)
