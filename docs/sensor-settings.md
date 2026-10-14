@@ -46,12 +46,13 @@ keys are read; old presentation/global-gauge choices are ignored. There is no
 compatibility or migration reader for them. The global gauge menu item is removed.
 Available RAM's MiB/percentage choice remains shared with the tray and table.
 
-The tray font uses a family selector and a 1–72 pt reference size for a 24-pixel
-icon. Explicit sizes scale for the host and are reduced if necessary to fit the
-complete value. Automatic fitting is the default until the size is edited;
-font Reset restores the system fixed font, size 10 and automatic fitting without
-changing colors, shadows or backgrounds. Cast shadow includes a contrasting
-outline for tray readability. Uptime's existing shadow stays enabled
+The tray font uses a family selector and automatically fits the complete value
+to the icon. Bitmap fonts use native glyph sizes; if no size fits, a scalable
+fallback renders that value. Text is rasterized at the requested device
+resolution without path conversion or glyph scaling. Font Reset restores the
+system fixed font without changing colors, shadows or backgrounds. Cast shadow
+draws a one-pixel contrasting offset behind the foreground, without an outline.
+There is no manual font-size preference. Uptime's existing shadow stays enabled
 by default; other dashboard sensors default to no shadow.
 
 Reset color uses the system palette. A custom solid background with no custom
@@ -205,7 +206,7 @@ Additional persisted keys (implicit defaults):
 - `dashboardShadow=false` (true for Uptime), `dashboardTransparent=false`.
 - `trayUseGlobal=true`, `trayInterval=5`, `trayForeground=default`,
   `trayBackground=`, `trayShadow=true`, `trayTransparent=true`.
-- `trayFontFamily=` (system fixed font), `trayFontSize=10`, `trayFontAutoFit=true`.
+- `trayFontFamily=` (system fixed font).
 
 Custom intervals, backgrounds and gauge limits are persisted even when their
 corresponding global/transparent/gauge-off option is selected. Disabled dashboard

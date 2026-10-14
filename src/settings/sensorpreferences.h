@@ -48,11 +48,9 @@ struct SensorPreferences {
     bool dashboardTransparent = false;
     QColor trayForeground;
     QColor trayBackground;
-    bool trayShadow = true; // Contrasting outline and shadow for numeric icons.
+    bool trayShadow = true; // Contrasting offset shadow behind numeric icons.
     bool trayTransparent = true;
     QString trayFontFamily; // Empty follows the system fixed font.
-    int trayFontSize = 10; // Reference point size at a 24-pixel tray icon.
-    bool trayFontAutoFit = true; // Automatic fitting until an explicit size is chosen.
     bool memoryAsPercent = false; // Available RAM display; canonical correction/range stays MiB.
     bool customRange = false;
     double rangeLower = 0; // Canonical absolute values, never alarm thresholds.

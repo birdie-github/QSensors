@@ -12,7 +12,6 @@
 #include <QFontComboBox>
 #include <QFontDatabase>
 #include <QRadioButton>
-#include <QSpinBox>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -317,30 +316,18 @@ SettingsDialog::PresentationControls SettingsDialog::createPresentationPage(bool
     auto *form = new QFormLayout(appearance);
     if (tray) {
         m_trayFont = new QFontComboBox(appearance);
-        m_trayFontSize = new QSpinBox(appearance);
-        m_trayFontSize->setRange(1, 72);
-        m_trayFontSize->setSuffix(tr(" pt"));
-        m_trayFontSize->setToolTip(tr("Reference size at a 24-pixel tray icon; scaled for the host and reduced as needed to fit the complete value. Reset restores automatic sizing."));
+        m_trayFont->setToolTip(tr("Text automatically fits the tray icon. Bitmap fonts use native sizes. Values too wide for the smallest bitmap size use a scalable font."));
         auto *reset = new QPushButton(tr("Reset"), appearance);
         auto *fontRow = new QHBoxLayout;
-        fontRow->addWidget(m_trayFontSize, 1);
+        fontRow->addWidget(m_trayFont, 1);
         fontRow->addWidget(reset);
-        form->addRow(tr("Font:"), m_trayFont);
-        form->addRow(tr("Font size:"), fontRow);
+        form->addRow(tr("Font:"), fontRow);
         connect(m_trayFont, &QFontComboBox::currentFontChanged, this, [this](const QFont &font) {
             if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].trayFontFamily = font.family();
-        });
-        connect(m_trayFontSize, &QSpinBox::valueChanged, this, [this](int size) {
-            if (!m_loading && !m_currentId.isEmpty()) {
-                m_draft[m_currentId].trayFontSize = size;
-                m_draft[m_currentId].trayFontAutoFit = false;
-            }
         });
         connect(reset, &QPushButton::clicked, this, [this] {
             if (!m_currentId.isEmpty()) {
                 m_draft[m_currentId].trayFontFamily.clear();
-                m_draft[m_currentId].trayFontSize = 10;
-                m_draft[m_currentId].trayFontAutoFit = true;
                 loadSensor(m_currentId);
             }
         });
@@ -750,7 +737,6 @@ void SettingsDialog::loadSensor(const QString &id)
     QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     if (!p.trayFontFamily.isEmpty()) font.setFamily(p.trayFontFamily);
     m_trayFont->setCurrentFont(font);
-    m_trayFontSize->setValue(p.trayFontSize);
     loadNumber(m_multiplier, p.multiplier);
     const QString unit = currentIsTemperature() ? temperatureUnitText(m_unit) : descriptor.unit;
     m_offset->setSuffix(unit.isEmpty() ? QString() : QLatin1Char(' ') + unit);

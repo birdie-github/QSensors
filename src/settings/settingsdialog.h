@@ -18,7 +18,6 @@ class QGroupBox;
 class QTabWidget;
 class QRadioButton;
 class QFontComboBox;
-class QSpinBox;
 
 namespace qsensors {
 
@@ -90,7 +89,6 @@ private:
     QRadioButton *m_digitalText;
     QGroupBox *m_gaugeRange;
     QFontComboBox *m_trayFont;
-    QSpinBox *m_trayFontSize;
     QDoubleSpinBox *m_multiplier;
     QDoubleSpinBox *m_offset;
     QCheckBox *m_customRange;

@@ -86,8 +86,7 @@ bool SensorPreferences::operator==(const SensorPreferences &other) const
         && dashboardTransparent == other.dashboardTransparent
         && trayForeground == other.trayForeground && trayBackground == other.trayBackground
         && trayShadow == other.trayShadow && trayTransparent == other.trayTransparent
-        && trayFontFamily == other.trayFontFamily && trayFontSize == other.trayFontSize
-        && trayFontAutoFit == other.trayFontAutoFit
+        && trayFontFamily == other.trayFontFamily
         && memoryAsPercent == other.memoryAsPercent
         && customRange == other.customRange && rangeLower == other.rangeLower && rangeUpper == other.rangeUpper;
 }
@@ -156,11 +155,7 @@ SensorPreferences readPreferences(QSettings &settings, const QString &id)
     const QString style = settings.value(QStringLiteral("dashboardTextStyle")).toString();
     if (style == QStringLiteral("Normal")) p.dashboardTextStyle = DashboardTextStyle::Normal;
     else if (style == QStringLiteral("Digital")) p.dashboardTextStyle = DashboardTextStyle::Digital;
-    p.trayFontAutoFit = boolean(settings, QStringLiteral("trayFontAutoFit"), true);
     p.trayFontFamily = settings.value(QStringLiteral("trayFontFamily")).toString();
-    bool sizeOk = false;
-    const int size = settings.value(QStringLiteral("trayFontSize"), 10).toInt(&sizeOk);
-    if (sizeOk && size >= 1 && size <= 72) p.trayFontSize = size;
     p.rangeLower = number(settings, QStringLiteral("rangeLower"), 0, 1e12);
     p.rangeUpper = number(settings, QStringLiteral("rangeUpper"), 100, 1e12);
     p.memoryAsPercent = boolean(settings, QStringLiteral("memoryAsPercent"), false);
@@ -177,7 +172,6 @@ bool validPreferences(const SensorPreferences &p)
         && (!p.customRange || p.rangeLower < p.rangeUpper)
         && std::isfinite(p.dashboardInterval) && p.dashboardInterval >= minimumRefreshSeconds && p.dashboardInterval <= maximumRefreshSeconds
         && std::isfinite(p.trayInterval) && p.trayInterval >= minimumRefreshSeconds && p.trayInterval <= maximumRefreshSeconds
-        && p.trayFontSize >= 1 && p.trayFontSize <= 72
         && (p.dashboardTextStyle == DashboardTextStyle::Normal || p.dashboardTextStyle == DashboardTextStyle::Digital);
 }
 }
@@ -311,8 +305,6 @@ bool SensorPreferencesStore::write(const QHash<QString, SensorPreferences> &valu
         if (p.dashboardTextStyle != defaults.dashboardTextStyle) settings.setValue(QStringLiteral("dashboardTextStyle"),
             p.dashboardTextStyle == DashboardTextStyle::Digital ? QStringLiteral("Digital") : QStringLiteral("Normal"));
         if (!p.trayFontFamily.isEmpty()) settings.setValue(QStringLiteral("trayFontFamily"), p.trayFontFamily);
-        if (!p.trayFontAutoFit) settings.setValue(QStringLiteral("trayFontAutoFit"), false);
-        if (p.trayFontSize != 10) settings.setValue(QStringLiteral("trayFontSize"), p.trayFontSize);
         if (p.memoryAsPercent) settings.setValue(QStringLiteral("memoryAsPercent"), true);
         if (p.customRange) settings.setValue(QStringLiteral("customRange"), true);
         if (p.rangeLower != 0) settings.setValue(QStringLiteral("rangeLower"), p.rangeLower);

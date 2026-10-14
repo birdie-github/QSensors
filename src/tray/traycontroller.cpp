@@ -7,19 +7,21 @@
 #include <QApplication>
 #include <QEvent>
 #include <QFontDatabase>
+#include <QFontMetrics>
 #include <QIcon>
+#include <QIconEngine>
 #include <QKeySequence>
 #include <QLocale>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
-#include <QPainterPath>
 #include <QPalette>
 #include <QPixmap>
 #include <QSystemTrayIcon>
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 
 namespace qsensors {
 namespace {
@@ -44,47 +46,118 @@ QString compactValue(const SensorDescriptor &descriptor, double value)
     return text;
 }
 
-QIcon numericIcon(const QString &text, const QColor &color, QFont font, const SensorPreferences &preferences)
+// Render at the requested device resolution: paths and painter transforms lose
+// bitmap strikes and font hinting, particularly at small tray sizes.
+QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &color,
+                      QFont font, const SensorPreferences &preferences)
 {
-    QIcon icon;
-    const QColor outline = color.lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white);
-    for (int size : {16, 22, 24, 32, 48, 64, 128}) {
-        QPixmap pixmap(size, size);
-        pixmap.fill(preferences.trayTransparent ? QColor(Qt::transparent)
-            : preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base));
-        font.setPixelSize(size);
-        font.setBold(true);
-        QPainterPath path;
-        path.addText(0, 0, font, text);
-        const QRectF bounds = path.boundingRect();
-        if (bounds.isEmpty())
-            continue;
-        const qreal fit = std::min((size * 0.90) / bounds.width(), (size * 0.82) / bounds.height());
-        const qreal nominal = preferences.trayFontSize * (96.0 / 72.0) / 24.0;
-        const qreal scale = preferences.trayFontAutoFit ? fit : std::min(fit, nominal);
-        QPainter painter(&pixmap);
-        painter.setRenderHint(QPainter::Antialiasing);
-        painter.translate(size / 2.0, size / 2.0);
-        painter.scale(scale, scale);
-        painter.translate(-bounds.center());
-        if (preferences.trayShadow) {
-            painter.save();
-            const qreal offset = size * .035 / scale;
-            painter.translate(offset, offset);
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(outline);
-            painter.drawPath(path);
-            painter.restore();
-            painter.setPen(QPen(outline, (size * 0.045) / scale, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    if (size.isEmpty()) return {};
+    QPixmap pixmap(size);
+    pixmap.fill(preferences.trayTransparent ? QColor(Qt::transparent)
+        : preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base));
+
+    font.setBold(false);
+    font.setItalic(false);
+    font.setStyleName(QString());
+    font.setHintingPreference(QFont::PreferFullHinting);
+    const bool bitmap = !QFontDatabase::isSmoothlyScalable(font.family());
+    font.setStyleStrategy(QFont::StyleStrategy(QFont::NoSubpixelAntialias
+        | (bitmap ? QFont::PreferBitmap | QFont::NoAntialias : QFont::PreferMatch)));
+
+    const int edge = std::min(size.width(), size.height());
+    const int shadow = preferences.trayShadow && edge >= 8 ? 1 : 0;
+    const QSize available = size - QSize(shadow, shadow);
+    // Fit ink bounds, which can be shorter than the font's nominal em size.
+    // Select a font at this resolution; never scale painted glyphs.
+    const int requested = edge * 2;
+    QRect bounds;
+    auto fits = [&] {
+        bounds = QFontMetrics(font, &pixmap).tightBoundingRect(text);
+        return !bounds.isEmpty() && bounds.width() <= available.width()
+            && bounds.height() <= available.height();
+    };
+    auto fitFont = [&](bool nativeBitmap) {
+        if (nativeBitmap) {
+            auto sizes = QFontDatabase::smoothSizes(font.family(), QFontDatabase::styleString(font));
+            std::sort(sizes.begin(), sizes.end(), std::greater<int>());
+            for (int points : sizes) {
+                font.setPointSize(points);
+                if (fits()) return true;
+            }
         } else {
-            painter.setPen(Qt::NoPen);
+            for (int pixels = requested; pixels >= 1; --pixels) {
+                font.setPixelSize(pixels);
+                if (fits()) return true;
+            }
         }
-        painter.setBrush(color);
-        painter.drawPath(path);
-        painter.end();
-        icon.addPixmap(pixmap);
+        return false;
+    };
+    if (!fitFont(bitmap)) {
+        // Some bitmap fonts have no strike small enough for a long value.
+        // Preserve the complete reading without resampling bitmap glyphs.
+        font = QFont(QStringLiteral("sans-serif"));
+        font.setHintingPreference(QFont::PreferFullHinting);
+        font.setStyleStrategy(QFont::StyleStrategy(QFont::PreferOutline | QFont::NoSubpixelAntialias));
+        if (!fitFont(false)) return pixmap;
     }
-    return icon;
+    // Integral device-pixel baselines retain bitmap sharpness. Reserve room
+    // for the shadow, then paint the foreground last without any outline.
+    const QPoint baseline((available.width() - bounds.width()) / 2 - bounds.left(),
+                          (available.height() - bounds.height()) / 2 - bounds.top());
+    QPainter painter(&pixmap);
+    painter.setFont(font);
+    if (shadow) {
+        painter.setPen(color.lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white));
+        painter.drawText(baseline + QPoint(shadow, shadow), text);
+    }
+    painter.setPen(color);
+    painter.drawText(baseline, text);
+    return pixmap;
+}
+
+class NumericIconEngine final : public QIconEngine {
+public:
+    NumericIconEngine(const QString &text, const QColor &color, const QFont &font,
+                      const SensorPreferences &preferences)
+        : m_text(text), m_color(color), m_font(font), m_preferences(preferences) {}
+
+    QIconEngine *clone() const override { return new NumericIconEngine(*this); }
+    bool isNull() override { return m_text.isEmpty(); }
+    QPixmap pixmap(const QSize &size, QIcon::Mode, QIcon::State) override
+    {
+        return numericPixmap(size, m_text, m_color, m_font, m_preferences);
+    }
+    QPixmap scaledPixmap(const QSize &size, QIcon::Mode mode, QIcon::State state, qreal scale) override
+    {
+        // Qt 6.8+ passes logical size separately from the device-pixel ratio.
+        QPixmap result = pixmap(size * scale, mode, state);
+        result.setDevicePixelRatio(scale);
+        return result;
+    }
+    void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode, QIcon::State state) override
+    {
+        painter->drawPixmap(rect.topLeft(), scaledPixmap(rect.size(), mode, state,
+                                                       painter->device()->devicePixelRatioF()));
+    }
+    QList<QSize> availableSizes(QIcon::Mode, QIcon::State) override
+    {
+        // StatusNotifier hosts request a list of raster images rather than
+        // painting the QIcon. Supply common panel sizes without resampling.
+        QList<QSize> sizes;
+        for (int edge : {16, 20, 22, 24, 28, 32, 40, 48, 64, 96, 128})
+            sizes.append(QSize(edge, edge));
+        return sizes;
+    }
+private:
+    QString m_text;
+    QColor m_color;
+    QFont m_font;
+    SensorPreferences m_preferences;
+};
+
+QIcon numericIcon(const QString &text, const QColor &color, const QFont &font, const SensorPreferences &preferences)
+{
+    return QIcon(new NumericIconEngine(text, color, font, preferences));
 }
 
 } // namespace
@@ -278,9 +351,9 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
     QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     if (!preferences.trayFontFamily.isEmpty()) font.setFamily(preferences.trayFontFamily);
     const QString key = text + QStringLiteral("|") + color.name(QColor::HexArgb) + font.toString()
-        + QStringLiteral("|%1|%2|%3|%4|%5").arg(preferences.trayFontSize).arg(preferences.trayShadow)
+        + QStringLiteral("|%1|%2|%3").arg(preferences.trayShadow)
             .arg(preferences.trayTransparent).arg(preferences.trayTransparent ? QString() :
-                (preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base)).name(QColor::HexArgb)).arg(preferences.trayFontAutoFit);
+                (preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base)).name(QColor::HexArgb));
     if (key != entry.renderKey) {
         entry.renderKey = key;
         entry.icon->setIcon(numericIcon(text, color, font, preferences));
