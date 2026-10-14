@@ -19,6 +19,7 @@ class QWidget;
 namespace qsensors {
 
 class SensorPreferencesStore;
+struct TrayFontSizingState;
 
 class TrayController final : public QObject {
     Q_OBJECT
@@ -58,6 +59,8 @@ private:
         QAction *reading = nullptr;
         QString renderKey;
         QString tooltip;
+        QString fontSizingKey;
+        std::shared_ptr<TrayFontSizingState> fontSizing;
     };
     void checkAvailability();
     void setSelectedIds(QStringList ids);

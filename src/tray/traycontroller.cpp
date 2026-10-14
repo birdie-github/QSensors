@@ -28,8 +28,17 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <utility>
 
 namespace qsensors {
+
+// Shared by successive icons for one sensor, not by unrelated sensors. Keep
+// only a bounded set of physical-resolution/font fits, without reading history.
+struct TrayFontSizingState {
+    QHash<QByteArray, int> pixelLimits;
+    quint64 generation = 0;
+};
+
 namespace {
 
 QString compactValue(const SensorDescriptor &descriptor, double value)
@@ -116,7 +125,7 @@ FontTraits fontTraits(const QFont &font)
 // Render at the requested device resolution: paths and painter transforms lose
 // bitmap strikes and font hinting, particularly at small tray sizes.
 QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &color,
-                      QFont font, const SensorPreferences &preferences)
+                      QFont font, const SensorPreferences &preferences, TrayFontSizingState &sizing)
 {
     if (size.isEmpty()) return {};
     QPixmap pixmap(size);
@@ -150,11 +159,21 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
     const QSize available = size - QSize(shadow, shadow);
     // Fit ink bounds, which can be shorter than the font's nominal em size.
     // Select a font at this resolution; never scale painted glyphs.
-    const int requested = edge * 2;
+    int requested = edge * 2;
+    QByteArray sizingKey;
+    QDataStream sizingStream(&sizingKey, QIODevice::WriteOnly);
+    sizingStream << font << available << pixmap.logicalDpiX() << pixmap.logicalDpiY();
+    auto &cache = trayFontCache();
+    if (sizing.generation != cache.generation) {
+        sizing.pixelLimits.clear();
+        sizing.generation = cache.generation;
+    }
+    // Smooth fonts may shrink for a wider new reading, but never grow as the
+    // value fluctuates. Native bitmap strikes keep their existing fit policy.
+    if (!bitmap) requested = sizing.pixelLimits.value(sizingKey, requested);
     QByteArray fitKey;
     QDataStream keyStream(&fitKey, QIODevice::WriteOnly);
-    keyStream << font << available << pixmap.logicalDpiX() << pixmap.logicalDpiY() << text;
-    auto &cache = trayFontCache();
+    keyStream << font << available << pixmap.logicalDpiX() << pixmap.logicalDpiY() << text << requested;
     FontFit fitted;
     if (const auto *cached = cache.fits.object(fitKey)) {
         fitted = *cached;
@@ -174,8 +193,11 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
                 }
                 return false;
             }
+            // Most value changes fit the retained size with one measurement.
+            font.setPixelSize(requested);
+            if (fits()) return true;
             // Estimate from one reference measurement, then bracket the actual
-            // hinted ink bounds. At 128px this takes at most 12 measurements,
+            // hinted ink bounds. At 128px this takes at most 13 measurements,
             // rather than a descending scan of up to 256 sizes.
             font.setPixelSize(32);
             const QRect reference = QFontMetrics(font, &pixmap).tightBoundingRect(text);
@@ -220,9 +242,14 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
     }
     font = fitted.font;
     const QRect bounds = fitted.bounds;
+    if (!bitmap && font.pixelSize() > 0) {
+        if (!sizing.pixelLimits.contains(sizingKey) && sizing.pixelLimits.size() >= 16)
+            sizing.pixelLimits.clear();
+        sizing.pixelLimits.insert(sizingKey, font.pixelSize());
+    }
     // Integral device-pixel baselines retain bitmap sharpness. Reserve room
     // for the shadow, then paint the foreground last without any outline.
-    const QPoint baseline((available.width() - bounds.width()) / 2 - bounds.left(),
+    const QPoint baseline(available.width() - bounds.width() - bounds.left(),
                           (available.height() - bounds.height()) / 2 - bounds.top());
     QPainter painter(&pixmap);
     painter.setFont(font);
@@ -238,8 +265,8 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
 class NumericIconEngine final : public QIconEngine {
 public:
     NumericIconEngine(const QString &text, const QColor &color, const QFont &font,
-                      const SensorPreferences &preferences)
-        : m_text(text), m_color(color), m_font(font), m_preferences(preferences) {}
+                      const SensorPreferences &preferences, std::shared_ptr<TrayFontSizingState> sizing)
+        : m_text(text), m_color(color), m_font(font), m_preferences(preferences), m_sizing(std::move(sizing)) {}
 
     QIconEngine *clone() const override { return new NumericIconEngine(*this); }
     bool isNull() override { return m_text.isEmpty(); }
@@ -264,7 +291,7 @@ public:
                 return result;
             }
         }
-        QPixmap result = numericPixmap(size, m_text, m_color, m_font, m_preferences);
+        QPixmap result = numericPixmap(size, m_text, m_color, m_font, m_preferences, *m_sizing);
         const qint64 pixels = qint64(size.width()) * size.height();
         // Per-current-value LRU: retain the eleven advertised resolutions within
         // 64K raster pixels (~256 KiB at 32bpp). Oversized requests aren't cached.
@@ -305,6 +332,7 @@ private:
     QColor m_color;
     QFont m_font;
     SensorPreferences m_preferences;
+    std::shared_ptr<TrayFontSizingState> m_sizing;
     QList<QPixmap> m_pixmaps;
     qint64 m_cachedPixels = 0;
     quint64 m_fontGeneration = 0;
@@ -312,9 +340,10 @@ private:
     QColor m_background;
 };
 
-QIcon numericIcon(const QString &text, const QColor &color, const QFont &font, const SensorPreferences &preferences)
+QIcon numericIcon(const QString &text, const QColor &color, const QFont &font,
+                  const SensorPreferences &preferences, const std::shared_ptr<TrayFontSizingState> &sizing)
 {
-    return QIcon(new NumericIconEngine(text, color, font, preferences));
+    return QIcon(new NumericIconEngine(text, color, font, preferences, sizing));
 }
 
 } // namespace
@@ -555,9 +584,15 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
         + QStringLiteral("|%1|%2|%3").arg(preferences.trayShadow)
             .arg(preferences.trayTransparent).arg(preferences.trayTransparent ? QString() :
                 (preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base)).name(QColor::HexArgb));
+    const QString sizingKey = font.toString() + QStringLiteral("|%1|%2")
+        .arg(preferences.trayDigital).arg(preferences.trayShadow);
+    if (!entry.fontSizing || entry.fontSizingKey != sizingKey) {
+        entry.fontSizingKey = sizingKey;
+        entry.fontSizing = std::make_shared<TrayFontSizingState>();
+    }
     if (key != entry.renderKey) {
         entry.renderKey = key;
-        entry.icon->setIcon(numericIcon(text, color, font, preferences));
+        entry.icon->setIcon(numericIcon(text, color, font, preferences, entry.fontSizing));
     }
 }
 
