@@ -56,6 +56,16 @@ both the current reading and provider maximum; nonpositive/invalid maxima omit
 the automatic gauge. The instantaneous Maximum frequency reading retains its
 existing meaning; this change fixes normalization, not the measured value.
 
+Frequency batches read the aggregate sysfs `online` list once and reuse its
+parsed ranges while unchanged. CPU-to-policy paths and successful
+`cpuinfo_max_freq` limits persist across batches, shared by policy. Rescan or an
+online-set change clears this metadata; a missing current reading drops its
+CPU's mapping and policy limit, and failed limit reads are retried rather than
+cached. Missing/malformed aggregate lists fall back to the existing per-CPU
+online checks. Current MHz values still come from a fresh `/proc/cpuinfo` batch.
+Use Rescan after replacing a cpufreq driver or changing hardware-limit metadata
+without an online-set change; no periodic metadata-maintenance timer is added.
+
 ## Dashboard text styles
 
 Normal retains the existing font/compact-unit readouts. Digital reuses the

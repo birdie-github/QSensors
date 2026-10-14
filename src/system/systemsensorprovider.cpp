@@ -10,6 +10,7 @@
 #include <QThread>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace qsensors {
 namespace {
@@ -28,11 +29,72 @@ bool online(int cpu)
     // Non-hotpluggable CPUs need not expose this attribute.
     return !QFile::exists(path) || read(path).trimmed() == "1";
 }
+
+// Keep ranges rather than expanding the kernel CPU list into an unbounded set.
+using CpuRanges = QList<QPair<int, int>>;
+std::optional<CpuRanges> cpuRanges(const QByteArray &mask)
+{
+    if (mask.isEmpty()) return {};
+    CpuRanges ranges;
+    int previous = -1;
+    for (const auto &part : mask.split(',')) {
+        const auto ends = part.split('-');
+        if (ends.isEmpty() || ends.size() > 2) return {};
+        // Accept only the kernel's decimal list syntax, not signs or whitespace.
+        for (const auto &end : ends) {
+            if (end.isEmpty()) return {};
+            for (const char character : end)
+                if (character < '0' || character > '9') return {};
+        }
+        bool firstOk = false, lastOk = false;
+        const int first = ends.first().toInt(&firstOk);
+        const int last = ends.last().toInt(&lastOk);
+        if (!firstOk || !lastOk || first <= previous || last < first) return {};
+        ranges.append({first, last});
+        previous = last;
+    }
+    return ranges;
+}
+}
+
+void SystemSensorProvider::clearFrequencyMetadata()
+{
+    m_onlineMask.clear();
+    m_onlineRanges.clear();
+    m_cpuPolicyPaths.clear();
+    m_policyMaxima.clear();
+}
+
+std::optional<double> SystemSensorProvider::frequencyMaximum(int cpu, QSet<QString> &failedPolicies)
+{
+    QString path = m_cpuPolicyPaths.value(cpu);
+    if (path.isEmpty()) {
+        const QString policy = QFileInfo(cpuPath(cpu) + QStringLiteral("cpufreq")).canonicalFilePath();
+        path = (policy.isEmpty() ? cpuPath(cpu) + QStringLiteral("cpufreq") : policy)
+            + QStringLiteral("/cpuinfo_max_freq");
+        m_cpuPolicyPaths.insert(cpu, path);
+    }
+    const auto cached = m_policyMaxima.constFind(path);
+    if (cached != m_policyMaxima.cend()) return cached.value();
+    if (failedPolicies.contains(path)) {
+        m_cpuPolicyPaths.remove(cpu);
+        return {};
+    }
+    const auto limit = systemmetrics::frequencyLimitMHz(read(path));
+    if (limit) m_policyMaxima.insert(path, *limit);
+    else {
+        // Don't cache a failure. Resolve this CPU's policy again on its next
+        // demand, so a late driver or replaced policy can recover.
+        m_cpuPolicyPaths.remove(cpu);
+        failedPolicies.insert(path); // At most one failed read per policy in this batch.
+    }
+    return limit;
 }
 
 SensorDiscovery SystemSensorProvider::discover()
 {
     m_previousCpu.reset();
+    clearFrequencyMetadata();
     m_cores.clear();
     QMap<QPair<int, int>, QList<int>> cores;
     bool complete = true;
@@ -93,27 +155,44 @@ QList<SensorSample> SystemSensorProvider::readBatch(const QStringList &ids)
     const QByteArray up = ids.contains(QStringLiteral("system/uptime")) ? read(QStringLiteral("/proc/uptime")) : QByteArray();
     QHash<QString, double> frequencies;
     QHash<QString, double> coreMaxima;
-    QHash<QString, double> policyMaxima;
     QList<double> onlineMaxima;
     const auto reported = frequency ? systemmetrics::cpuFrequencies(info) : QHash<int, double>();
     bool allFrequencies = true;
     const bool summary = ids.contains(QStringLiteral("system/cpu/frequency")) || ids.contains(QStringLiteral("system/cpu/maximum-frequency"));
     const QSet<QString> requested(ids.cbegin(), ids.cend());
     if (frequency) {
+        // One lightweight topology check per frequency batch. Stable batches
+        // reuse policy paths and limits; current MHz still comes from cpuinfo.
+        const QByteArray mask = read(QStringLiteral("/sys/devices/system/cpu/online")).trimmed();
+        bool onlineKnown = !m_onlineRanges.isEmpty() && mask == m_onlineMask;
+        if (!onlineKnown) {
+            clearFrequencyMetadata();
+            if (const auto ranges = cpuRanges(mask)) {
+                m_onlineMask = mask;
+                m_onlineRanges = *ranges;
+                onlineKnown = true;
+            }
+        }
+        const auto isOnline = [this, onlineKnown](int cpu) {
+            if (!onlineKnown) return online(cpu); // Missing/malformed aggregate file: retain per-CPU checks.
+            return std::any_of(m_onlineRanges.cbegin(), m_onlineRanges.cend(), [cpu](const auto &range) {
+                return cpu >= range.first && cpu <= range.second;
+            });
+        };
+        QSet<QString> failedPolicies;
         for (const auto &core : m_cores) {
             if (!summary && !requested.contains(core.id)) continue;
-            const auto first = std::find_if(core.threads.cbegin(), core.threads.cend(), online);
+            const auto first = std::find_if(core.threads.cbegin(), core.threads.cend(), isOnline);
             if (first == core.threads.cend()) continue;
             if (reported.contains(*first)) frequencies.insert(core.id, reported.value(*first));
-            else allFrequencies = false;
-            const QString policy = QFileInfo(cpuPath(*first) + QStringLiteral("cpufreq")).canonicalFilePath();
-            const QString path = (policy.isEmpty() ? cpuPath(*first) + QStringLiteral("cpufreq") : policy)
-                + QStringLiteral("/cpuinfo_max_freq");
-            if (!policyMaxima.contains(path)) {
-                const auto limit = systemmetrics::frequencyLimitMHz(read(path));
-                policyMaxima.insert(path, limit.value_or(std::numeric_limits<double>::quiet_NaN()));
+            else {
+                allFrequencies = false;
+                // A missing current reading may indicate a replaced/offline
+                // policy. Drop only the affected mapping and shared limit.
+                const QString path = m_cpuPolicyPaths.take(*first);
+                m_policyMaxima.remove(path);
             }
-            const double limit = policyMaxima.value(path);
+            const double limit = frequencyMaximum(*first, failedPolicies).value_or(std::numeric_limits<double>::quiet_NaN());
             coreMaxima.insert(core.id, limit);
             onlineMaxima.append(limit);
         }
