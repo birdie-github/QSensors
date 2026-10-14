@@ -5,6 +5,7 @@
 
 #include <QAbstractTableModel>
 #include <QList>
+#include <QHash>
 
 namespace qsensors {
 
@@ -29,6 +30,7 @@ private:
     SensorPreferencesStore *m_preferences;
     QList<SensorDescriptor> m_descriptors;
     QList<SensorSample> m_samples;
+    QHash<QString, int> m_rows;
 };
 
 } // namespace qsensors

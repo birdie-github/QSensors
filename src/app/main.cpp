@@ -9,6 +9,7 @@
 #include "ui/sensortablemodel.h"
 
 #include <QApplication>
+#include <QSet>
 #include <QCommandLineParser>
 #include <QIcon>
 #include <QPointer>
@@ -118,9 +119,10 @@ int main(int argc, char *argv[])
             }
             model.setDescriptors(selected);
         }
+        const QSet<QString> due(snapshot.dashboardRefreshIds.cbegin(), snapshot.dashboardRefreshIds.cend());
         QList<qsensors::SensorSample> samples;
         for (const auto &sample : snapshot.samples) {
-            if (!snapshot.incremental || snapshot.dashboardRefreshIds.contains(sample.id)) samples.append(sample);
+            if (!snapshot.incremental || due.contains(sample.id)) samples.append(sample);
         }
         model.applySamples(samples, snapshot.incremental);
     });

@@ -173,6 +173,9 @@ void SensorGrid::setDescriptors(const QList<SensorDescriptor> &descriptors)
         m_order.append(id);
     }
     m_tiles = tiles;
+    m_indices.clear();
+    m_indices.reserve(m_order.size());
+    for (int i = 0; i < m_order.size(); ++i) m_indices.insert(m_order[i], i);
     if (!m_tiles.contains(m_selected)) m_selected = m_order.value(0);
     if (removed) trimBounds();
     if (changed) saveLayout();
@@ -191,9 +194,19 @@ void SensorGrid::applySamples(const QList<SensorSample> &samples, bool increment
     batch.reserve(samples.size());
     for (const auto &sample : samples)
         batch.insert(sample.id, sample);
+    QList<int> indices;
+    if (incremental) {
+        indices.reserve(batch.size());
+        for (auto it = batch.cbegin(); it != batch.cend(); ++it) {
+            const auto index = m_indices.constFind(it.key());
+            if (index != m_indices.cend()) indices.append(index.value());
+        }
+    } else {
+        indices.reserve(m_order.size());
+        for (int i = 0; i < m_order.size(); ++i) indices.append(i);
+    }
     QRegion changed;
-    for (int i = 0; i < m_order.size(); ++i) {
-        if (incremental && !batch.contains(m_order[i])) continue;
+    for (const int i : indices) {
         auto &tile = m_tiles[m_order[i]];
         auto sample = batch.value(m_order[i]);
         sample.id = m_order[i];

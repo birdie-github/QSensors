@@ -2,7 +2,7 @@
 #include "sensors/sensorpresentation.h"
 #include "settings/sensorpreferences.h"
 
-#include <QHash>
+#include <QSet>
 #include <cmath>
 
 namespace qsensors {
@@ -27,26 +27,35 @@ void SensorPresentation::applySnapshot(const SensorSnapshot &snapshot)
         }
         emit catalogChanged(m_catalog);
     }
-    for (const auto &sample : snapshot.samples) m_samples.insert(sample.id, sample);
-    m_incremental = snapshot.incremental;
-    m_dashboardRefreshIds = snapshot.dashboardRefreshIds;
-    m_trayRefreshIds = snapshot.trayRefreshIds;
+    for (const auto &sample : snapshot.samples) {
+        m_samples.insert(sample.id, sample);
+        if (!snapshot.rescanned) m_displaySamples.insert(sample.id, convert(sample));
+    }
+    if (snapshot.rescanned) rebuildDisplayCache();
     m_error = snapshot.error;
-    publish(snapshot.rescanned);
+    publish(snapshot, snapshot.rescanned);
 }
 
 void SensorPresentation::refresh()
 {
-    publish(true);
+    rebuildDisplayCache();
+    publish(SensorSnapshot{}, true);
 }
 
-void SensorPresentation::publish(bool changedCatalog)
+void SensorPresentation::rebuildDisplayCache()
+{
+    m_displaySamples.clear();
+    m_displaySamples.reserve(m_samples.size());
+    for (const auto &sample : m_samples) m_displaySamples.insert(sample.id, convert(sample));
+}
+
+void SensorPresentation::publish(const SensorSnapshot &snapshot, bool changedCatalog)
 {
     SensorSnapshot display;
     display.rescanned = changedCatalog;
-    display.incremental = m_incremental && !changedCatalog;
-    display.dashboardRefreshIds = m_dashboardRefreshIds;
-    display.trayRefreshIds = m_trayRefreshIds;
+    display.incremental = snapshot.incremental && !changedCatalog;
+    display.dashboardRefreshIds = snapshot.dashboardRefreshIds;
+    display.trayRefreshIds = snapshot.trayRefreshIds;
     display.error = m_error;
     if (changedCatalog) {
         display.descriptors.reserve(m_catalog.size());
@@ -63,27 +72,46 @@ void SensorPresentation::publish(bool changedCatalog)
             display.descriptors.append(descriptor);
         }
     }
-    for (auto sample : m_samples) {
-        if (sample.available) {
-            const auto p = m_preferences->value(sample.id);
-            sample.value = sample.value * p.multiplier + p.offset;
-            if (std::isfinite(sample.maximum)) sample.maximum = sample.maximum * p.multiplier + p.offset;
-            if (m_kinds.contains(sample.id) && m_kinds.value(sample.id) == SensorKind::Temperature)
-                sample.value = temperatureToDisplay(sample.value, m_preferences->temperatureUnit());
-            if (m_kinds.value(sample.id) == SensorKind::Memory && p.memoryAsPercent) {
-                if (std::isfinite(sample.reference) && sample.reference > 0)
-                    sample.value = sample.value / sample.reference * 100;
-                else sample.value = std::numeric_limits<double>::quiet_NaN();
-            }
-            if (!std::isfinite(sample.value) || !sample.timestamp.isValid()) {
-                sample.available = false;
-                sample.value = std::numeric_limits<double>::quiet_NaN();
-                sample.error = tr("Calibration or conversion produced an invalid reading.");
-            }
+    if (changedCatalog || !snapshot.incremental) {
+        display.samples.reserve(m_displaySamples.size());
+        for (const auto &sample : m_displaySamples) display.samples.append(sample);
+    } else {
+        // New acquisitions feed previews; due presentations may reuse an older
+        // converted value without recalibrating or publishing unrelated channels.
+        QSet<QString> ids;
+        ids.reserve(snapshot.samples.size() + snapshot.dashboardRefreshIds.size() + snapshot.trayRefreshIds.size());
+        for (const auto &sample : snapshot.samples) ids.insert(sample.id);
+        for (const auto &id : snapshot.dashboardRefreshIds) ids.insert(id);
+        for (const auto &id : snapshot.trayRefreshIds) ids.insert(id);
+        display.samples.reserve(ids.size());
+        for (const auto &id : ids) {
+            const auto it = m_displaySamples.constFind(id);
+            if (it != m_displaySamples.cend()) display.samples.append(it.value());
         }
-        display.samples.append(sample);
     }
     emit snapshotReady(display);
+}
+
+SensorSample SensorPresentation::convert(SensorSample sample) const
+{
+    if (sample.available) {
+        const auto p = m_preferences->value(sample.id);
+        sample.value = sample.value * p.multiplier + p.offset;
+        if (std::isfinite(sample.maximum)) sample.maximum = sample.maximum * p.multiplier + p.offset;
+        if (m_kinds.contains(sample.id) && m_kinds.value(sample.id) == SensorKind::Temperature)
+            sample.value = temperatureToDisplay(sample.value, m_preferences->temperatureUnit());
+        if (m_kinds.value(sample.id) == SensorKind::Memory && p.memoryAsPercent) {
+            if (std::isfinite(sample.reference) && sample.reference > 0)
+                sample.value = sample.value / sample.reference * 100;
+            else sample.value = std::numeric_limits<double>::quiet_NaN();
+        }
+        if (!std::isfinite(sample.value) || !sample.timestamp.isValid()) {
+            sample.available = false;
+            sample.value = std::numeric_limits<double>::quiet_NaN();
+            sample.error = tr("Calibration or conversion produced an invalid reading.");
+        }
+    }
+    return sample;
 }
 
 } // namespace qsensors

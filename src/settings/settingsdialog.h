@@ -8,6 +8,7 @@
 #include <QHash>
 
 class QTreeWidget;
+class QTreeWidgetItem;
 class QLineEdit;
 class QCheckBox;
 class QDoubleSpinBox;
@@ -42,6 +43,7 @@ protected:
 private:
     void populate();
     void updateValues();
+    void updateValue(QTreeWidgetItem *item);
     void requestPreview();
     void filterSensors();
     void syncCurrentItem();
@@ -79,6 +81,7 @@ private:
     bool m_loading = false;
     bool m_initialAutostart;
     QTreeWidget *m_list;
+    QHash<QString, QTreeWidgetItem *> m_valueItems;
     QLineEdit *m_search;
     QGroupBox *m_editor;
     QLineEdit *m_label;

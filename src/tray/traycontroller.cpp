@@ -19,6 +19,7 @@
 #include <QPalette>
 #include <QPixmap>
 #include <QSystemTrayIcon>
+#include <QSet>
 
 #include <algorithm>
 #include <cmath>
@@ -360,12 +361,18 @@ void TrayController::applySnapshot(const SensorSnapshot &snapshot)
         m_descriptors = descriptors;
     }
     if (!snapshot.incremental) m_samples.clear();
+    const QSet<QString> due(snapshot.trayRefreshIds.cbegin(), snapshot.trayRefreshIds.cend());
     for (const auto &sample : snapshot.samples) {
-        if (m_selected.contains(sample.id) && (!snapshot.incremental || snapshot.trayRefreshIds.contains(sample.id)))
+        if (m_entries.contains(sample.id) && (!snapshot.incremental || due.contains(sample.id)))
             m_samples.insert(sample.id, sample);
     }
-    for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
-        if (!snapshot.incremental || snapshot.trayRefreshIds.contains(it.key())) updateEntry(it.key(), it.value());
+    if (snapshot.incremental) {
+        for (const auto &id : due) {
+            auto it = m_entries.find(id);
+            if (it != m_entries.end()) updateEntry(id, it.value());
+        }
+    } else {
+        for (auto it = m_entries.begin(); it != m_entries.end(); ++it) updateEntry(it.key(), it.value());
     }
 }
 

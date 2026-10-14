@@ -66,6 +66,7 @@ private:
     QHash<QString, Tile> m_tiles;
     QHash<QString, QPoint> m_positions;
     QStringList m_order;
+    QHash<QString, int> m_indices;
     QStringList m_lastVisible;
     QRect m_bounds{0, 0, 1, 1};
     TileStyle m_style;

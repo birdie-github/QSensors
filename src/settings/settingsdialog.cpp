@@ -563,56 +563,62 @@ void SettingsDialog::applySnapshot(const SensorSnapshot &snapshot)
     if (!isVisible())
         return;
     // Values are already calibrated and converted by SensorPresentation.
-    // This is a shared cache snapshot; a failed acquisition replaces its channel.
-    // Other channels retain the sample from their own acquisition cadence.
-    m_samples.clear();
+    // Incremental batches replace only their channels, including failed readings.
+    if (!snapshot.incremental) m_samples.clear();
+    const bool statusChanged = m_readError != snapshot.error;
     for (const auto &sample : snapshot.samples)
         m_samples.insert(sample.id, sample);
     m_readError = snapshot.error;
-    updateValues();
+    if (!snapshot.incremental || statusChanged) {
+        updateValues();
+    } else {
+        const QSignalBlocker blocker(m_list);
+        for (const auto &sample : snapshot.samples) {
+            if (auto *item = m_valueItems.value(sample.id)) updateValue(item);
+        }
+    }
 }
 
 void SettingsDialog::updateValues()
 {
     const QSignalBlocker blocker(m_list);
-    for (int i = 0; i < m_list->topLevelItemCount(); ++i) {
-        const auto *group = m_list->topLevelItem(i);
-        for (int j = 0; j < group->childCount(); ++j) {
-            auto *item = group->child(j);
-            const QString id = item->data(0, Qt::UserRole).toString();
-            const auto sample = m_samples.value(id);
-            QString text;
-            QString tooltip;
-            if (!m_catalog.contains(id)) {
-                text = tr("Unavailable");
-                tooltip = tr("This sensor is not currently detected.");
-            } else if (!m_samples.contains(id) && m_readError.isEmpty()) {
-                text = tr("Waiting…");
-            } else if (!sample.available || !std::isfinite(sample.value) || !sample.timestamp.isValid()) {
-                text = tr("Unavailable");
-                tooltip = sample.error.isEmpty() ? m_readError : sample.error;
-                if (tooltip.isEmpty()) tooltip = tr("No valid reading returned.");
-            } else {
-                auto descriptor = m_catalog.value(id);
-                if (descriptor.kind == SensorKind::Temperature) descriptor.unit = temperatureUnitText(m_store->temperatureUnit());
-                if (descriptor.kind == SensorKind::Memory && m_store->value(id).memoryAsPercent) {
-                    descriptor.kind = SensorKind::Percentage;
-                    descriptor.unit = QStringLiteral("%");
-                }
-                const auto formatted = formatSensorValue(descriptor, sample.value);
-                text = formatted.number;
-                if (!formatted.unit.isEmpty()) text += QLatin1Char(' ') + formatted.unit;
-                tooltip = tr("Applied calibration and display units. Read at %1.")
-                    .arg(QLocale().toString(sample.timestamp.toLocalTime(), QLocale::ShortFormat));
-                if (!sample.detail.isEmpty()) tooltip += QLatin1Char('\n') + sample.detail;
-                if (sample.detail == QStringLiteral("No swap configured"))
-                    text = QStringLiteral("—");
-            }
-            item->setText(3, text);
-            item->setToolTip(3, tooltip);
-            item->setTextAlignment(3, Qt::AlignRight | Qt::AlignVCenter);
+    for (auto *item : m_valueItems) updateValue(item);
+}
+
+void SettingsDialog::updateValue(QTreeWidgetItem *item)
+{
+    const QString id = item->data(0, Qt::UserRole).toString();
+    const auto sample = m_samples.value(id);
+    QString text;
+    QString tooltip;
+    if (!m_catalog.contains(id)) {
+        text = tr("Unavailable");
+        tooltip = tr("This sensor is not currently detected.");
+    } else if (!m_samples.contains(id) && m_readError.isEmpty()) {
+        text = tr("Waiting…");
+    } else if (!sample.available || !std::isfinite(sample.value) || !sample.timestamp.isValid()) {
+        text = tr("Unavailable");
+        tooltip = sample.error.isEmpty() ? m_readError : sample.error;
+        if (tooltip.isEmpty()) tooltip = tr("No valid reading returned.");
+    } else {
+        auto descriptor = m_catalog.value(id);
+        if (descriptor.kind == SensorKind::Temperature) descriptor.unit = temperatureUnitText(m_store->temperatureUnit());
+        if (descriptor.kind == SensorKind::Memory && m_store->value(id).memoryAsPercent) {
+            descriptor.kind = SensorKind::Percentage;
+            descriptor.unit = QStringLiteral("%");
         }
+        const auto formatted = formatSensorValue(descriptor, sample.value);
+        text = formatted.number;
+        if (!formatted.unit.isEmpty()) text += QLatin1Char(' ') + formatted.unit;
+        tooltip = tr("Applied calibration and display units. Read at %1.")
+            .arg(QLocale().toString(sample.timestamp.toLocalTime(), QLocale::ShortFormat));
+        if (!sample.detail.isEmpty()) tooltip += QLatin1Char('\n') + sample.detail;
+        if (sample.detail == QStringLiteral("No swap configured"))
+            text = QStringLiteral("—");
     }
+    item->setText(3, text);
+    item->setToolTip(3, tooltip);
+    item->setTextAlignment(3, Qt::AlignRight | Qt::AlignVCenter);
 }
 
 void SettingsDialog::populate()
@@ -624,6 +630,7 @@ void SettingsDialog::populate()
         expanded.insert(group->data(0, Qt::UserRole + 1).toString(), group->isExpanded());
     }
     const QSignalBlocker blocker(m_list);
+    m_valueItems.clear();
     m_list->clear();
     QStringList ids = m_catalog.keys();
     for (auto it = m_draft.cbegin(); it != m_draft.cend(); ++it) {
@@ -671,6 +678,7 @@ void SettingsDialog::populate()
         const auto p = m_draft.value(id);
         const QString label = name(id);
         auto *item = new QTreeWidgetItem(group, {label.isEmpty() ? id : label});
+        m_valueItems.insert(id, item);
         item->setData(0, Qt::UserRole, id);
         item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
         item->setCheckState(1, p.dashboard ? Qt::Checked : Qt::Unchecked);

@@ -78,11 +78,13 @@ void SensorTableModel::setDescriptors(const QList<SensorDescriptor> &descriptors
     beginResetModel();
     m_descriptors = descriptors;
     m_samples.clear();
+    m_rows.clear();
     m_samples.reserve(descriptors.size());
     for (const auto &descriptor : descriptors) {
         SensorSample sample;
         sample.id = descriptor.id;
         sample.error = tr("Not read yet");
+        m_rows.insert(descriptor.id, static_cast<int>(m_samples.size()));
         m_samples.append(sample);
     }
     endResetModel();
@@ -94,9 +96,19 @@ void SensorTableModel::applySamples(const QList<SensorSample> &samples, bool inc
     batch.reserve(samples.size());
     for (const auto &sample : samples)
         batch.insert(sample.id, sample);
-    for (int row = 0; row < rowCount(); ++row) {
+    QList<int> rows;
+    if (incremental) {
+        rows.reserve(batch.size());
+        for (auto it = batch.cbegin(); it != batch.cend(); ++it) {
+            const auto row = m_rows.constFind(it.key());
+            if (row != m_rows.cend()) rows.append(row.value());
+        }
+    } else {
+        rows.reserve(rowCount());
+        for (int row = 0; row < rowCount(); ++row) rows.append(row);
+    }
+    for (const int row : rows) {
         const QString &id = m_descriptors[row].id;
-        if (incremental && !batch.contains(id)) continue;
         auto sample = batch.value(id);
         sample.id = id;
         if (sample.available && (!std::isfinite(sample.value) || !sample.timestamp.isValid())) {

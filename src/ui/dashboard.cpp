@@ -4,6 +4,7 @@
 #include "ui/sensorgrid.h"
 #include "settings/sensorpreferences.h"
 
+#include <QSet>
 #include <QAction>
 #include <QCoreApplication>
 #include <QComboBox>
@@ -407,12 +408,13 @@ void Dashboard::applySnapshot(const SensorSnapshot &snapshot)
         m_grid->setDescriptors(selected);
         if (!m_compact) m_stack->setCurrentIndex(snapshot.descriptors.isEmpty() ? 0 : m_tableView->isChecked() ? 2 : 1);
     }
+    const QSet<QString> due(snapshot.dashboardRefreshIds.cbegin(), snapshot.dashboardRefreshIds.cend());
     QList<SensorSample> samples;
     for (const auto &sample : snapshot.samples) {
-        if (!snapshot.incremental || snapshot.dashboardRefreshIds.contains(sample.id)) samples.append(sample);
+        if (!snapshot.incremental || due.contains(sample.id)) samples.append(sample);
     }
     m_grid->applySamples(samples, snapshot.incremental);
-    updateVisibleIds();
+    if (snapshot.rescanned) updateVisibleIds();
 }
 
 void Dashboard::clearReadings()

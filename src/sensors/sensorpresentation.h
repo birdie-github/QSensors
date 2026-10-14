@@ -22,14 +22,14 @@ signals:
     void catalogChanged(const QList<qsensors::SensorDescriptor> &descriptors);
 
 private:
-    void publish(bool catalogChanged);
+    SensorSample convert(SensorSample sample) const;
+    void rebuildDisplayCache();
+    void publish(const SensorSnapshot &snapshot, bool catalogChanged);
     SensorPreferencesStore *m_preferences;
     QList<SensorDescriptor> m_catalog;
     QHash<QString, SensorKind> m_kinds;
     QHash<QString, SensorSample> m_samples;
-    QStringList m_dashboardRefreshIds;
-    QStringList m_trayRefreshIds;
-    bool m_incremental = false;
+    QHash<QString, SensorSample> m_displaySamples;
     QString m_error;
 };
 

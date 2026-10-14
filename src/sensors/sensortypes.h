@@ -49,8 +49,9 @@ struct SensorDiscovery {
 
 struct SensorSnapshot {
     bool rescanned = false;
-    // Acquisition batches may be partial. These lists identify presentations due
-    // for refresh; other presentations keep their last displayed sample.
+    // Incremental samples contain only acquired or due cached channels; omitted
+    // channels retain their readings. These lists identify presentations due
+    // for refresh, independently of acquisition and settings previews.
     bool incremental = false;
     QStringList dashboardRefreshIds;
     QStringList trayRefreshIds;
