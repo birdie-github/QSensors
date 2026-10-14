@@ -70,16 +70,13 @@ QSize SensorGrid::fieldSizeForTileSize(int size) const
     const int stride = std::clamp(size, minimumTileSize, maximumTileSize) + m_gap;
     return QSize(m_gap + m_bounds.width() * stride, m_gap + m_bounds.height() * stride);
 }
-int SensorGrid::tileSizeForResize(const QSize &size, const QSize &previousSize) const
+int SensorGrid::tileSizeForFieldSize(const QSize &size) const
 {
-    // Follow the axis with the larger change per cell. Using the smaller
-    // dimension would stall growth when a corner moves by only a few pixels.
-    const double dx = double(size.width() - previousSize.width()) / m_bounds.width();
-    const double dy = double(size.height() - previousSize.height()) / m_bounds.height();
-    const double requested = std::abs(dx) >= std::abs(dy)
-        ? double(size.width() - m_gap) / m_bounds.width() - m_gap
-        : double(size.height() - m_gap) / m_bounds.height() - m_gap;
-    return std::clamp(int(std::round(requested)), minimumTileSize, maximumTileSize);
+    // Fit the complete field in both axes. Derive size from absolute geometry,
+    // so changing drag direction cannot switch between competing estimates.
+    const int columns = (size.width() - m_gap) / m_bounds.width() - m_gap;
+    const int rows = (size.height() - m_gap) / m_bounds.height() - m_gap;
+    return std::clamp(std::min(columns, rows), minimumTileSize, maximumTileSize);
 }
 void SensorGrid::setCompactView(bool compact)
 {

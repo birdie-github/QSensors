@@ -72,6 +72,8 @@ private:
     QSizeGrip *m_resizeGrips[4]{};
     QTimer m_resizeSaveTimer;
     bool m_resizeSavePending = false;
+    int m_resizeInitialTileSize = 0;
+    QSize m_compactChrome;
     QRect m_expandedGeometry;
     Qt::WindowStates m_expandedState;
     Qt::WindowFlags m_expandedFlags;

@@ -16,7 +16,7 @@ public:
     int tileSize() const { return m_style.size; }
     QSize fieldSize() const;
     QSize fieldSizeForTileSize(int size) const;
-    int tileSizeForResize(const QSize &size, const QSize &previousSize) const;
+    int tileSizeForFieldSize(const QSize &size) const;
     void setCompactView(bool compact);
     void setTileSize(int size, bool persist = true);
     void saveTileSize() const;

@@ -293,13 +293,15 @@ void Dashboard::setControlsVisible(bool visible)
 
 void Dashboard::fitCompactView()
 {
-    if (!m_compact) return;
+    // Never change native drag geometry or its constraints mid-gesture.
+    if (!m_compact || m_resizeSavePending) return;
     const QScopedValueRollback<bool> adjusting(m_adjustingCompact, true);
     // Flush the central-widget/chrome layout before deriving the outer size.
     layout()->invalidate();
     layout()->activate();
     const QSize chrome(std::max(0, width() - m_grid->width()),
                        std::max(0, height() - m_grid->height()));
+    m_compactChrome = chrome;
     const QSize field = m_grid->fieldSize() + chrome;
     // Compact mode always contains the complete field, even beyond screen bounds.
     setMinimumSize(m_grid->fieldSizeForTileSize(minimumTileSize) + chrome);
@@ -329,19 +331,15 @@ void Dashboard::resizeEvent(QResizeEvent *event)
     QMainWindow::resizeEvent(event);
     if (!m_compact || m_adjustingCompact) return;
     const QScopedValueRollback<bool> adjusting(m_adjustingCompact, true);
-    layout()->activate();
-    const QSize chrome(std::max(0, width() - m_grid->width()),
-                       std::max(0, height() - m_grid->height()));
-    const int size = m_grid->tileSizeForResize(event->size() - chrome,
-                                             event->oldSize() - chrome);
-    if (size != m_grid->tileSize()) {
-        m_grid->setTileSize(size, false);
+    if (!m_resizeSavePending) {
+        m_resizeInitialTileSize = m_grid->tileSize();
         m_resizeSavePending = true;
     }
-    if (m_resizeSavePending) m_resizeSaveTimer.start();
-    // Snap both axes to the same integer tile size; never stretch a tile or
-    // introduce scrollbars, including for non-square dashboard arrangements.
-    fitCompactView();
+    m_grid->setTileSize(m_grid->tileSizeForFieldSize(event->size() - m_compactChrome), false);
+    positionResizeGrips();
+    m_resizeSaveTimer.start();
+    // The window follows the native drag freely. Tiles stay square and fit
+    // inside it; any spare space is removed only after the gesture finishes.
 }
 
 void Dashboard::finishCompactResize()
@@ -349,7 +347,8 @@ void Dashboard::finishCompactResize()
     m_resizeSaveTimer.stop();
     if (!m_resizeSavePending) return;
     m_resizeSavePending = false;
-    m_grid->saveTileSize();
+    fitCompactView();
+    if (m_grid->tileSize() != m_resizeInitialTileSize) m_grid->saveTileSize();
 }
 
 void Dashboard::saveWindowGeometry()
