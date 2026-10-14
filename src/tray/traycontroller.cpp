@@ -48,10 +48,9 @@ QStringList trayFitTemplates(SensorKind kind)
 {
     switch (kind) {
     case SensorKind::Frequency:
-        return {QStringLiteral("####"), QStringLiteral("###K"), QStringLiteral("###G")};
+        return {QStringLiteral("####")};
     case SensorKind::Memory:
-        return {QStringLiteral("###M"), QStringLiteral("###G"), QStringLiteral("###T"), QStringLiteral("###P"),
-                QStringLiteral("-##M"), QStringLiteral("-##G"), QStringLiteral("-##T"), QStringLiteral("-##P")};
+        return {QStringLiteral("###"), QStringLiteral("-##")};
     case SensorKind::Fan:
     case SensorKind::Voltage:
         return {QStringLiteral("##.#"), QStringLiteral("-##.#")};
@@ -60,7 +59,7 @@ QStringList trayFitTemplates(SensorKind kind)
     case SensorKind::Percentage:
         return {QStringLiteral("####"), QStringLiteral("-###")};
     default:
-        return {QStringLiteral("####"), QStringLiteral("-##.#"), QStringLiteral("#.##e+##")};
+        return {QStringLiteral("####"), QStringLiteral("-##.#")};
     }
 }
 
@@ -184,8 +183,30 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
     // Select a font at this resolution; never scale painted glyphs.
     int requested = edge * 2;
     QByteArray sizingKey;
+    // Suffixes, scientific notation and status strings have independent fits.
+    // An unusual display form must not shrink the normal numeric reading.
+    QString formatClass;
+    QStringList fitTemplates = sizing.fitTemplates;
+    if (text == QStringLiteral("ERR") || text == QStringLiteral("—")) {
+        formatClass = text;
+        fitTemplates.clear();
+    } else if (text.contains(QLatin1Char('e'))) {
+        formatClass = QStringLiteral("scientific");
+        QString pattern = text;
+        for (auto &character : pattern) {
+            if (character.isDigit()) character = QLatin1Char('#');
+        }
+        fitTemplates = {pattern};
+    } else if (!text.isEmpty() && text.back().isLetter()) {
+        formatClass = QString(text.back());
+        // Frequency has a four-character compact budget: three digits plus
+        // its suffix. Memory uses up to three numeric characters plus a unit.
+        const bool signedNumeric = fitTemplates.contains(QStringLiteral("-##"));
+        fitTemplates = {QStringLiteral("###") + formatClass};
+        if (signedNumeric) fitTemplates.append(QStringLiteral("-##") + formatClass);
+    }
     QDataStream sizingStream(&sizingKey, QIODevice::WriteOnly);
-    sizingStream << font << available << pixmap.logicalDpiX() << pixmap.logicalDpiY();
+    sizingStream << font << available << pixmap.logicalDpiX() << pixmap.logicalDpiY() << formatClass;
     auto &cache = trayFontCache();
     if (sizing.generation != cache.generation) {
         sizing.pixelLimits.clear();
@@ -199,7 +220,7 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
     QByteArray fitKey;
     QDataStream keyStream(&fitKey, QIODevice::WriteOnly);
     keyStream << font << available << pixmap.logicalDpiX() << pixmap.logicalDpiY()
-              << text << requested << sizing.pointLimits.value(sizingKey, 0) << seedFit << sizing.fitTemplates;
+              << text << requested << sizing.pointLimits.value(sizingKey, 0) << seedFit << fitTemplates;
     FontFit fitted;
     if (const auto *cached = cache.fits.object(fitKey)) {
         fitted = *cached;
@@ -210,7 +231,7 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
             bounds = metrics.tightBoundingRect(text);
             if (bounds.isEmpty() || bounds.width() > available.width() || bounds.height() > available.height())
                 return false;
-            if (!seedFit) return true;
+            if (!seedFit || fitTemplates.isEmpty()) return true;
             // Reserve all digit widths before the first reading. Per-character
             // advances plus bearing margins avoid fitting just one lucky set of
             // narrow digits such as 1111. This work runs only when seeding a fit.
@@ -222,7 +243,7 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
                 digitLeft = std::max(digitLeft, -ink.left());
                 digitRight = std::max(digitRight, ink.left() + ink.width() - metrics.horizontalAdvance(digit));
             }
-            for (const auto &pattern : sizing.fitTemplates) {
+            for (const auto &pattern : fitTemplates) {
                 int width = 0, left = digitLeft, right = digitRight;
                 QString glyphs = QStringLiteral("0123456789");
                 for (const QChar character : pattern) {
