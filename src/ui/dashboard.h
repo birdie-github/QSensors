@@ -59,7 +59,7 @@ private:
     void saveWindowGeometry();
     void setControlsVisible(bool visible);
     void fitCompactView();
-    void positionResizeGrips();
+    void positionResizeGrip();
     void finishCompactResize();
     SensorPreferencesStore *m_preferences;
     SensorTableModel *m_model;
@@ -78,7 +78,7 @@ private:
     bool m_trayAvailable = false;
     bool m_compact = false;
     bool m_adjustingCompact = false;
-    QSizeGrip *m_resizeGrips[4]{};
+    QSizeGrip *m_resizeGrip = nullptr;
     QTimer m_resizeSaveTimer;
     bool m_resizeSavePending = false;
     int m_resizeInitialTileSize = 0;

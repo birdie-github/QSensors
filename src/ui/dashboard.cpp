@@ -117,13 +117,11 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     addBackground(tr("Solid"), DashboardBackground::Solid);
     addBackground(tr("Dots"), DashboardBackground::Dots);
     addBackground(tr("Grid"), DashboardBackground::Grid);
-    // Corner-only handles leave the tile field available for moving the window.
+    // A bottom-right handle leaves the tile field available for moving the window.
     // QSizeGrip uses Qt's native resize support, including Wayland when available.
-    for (auto &grip : m_resizeGrips) {
-        grip = new QSizeGrip(this);
-        grip->setToolTip(tr("Resize square tiles"));
-        grip->hide();
-    }
+    m_resizeGrip = new QSizeGrip(this);
+    m_resizeGrip->setToolTip(tr("Resize square tiles"));
+    m_resizeGrip->hide();
     m_resizeSaveTimer.setSingleShot(true);
     m_resizeSaveTimer.setInterval(200);
     connect(&m_resizeSaveTimer, &QTimer::timeout, this, [this] {
@@ -320,7 +318,7 @@ void Dashboard::setControlsVisible(bool visible)
     // Reparenting explicitly hides widgets; showing the window does not undo it.
     centralWidget()->show();
     refreshPresentation();
-    for (auto *grip : m_resizeGrips) grip->setVisible(m_compact);
+    m_resizeGrip->setVisible(m_compact);
     fitCompactView();
     if (wasVisible) show();
     // Window flag changes and hidden toolbars settle through posted layout events.
@@ -345,22 +343,18 @@ void Dashboard::fitCompactView()
     setMaximumSize(m_grid->fieldSizeForTileSize(maximumTileSize) + chrome);
     resize(field);
     layout()->activate();
-    positionResizeGrips();
+    positionResizeGrip();
     // Resizing uses the same preference as the menu and toolbar selectors.
     const QSignalBlocker blocker(m_tileSize);
     m_tileSize->setCurrentText(QString::number(m_grid->tileSize()));
 }
 
-void Dashboard::positionResizeGrips()
+void Dashboard::positionResizeGrip()
 {
-    for (int i = 0; i < 4; ++i) {
-        auto *grip = m_resizeGrips[i];
-        const QSize extent = grip->sizeHint();
-        grip->setGeometry((i & 1) ? width() - extent.width() : 0,
-                          (i & 2) ? height() - extent.height() : 0,
-                          extent.width(), extent.height());
-        grip->raise();
-    }
+    const QSize extent = m_resizeGrip->sizeHint();
+    m_resizeGrip->setGeometry(width() - extent.width(), height() - extent.height(),
+                              extent.width(), extent.height());
+    m_resizeGrip->raise();
 }
 
 void Dashboard::resizeEvent(QResizeEvent *event)
@@ -373,7 +367,7 @@ void Dashboard::resizeEvent(QResizeEvent *event)
         m_resizeSavePending = true;
     }
     m_grid->setTileSize(m_grid->tileSizeForFieldSize(event->size() - m_compactChrome), false);
-    positionResizeGrips();
+    positionResizeGrip();
     m_resizeSaveTimer.start();
     // The window follows the native drag freely. Tiles stay square and fit
     // inside it; any spare space is removed only after the gesture finishes.
