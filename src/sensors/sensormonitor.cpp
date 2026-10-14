@@ -31,9 +31,12 @@ public:
             snapshot.error = discovery.error;
             snapshot.descriptors.append(m_system.discover().descriptors);
             if (readAll) {
-                for (const auto &descriptor : snapshot.descriptors)
-                    if (!ids.contains(descriptor.id))
-                        ids.append(descriptor.id);
+                QSet<QString> known(ids.cbegin(), ids.cend());
+                for (const auto &descriptor : snapshot.descriptors) {
+                    if (known.contains(descriptor.id)) continue;
+                    known.insert(descriptor.id);
+                    ids.append(descriptor.id);
+                }
             }
         }
         QStringList hardwareIds, systemIds;
@@ -91,6 +94,7 @@ void SensorMonitor::setDashboardActive(bool active)
     if (m_active == active)
         return;
     m_active = active;
+    rebuildDemand();
     pruneDeadlines();
     m_timer.stop();
     m_demandChanged = true;
@@ -106,6 +110,7 @@ void SensorMonitor::setDashboardIds(QStringList ids)
         return;
     m_dashboardIdsExplicit = true;
     m_dashboardIds = ids;
+    rebuildDemand();
     pruneDeadlines();
     m_demandChanged = true;
     m_timer.stop();
@@ -121,6 +126,7 @@ void SensorMonitor::setBackgroundIds(QStringList ids)
     if (ids == m_backgroundIds)
         return;
     m_backgroundIds = ids;
+    rebuildDemand();
     pruneDeadlines();
     m_demandChanged = true;
     m_timer.stop();
@@ -136,6 +142,7 @@ void SensorMonitor::setPreviewIds(QStringList ids)
     if (ids == m_previewIds)
         return;
     m_previewIds = ids;
+    rebuildDemand();
     pruneDeadlines();
     m_demandChanged = true;
     m_timer.stop();
@@ -143,23 +150,41 @@ void SensorMonitor::setPreviewIds(QStringList ids)
     else schedule();
 }
 
-QStringList SensorMonitor::dashboardDemand() const
+const QStringList &SensorMonitor::dashboardDemand() const
 {
-    return m_active ? (m_dashboardIdsExplicit ? m_dashboardIds : m_ids) : QStringList();
+    return m_dashboardDemand;
 }
 
 bool SensorMonitor::hasDemand() const
 {
     // An empty enabled dashboard is not a periodic acquisition consumer.
-    return !dashboardDemand().isEmpty() || !m_backgroundIds.isEmpty() || !m_previewIds.isEmpty();
+    return !m_demandIds.isEmpty();
 }
 
-QStringList SensorMonitor::demandedIds() const
+const QStringList &SensorMonitor::demandedIds() const
 {
-    QStringList ids = dashboardDemand();
-    for (const auto &id : m_backgroundIds) if (!ids.contains(id)) ids.append(id);
-    for (const auto &id : m_previewIds) if (!ids.contains(id)) ids.append(id);
-    return ids;
+    return m_demandIds;
+}
+
+void SensorMonitor::rebuildDemand()
+{
+    // Rebuild only when consumers or the discovered catalog change. Preserve
+    // dashboard/tray/preview order while indexing membership once.
+    m_dashboardDemand = m_active ? (m_dashboardIdsExplicit ? m_dashboardIds : m_ids) : QStringList();
+    m_dashboardSet = QSet<QString>(m_dashboardDemand.cbegin(), m_dashboardDemand.cend());
+    m_backgroundSet = QSet<QString>(m_backgroundIds.cbegin(), m_backgroundIds.cend());
+    m_previewSet = QSet<QString>(m_previewIds.cbegin(), m_previewIds.cend());
+    m_demandIds = m_dashboardDemand;
+    m_demandSet = m_dashboardSet;
+    const auto append = [this](const QStringList &ids) {
+        for (const auto &id : ids) {
+            if (m_demandSet.contains(id)) continue;
+            m_demandSet.insert(id);
+            m_demandIds.append(id);
+        }
+    };
+    append(m_backgroundIds);
+    append(m_previewIds);
 }
 
 qint64 SensorMonitor::intervalMilliseconds(const QString &id, bool tray) const
@@ -173,33 +198,33 @@ qint64 SensorMonitor::intervalMilliseconds(const QString &id, bool tray) const
 qint64 SensorMonitor::acquisitionMilliseconds(const QString &id) const
 {
     qint64 period = std::numeric_limits<qint64>::max();
-    if (dashboardDemand().contains(id)) period = std::min(period, intervalMilliseconds(id, false));
-    if (m_backgroundIds.contains(id)) period = std::min(period, intervalMilliseconds(id, true));
-    if (m_previewIds.contains(id)) period = std::min(period, qint64(m_intervalSeconds) * 1000);
+    if (m_dashboardSet.contains(id)) period = std::min(period, intervalMilliseconds(id, false));
+    if (m_backgroundSet.contains(id)) period = std::min(period, intervalMilliseconds(id, true));
+    if (m_previewSet.contains(id)) period = std::min(period, qint64(m_intervalSeconds) * 1000);
     return period;
 }
 
 void SensorMonitor::pruneDeadlines()
 {
-    const auto prune = [](QHash<QString, qint64> &deadlines, const QStringList &ids) {
+    const auto prune = [](QHash<QString, qint64> &deadlines, const QSet<QString> &ids) {
         for (auto it = deadlines.begin(); it != deadlines.end();) {
             if (!ids.contains(it.key())) it = deadlines.erase(it);
             else ++it;
         }
     };
-    const auto ids = demandedIds();
-    prune(m_acquisitionDue, ids);
-    prune(m_acquisitionPeriods, ids);
+    const auto &ids = demandedIds();
+    prune(m_acquisitionDue, m_demandSet);
+    prune(m_acquisitionPeriods, m_demandSet);
     for (const auto &id : ids) {
         const qint64 period = acquisitionMilliseconds(id);
         if (m_acquisitionPeriods.value(id, 0) != period) m_acquisitionDue.remove(id);
         m_acquisitionPeriods[id] = period;
     }
-    prune(m_dashboardDue, dashboardDemand());
-    prune(m_trayDue, m_backgroundIds);
-    prune(m_previewDue, m_previewIds);
+    prune(m_dashboardDue, m_dashboardSet);
+    prune(m_trayDue, m_backgroundSet);
+    prune(m_previewDue, m_previewSet);
     for (auto it = m_failedIds.begin(); it != m_failedIds.end();) {
-        if (!ids.contains(*it)) it = m_failedIds.erase(it);
+        if (!m_demandSet.contains(*it)) it = m_failedIds.erase(it);
         else ++it;
     }
 }
@@ -283,7 +308,7 @@ void SensorMonitor::request()
     // refresh between acquisitions using the same provider cache.
     for (const auto &id : demandedIds()) {
         if (discover || m_acquisitionDue.value(id, 0) <= now) {
-            m_acquisitionDue[id] = now + acquisitionMilliseconds(id);
+            m_acquisitionDue[id] = now + m_acquisitionPeriods.value(id);
             m_requestedIds.append(id);
         }
     }
@@ -318,15 +343,18 @@ void SensorMonitor::completed(const SensorSnapshot &snapshot)
         m_ids.clear();
         for (const auto &descriptor : snapshot.descriptors)
             m_ids.append(descriptor.id);
+        rebuildDemand();
     }
     auto batch = snapshot;
     batch.incremental = !snapshot.rescanned;
     batch.dashboardRefreshIds = m_dashboardRefreshIds;
     batch.trayRefreshIds = m_trayRefreshIds;
+    QSet<QString> returned;
+    returned.reserve(batch.samples.size() + m_requestedIds.size());
+    for (const auto &sample : batch.samples) returned.insert(sample.id);
     for (const auto &id : m_requestedIds) {
-        const bool returned = std::any_of(batch.samples.cbegin(), batch.samples.cend(),
-                                         [&id](const auto &sample) { return sample.id == id; });
-        if (!returned) {
+        if (!returned.contains(id)) {
+            returned.insert(id);
             SensorSample sample;
             sample.id = id;
             sample.error = tr("No reading returned");

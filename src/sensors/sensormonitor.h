@@ -40,9 +40,10 @@ private:
     void completed(const SensorSnapshot &snapshot);
     void schedule();
     bool hasDemand() const;
-    QStringList demandedIds() const;
+    const QStringList &demandedIds() const;
+    void rebuildDemand();
 
-    QStringList dashboardDemand() const;
+    const QStringList &dashboardDemand() const;
     qint64 intervalMilliseconds(const QString &id, bool tray) const;
     qint64 acquisitionMilliseconds(const QString &id) const;
     void resetSchedule();
@@ -67,6 +68,12 @@ private:
     QStringList m_backgroundIds;
     QStringList m_previewIds;
     QStringList m_dashboardIds;
+    QStringList m_dashboardDemand;
+    QStringList m_demandIds;
+    QSet<QString> m_dashboardSet;
+    QSet<QString> m_backgroundSet;
+    QSet<QString> m_previewSet;
+    QSet<QString> m_demandSet;
     bool m_dashboardIdsExplicit = false;
     bool m_active = false;
     bool m_busy = false;
