@@ -5,6 +5,7 @@
 #include "settings/sensorpreferences.h"
 #include <QApplication>
 #include <QContextMenuEvent>
+#include <QFontDialog>
 #include <QHelpEvent>
 #include <QKeyEvent>
 #include <QMenu>
@@ -57,8 +58,16 @@ SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
     updateAppearance();
     bool valid = false;
     const int size = settings.value(QStringLiteral("Dashboard/tileSize"), 128).toInt(&valid);
-    m_style = SensorTileRenderer::style(valid && size >= minimumTileSize && size <= maximumTileSize ? size : 128,
-                                        font(), m_tileShape, m_circleShrinkPercent);
+    const auto readFont = [&settings](const QString &key) -> std::optional<QFont> {
+        QFont selected;
+        if (!settings.contains(key) || !selected.fromString(settings.value(key).toString())) return std::nullopt;
+        // Stored size is a sentinel; the renderer always assigns its computed size.
+        selected.setPixelSize(1);
+        return selected;
+    };
+    m_nameFont = readFont(QStringLiteral("Dashboard/sensorNameFont"));
+    m_dataFont = readFont(QStringLiteral("Dashboard/sensorDataFont"));
+    updateStyle(valid && size >= minimumTileSize && size <= maximumTileSize ? size : 128);
     const auto preferencesById = m_preferences->values();
     QStringList ids = preferencesById.keys();
     std::sort(ids.begin(), ids.end());
@@ -84,6 +93,36 @@ SensorGrid::SensorGrid(SensorPreferencesStore *preferences, QWidget *parent)
         updateDrag();
         if (oldScroll == QPoint(horizontalScrollBar()->value(), verticalScrollBar()->value()) && oldBounds == m_bounds) m_autoScroll.stop();
     });
+}
+void SensorGrid::updateStyle(int size)
+{
+    m_style = SensorTileRenderer::style(size, font(), m_tileShape, m_circleShrinkPercent,
+                                       m_nameFont ? &*m_nameFont : nullptr, m_dataFont ? &*m_dataFont : nullptr);
+}
+void SensorGrid::chooseTileFont(bool sensorName)
+{
+    bool accepted = false;
+    const QFont initial = sensorName ? m_style.labelFont : m_style.valueFont;
+    QFont selected = QFontDialog::getFont(&accepted, initial, this,
+        sensorName ? tr("Sensor Name Font — size is automatic") : tr("Sensor Data Font — size is automatic"));
+    if (!accepted) return;
+    // Ignore the chosen point/pixel size before storing or applying the font.
+    selected.setPixelSize(1);
+    (sensorName ? m_nameFont : m_dataFont) = selected;
+    QSettings().setValue(sensorName ? QStringLiteral("Dashboard/sensorNameFont")
+                                   : QStringLiteral("Dashboard/sensorDataFont"), selected.toString());
+    updateStyle(tileSize());
+    viewport()->update();
+}
+void SensorGrid::resetTileFonts()
+{
+    m_nameFont.reset();
+    m_dataFont.reset();
+    QSettings settings;
+    settings.remove(QStringLiteral("Dashboard/sensorNameFont"));
+    settings.remove(QStringLiteral("Dashboard/sensorDataFont"));
+    updateStyle(tileSize());
+    viewport()->update();
 }
 void SensorGrid::updateAppearance()
 {
@@ -154,7 +193,7 @@ void SensorGrid::setTileShape(DashboardTileShape shape)
     finishDrag(false);
     m_tileShape = shape;
     m_gap = shape == DashboardTileShape::Square ? 0 : 8;
-    m_style = SensorTileRenderer::style(tileSize(), font(), m_tileShape, m_circleShrinkPercent);
+    updateStyle(tileSize());
     QSettings().setValue(QStringLiteral("Dashboard/style"), tileShapeKey(shape));
     updateLayout();
     ensureVisible(m_order.indexOf(m_selected));
@@ -165,7 +204,7 @@ void SensorGrid::setCircleShrinkPercent(int percent)
     percent = std::clamp(percent, 0, 50);
     if (percent == m_circleShrinkPercent) return;
     m_circleShrinkPercent = percent;
-    m_style = SensorTileRenderer::style(tileSize(), font(), m_tileShape, percent);
+    updateStyle(tileSize());
     QSettings().setValue(QStringLiteral("Dashboard/circleShrinkPercent"), percent);
     viewport()->update();
 }
@@ -175,7 +214,7 @@ void SensorGrid::setTileSize(int size, bool persist)
     if (size == tileSize()) return;
     finishDrag(false);
     const bool labelsChanged = (tileSize() >= 96) != (size >= 96);
-    m_style = SensorTileRenderer::style(size, font(), m_tileShape, m_circleShrinkPercent);
+    updateStyle(size);
     if (labelsChanged) {
         // Gauge endpoint labels enter/leave the painted layout at this boundary.
         for (auto &tile : m_tiles)
@@ -451,7 +490,7 @@ void SensorGrid::changeEvent(QEvent *event)
     QAbstractScrollArea::changeEvent(event);
     if (event->type() == QEvent::WindowDeactivate) finishDrag(false);
     if (event->type() == QEvent::FontChange)
-        m_style = SensorTileRenderer::style(tileSize(), font(), m_tileShape, m_circleShrinkPercent);
+        updateStyle(tileSize());
     if (event->type() == QEvent::PaletteChange) updateAppearance();
     if (event->type() == QEvent::FontChange || event->type() == QEvent::PaletteChange)
         viewport()->update();

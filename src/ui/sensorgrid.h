@@ -5,6 +5,7 @@
 #include <QHash>
 #include <QStringList>
 #include <QTimer>
+#include <optional>
 
 namespace qsensors {
 class SensorPreferencesStore;
@@ -24,6 +25,8 @@ public:
     int circleShrinkPercent() const { return m_circleShrinkPercent; }
     void setTileShape(DashboardTileShape shape);
     void setCircleShrinkPercent(int percent);
+    void chooseTileFont(bool sensorName);
+    void resetTileFonts();
     DashboardPalette palettePreset() const { return m_palettePreset; }
     DashboardBackground backgroundPattern() const { return m_backgroundPattern; }
     void setPalettePreset(DashboardPalette preset);
@@ -58,6 +61,7 @@ private:
     void saveLayout();
     void updateLayout();
     void updateAppearance();
+    void updateStyle(int size);
     void notifyVisibleIds();
     QRect tileRect(int index) const;
     QRect cellRect(const QPoint &cell) const;
@@ -81,6 +85,8 @@ private:
     QStringList m_lastVisible;
     QRect m_bounds{0, 0, 1, 1};
     TileStyle m_style;
+    std::optional<QFont> m_nameFont;
+    std::optional<QFont> m_dataFont;
     DashboardTileShape m_tileShape = DashboardTileShape::RoundedRectangle;
     int m_circleShrinkPercent = 20;
     DashboardPalette m_palettePreset = DashboardPalette::System;

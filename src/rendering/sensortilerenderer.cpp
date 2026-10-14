@@ -77,23 +77,25 @@ void fittedText(QPainter &painter, const QRectF &rect, const QString &text,
 } // namespace
 
 TileStyle SensorTileRenderer::style(int size, const QFont &baseFont,
-                                  DashboardTileShape shape, int circleShrinkPercent)
+                                  DashboardTileShape shape, int circleShrinkPercent,
+                                  const QFont *nameFont, const QFont *dataFont)
 {
     TileStyle result;
     result.size = size;
     result.shape = shape;
     result.contentScale = shape == DashboardTileShape::Circle
         ? 1.0 - std::clamp(circleShrinkPercent, 0, 50) / 100.0 : 1.0;
-    const auto font = [&baseFont, size](double fraction, int minimum, bool bold) {
-        QFont font = baseFont;
+    result.customNameFont = nameFont != nullptr;
+    const auto font = [&baseFont, size](double fraction, int minimum, bool bold, const QFont *overrideFont) {
+        QFont font = overrideFont ? *overrideFont : baseFont;
         font.setPixelSize(std::max(minimum, static_cast<int>(std::round(size * fraction))));
-        font.setBold(bold);
+        if (!overrideFont) font.setBold(bold);
         return font;
     };
-    result.valueFont = font(0.23, 10, true);
-    result.unitFont = font(0.105, 7, false);
-    result.labelFont = font(0.09, 7, false);
-    result.detailFont = font(0.06, 6, false);
+    result.valueFont = font(0.23, 10, true, dataFont);
+    result.unitFont = font(0.105, 7, false, dataFont);
+    result.labelFont = font(0.09, 7, false, nameFont);
+    result.detailFont = font(0.06, 6, false, dataFont);
     return result;
 }
 
@@ -240,10 +242,12 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
             drawDigitalText(painter, QRectF(padding, size * .44, size - 2 * padding, size * .29), reading.text, base, preferences.dashboardShadow);
         }
         const QRectF labelRect(padding, size * .84, size - 2 * padding, size * .11);
-        if (preferences.label.isEmpty()) drawDigitalText(painter, labelRect, QStringLiteral("UPTIME"), legend);
+        if (preferences.label.isEmpty() && !style.customNameFont)
+            drawDigitalText(painter, labelRect, QStringLiteral("UPTIME"), legend);
         else {
             painter.setPen(textColor);
-            fittedText(painter, labelRect, descriptor.label, style.labelFont, true, preferences.dashboardShadow);
+            const QString label = preferences.label.isEmpty() ? QStringLiteral("UPTIME") : descriptor.label;
+            fittedText(painter, labelRect, label, style.labelFont, true, preferences.dashboardShadow);
         }
         painter.restore();
         return;

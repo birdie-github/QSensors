@@ -70,6 +70,24 @@ Table exits Compact Mode.
 
 ### Dashboard colors and backgrounds
 
+**View → Sensor Name Font…** sets the family and style/weight of sensor titles.
+**Sensor Data Font…** sets those properties for normal values, units, day counts
+and gauge endpoint labels. These global overrides apply in normal and compact
+views and across all three tile shapes. Font-dialog sizes are ignored: the
+renderer retains its tile-size formulas and text fitting. Circular shrink is
+applied afterward. OK saves the selection; Cancel leaves the override unchanged.
+**Reset Tile Fonts** removes both overrides and follows the system font again,
+with the original bold main values and normal-weight names/details.
+
+Digital digits are drawn as vector segments, so their shapes are independent of
+font family/weight. Digital tiles' regular text still uses the chosen fonts.
+The default uptime title retains its segment lettering until a custom name font
+is selected, then renders `UPTIME` in that font. Preferences are saved under
+`Dashboard/sensorNameFont` and `Dashboard/sensorDataFont` as serialized fonts with
+a fixed one-pixel size sentinel; stored sizes never set the rendered size.
+Missing/invalid serialized fonts use the original defaults. Font/style rebuilding
+occurs only on font, size, shape or shrink changes, not per sample.
+
 **View → Tile Style** independently selects Rounded Rectangular (the
 existing default), Square, or Circular. Square uses a one-logical-pixel palette
 border, with no gaps between cells or padding around the field. Compact window

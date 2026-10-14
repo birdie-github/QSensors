@@ -132,6 +132,14 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     addBackground(tr("Solid"), DashboardBackground::Solid);
     addBackground(tr("Dots"), DashboardBackground::Dots);
     addBackground(tr("Grid"), DashboardBackground::Grid);
+    view->addSeparator();
+    connect(view->addAction(tr("Sensor Name Font…")), &QAction::triggered, m_grid, [this] {
+        m_grid->chooseTileFont(true);
+    });
+    connect(view->addAction(tr("Sensor Data Font…")), &QAction::triggered, m_grid, [this] {
+        m_grid->chooseTileFont(false);
+    });
+    connect(view->addAction(tr("Reset Tile Fonts")), &QAction::triggered, m_grid, &SensorGrid::resetTileFonts);
     auto *styleMenu = new QMenu(tr("Tile Style"), view);
     view->insertMenu(paletteMenu->menuAction(), styleMenu);
     auto *styleGroup = new QActionGroup(styleMenu);

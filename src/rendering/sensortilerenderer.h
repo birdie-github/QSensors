@@ -45,13 +45,15 @@ struct TileStyle {
     QFont unitFont;
     QFont labelFont;
     QFont detailFont;
+    bool customNameFont = false;
 };
 
 class SensorTileRenderer {
 public:
     static TileStyle style(int size, const QFont &baseFont,
                            DashboardTileShape shape = DashboardTileShape::RoundedRectangle,
-                           int circleShrinkPercent = 20);
+                           int circleShrinkPercent = 20,
+                           const QFont *nameFont = nullptr, const QFont *dataFont = nullptr);
     // Prepare only the selected readout and enabled gauge data; the grid tells
     // us whether endpoint labels are present at its current tile size.
     static TileReading prepare(const SensorDescriptor &descriptor, const SensorSample &sample,
