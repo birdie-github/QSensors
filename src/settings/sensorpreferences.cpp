@@ -68,6 +68,8 @@ SensorPreferences defaultSensorPreferences(const QString &id)
 {
     SensorPreferences p;
     const bool uptime = id == QStringLiteral("system/uptime");
+    p.trayShowUnit = id == QStringLiteral("system/memory/available")
+        || id == QStringLiteral("system/memory/ram-used") || id == QStringLiteral("system/memory/swap-used");
     p.dashboardShadow = uptime;
     p.dashboardGauge = !uptime;
     p.dashboardTextStyle = uptime ? DashboardTextStyle::Digital : DashboardTextStyle::Normal;
@@ -86,6 +88,7 @@ bool SensorPreferences::operator==(const SensorPreferences &other) const
         && dashboardTransparent == other.dashboardTransparent
         && trayForeground == other.trayForeground && trayBackground == other.trayBackground
         && trayShadow == other.trayShadow && trayTransparent == other.trayTransparent
+        && trayShowUnit == other.trayShowUnit
         && trayDigital == other.trayDigital && trayFontFamily == other.trayFontFamily
         && memoryAsPercent == other.memoryAsPercent
         && customRange == other.customRange && rangeLower == other.rangeLower && rangeUpper == other.rangeUpper;
@@ -156,11 +159,13 @@ SensorPreferences readPreferences(QSettings &settings, const QString &id)
     const QString style = settings.value(QStringLiteral("dashboardTextStyle")).toString();
     if (style == QStringLiteral("Normal")) p.dashboardTextStyle = DashboardTextStyle::Normal;
     else if (style == QStringLiteral("Digital")) p.dashboardTextStyle = DashboardTextStyle::Digital;
+    p.memoryAsPercent = boolean(settings, QStringLiteral("memoryAsPercent"), false);
+    p.trayShowUnit = boolean(settings, QStringLiteral("trayShowUnit"), p.trayShowUnit && !p.memoryAsPercent);
     p.trayDigital = boolean(settings, QStringLiteral("trayDigital"), false);
     p.trayFontFamily = settings.value(QStringLiteral("trayFontFamily")).toString();
     p.rangeLower = number(settings, QStringLiteral("rangeLower"), 0, 1e12);
     p.rangeUpper = number(settings, QStringLiteral("rangeUpper"), 100, 1e12);
-    p.memoryAsPercent = boolean(settings, QStringLiteral("memoryAsPercent"), false);
+
     p.customRange = boolean(settings, QStringLiteral("customRange"), false) && p.rangeLower < p.rangeUpper;
     return p;
 }
@@ -322,6 +327,7 @@ bool SensorPreferencesStore::write(const QHash<QString, SensorPreferences> &valu
         if (p.dashboardGauge != defaults.dashboardGauge) settings.setValue(QStringLiteral("dashboardGauge"), p.dashboardGauge);
         if (p.dashboardTextStyle != defaults.dashboardTextStyle) settings.setValue(QStringLiteral("dashboardTextStyle"),
             p.dashboardTextStyle == DashboardTextStyle::Digital ? QStringLiteral("Digital") : QStringLiteral("Normal"));
+        if (p.trayShowUnit != defaults.trayShowUnit) settings.setValue(QStringLiteral("trayShowUnit"), p.trayShowUnit);
         if (p.trayDigital) settings.setValue(QStringLiteral("trayDigital"), true);
         if (!p.trayFontFamily.isEmpty()) settings.setValue(QStringLiteral("trayFontFamily"), p.trayFontFamily);
         if (p.memoryAsPercent) settings.setValue(QStringLiteral("memoryAsPercent"), true);

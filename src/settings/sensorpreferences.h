@@ -52,6 +52,7 @@ struct SensorPreferences {
     QColor trayBackground;
     bool trayShadow = true; // Contrasting offset shadow behind numeric icons.
     bool trayTransparent = true;
+    bool trayShowUnit = false; // Memory amounts default to true; frequency ignores this.
     bool trayDigital = false; // Filled digital readout for frequency sensors only.
     QString trayFontFamily; // Empty follows the system fixed font.
     bool memoryAsPercent = false; // Available RAM display; canonical correction/range stays MiB.

@@ -102,6 +102,7 @@ private:
     QRadioButton *m_trayDigital;
     QWidget *m_trayFontControls;
     QFontComboBox *m_trayFont;
+    QCheckBox *m_trayShowUnit;
     DecimalSpinBox *m_multiplier;
     DecimalSpinBox *m_offset;
     QCheckBox *m_customRange;

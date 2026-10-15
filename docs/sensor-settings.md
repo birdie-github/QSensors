@@ -63,6 +63,21 @@ keys are read; old presentation/global-gauge choices are ignored. There is no
 compatibility or migration reader for them. The global gauge menu item is removed.
 Available RAM's MiB/percentage choice remains shared with the tray and table.
 
+System Tray → Appearance has a per-sensor **Show the unit** checkbox. It appends
+`°` for Celsius/Fahrenheit temperatures (`K` for Kelvin), `%` for percentages or
+humidity, `A` for current, and `V` for voltage. Other supported compact suffixes
+are `W`, `J`, `s`, and `kRPM` (fan values already display thousands of RPM).
+Memory amounts retain automatic M/G/T/P scaling (binary MiB/GiB/TiB/PiB); ordinary
+RAM amounts therefore show `G`. Unchecking the option hides only the suffix,
+not the scale. Full values/units remain in the tooltips. Frequency sensors hide
+this option and retain their existing normal/digital formatting rules.
+
+The setting is `trayShowUnit`. Existing memory-amount sensors default to enabled;
+other sensors default to disabled, including available RAM already configured as
+a percentage. Explicit choices are retained across format changes and restarts.
+Unit glyphs participate in font fitting and its cache identity, including degree
+and percent signs. Saving, Cancel, and reset use the ordinary sensor draft path.
+
 The tray font uses a family selector and automatically fits the complete value
 to the icon. Bitmap fonts use native glyph sizes; if no size fits, a scalable
 fallback renders that value. Text is rasterized at the requested device

@@ -40,6 +40,7 @@ struct TrayFontSizingState {
     QHash<QByteArray, int> pixelLimits;
     QHash<QByteArray, int> pointLimits;
     QStringList fitTemplates;
+    bool compactSuffix = false; // Frequency/memory retain their adaptive suffix fitting.
     quint64 generation = 0;
 };
 
@@ -64,7 +65,25 @@ QStringList trayFitTemplates(SensorKind kind)
     }
 }
 
-QString compactValue(const SensorDescriptor &descriptor, double value)
+QString trayUnitSuffix(const SensorDescriptor &descriptor)
+{
+    switch (descriptor.kind) {
+    case SensorKind::Temperature: return descriptor.unit == QStringLiteral("K") ? QStringLiteral("K") : QString(QChar(0x00b0));
+    case SensorKind::Humidity:
+    case SensorKind::Percentage: return QStringLiteral("%");
+    case SensorKind::Current: return QStringLiteral("A");
+    case SensorKind::Voltage: return QStringLiteral("V");
+    case SensorKind::Power: return QStringLiteral("W");
+    case SensorKind::Energy: return QStringLiteral("J");
+    case SensorKind::Fan: return QStringLiteral("kRPM"); // Compact fan values are thousands of RPM.
+    case SensorKind::Duration: return QStringLiteral("s");
+    case SensorKind::Memory: // Its adaptive suffix comes from formatSensorValue.
+    case SensorKind::Frequency: return {};
+    }
+    return {};
+}
+
+QString compactValue(const SensorDescriptor &descriptor, double value, bool showUnit)
 {
     if (descriptor.kind == SensorKind::Frequency) {
         // Frequency providers and calibration use canonical MHz. Include the
@@ -82,7 +101,7 @@ QString compactValue(const SensorDescriptor &descriptor, double value)
     }
     if (descriptor.kind == SensorKind::Memory) {
         const auto formatted = formatSensorValue(descriptor, value, true);
-        return formatted.number + formatted.unit;
+        return formatted.number + (showUnit ? formatted.unit : QString());
     }
     QString text;
     switch (descriptor.kind) {
@@ -95,7 +114,7 @@ QString compactValue(const SensorDescriptor &descriptor, double value)
     }
     if (text.size() > 5)
         text = QString::number(descriptor.kind == SensorKind::Fan ? value / 1000.0 : value, 'g', 2);
-    return text;
+    return text + (showUnit ? trayUnitSuffix(descriptor) : QString());
 }
 
 struct FontTraits {
@@ -201,7 +220,7 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
             if (character.isDigit()) character = QLatin1Char('#');
         }
         fitTemplates = {pattern};
-    } else if (!text.isEmpty() && text.back().isLetter()) {
+    } else if (sizing.compactSuffix && !text.isEmpty() && text.back().isLetter()) {
         formatClass = QString(text.back());
         // Frequency has a four-character compact budget: three digits plus
         // its suffix. Memory uses up to three numeric characters plus a unit.
@@ -685,7 +704,7 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
         : preferences.trayDigital
             ? (sample.value < 1 || sample.value > 9999 ? QStringLiteral("ERR")
                 : QString::number(std::round(sample.value), 'f', 0))
-            : compactValue(descriptor, sample.value);
+            : compactValue(descriptor, sample.value, preferences.trayShowUnit);
     const QString label = !preferences.label.isEmpty() ? preferences.label
         : descriptor.label.isEmpty() ? id : descriptor.label;
     // Names are literal text, not menu mnemonics. Do not export a menu label
@@ -719,13 +738,22 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
         + QStringLiteral("|%1|%2|%3").arg(preferences.trayShadow)
             .arg(preferences.trayTransparent).arg(preferences.trayTransparent ? QString() :
                 (preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base)).name(QColor::HexArgb));
-    const QString sizingKey = QString::number(markers) + QLatin1Char('|') + font.toString() + QStringLiteral("|%1|%2|%3")
-        .arg(preferences.trayDigital).arg(preferences.trayShadow).arg(static_cast<int>(descriptor.kind));
+    const bool compactSuffix = descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory;
+    const QString suffix = preferences.trayShowUnit ? trayUnitSuffix(descriptor) : QString();
+    const QString sizingKey = QString::number(markers) + QLatin1Char('|') + font.toString() + QStringLiteral("|%1|%2|%3|%4|")
+        .arg(preferences.trayDigital).arg(preferences.trayShadow).arg(static_cast<int>(descriptor.kind))
+        .arg(preferences.trayShowUnit) + suffix;
     if (!entry.fontSizing || entry.fontSizingKey != sizingKey) {
         entry.renderKey.clear();
         entry.fontSizingKey = sizingKey;
         entry.fontSizing = std::make_shared<TrayFontSizingState>();
+        entry.fontSizing->compactSuffix = compactSuffix;
         entry.fontSizing->fitTemplates = trayFitTemplates(descriptor.kind);
+        // Reserve the actual chosen unit together with the normal numeric fit.
+        // It must not enter the adaptive frequency/memory suffix rules.
+        if (!compactSuffix && !suffix.isEmpty()) {
+            for (auto &pattern : entry.fontSizing->fitTemplates) pattern += suffix;
+        }
     }
     const bool changed = key != entry.renderKey;
     if (changed) {

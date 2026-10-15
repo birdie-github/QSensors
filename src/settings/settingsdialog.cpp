@@ -271,6 +271,12 @@ SettingsDialog::PresentationControls SettingsDialog::createPresentationPage(bool
                 updatePresentationControls();
             }
         });
+        m_trayShowUnit = new QCheckBox(tr("Show the unit"), appearance);
+        m_trayShowUnit->setToolTip(tr("Append a compact unit to the tray value. Memory keeps automatic M/G/T/P scaling even when its suffix is hidden. Tooltips always show full units."));
+        form->addRow(m_trayShowUnit);
+        connect(m_trayShowUnit, &QCheckBox::toggled, this, [this](bool checked) {
+            if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].trayShowUnit = checked;
+        });
         m_trayFont = new QFontComboBox(appearance);
         m_trayFont->setToolTip(tr("Text automatically fits the tray icon. Bitmap fonts use native sizes. Values too wide for the smallest bitmap size use a scalable font."));
         auto *reset = new QPushButton(tr("Reset"), appearance);
@@ -428,6 +434,7 @@ void SettingsDialog::updatePresentationControls()
     }
     const bool frequency = m_catalog.value(m_currentId).kind == SensorKind::Frequency;
     m_trayTextStyle->setVisible(frequency);
+    m_trayShowUnit->setVisible(!frequency);
     m_trayFontControls->setEnabled(!frequency || !m_trayDigital->isChecked());
     const bool gaugeCapable = sensorSupportsGauge(m_currentId, m_catalog.value(m_currentId).kind);
     m_gauge->setVisible(gaugeCapable);
@@ -715,6 +722,7 @@ void SettingsDialog::loadSensor(const QString &id)
     m_trayFont->setCurrentFont(font);
     m_trayNormal->setChecked(!p.trayDigital);
     m_trayDigital->setChecked(p.trayDigital);
+    m_trayShowUnit->setChecked(p.trayShowUnit);
     m_multiplier->loadValue(p.multiplier);
     const QString unit = currentIsTemperature() ? temperatureUnitText(m_unit) : descriptor.unit;
     m_alarmEditor->load(p.alarm, currentIsTemperature(), m_unit, unit, sensorSupportsTray(id));
