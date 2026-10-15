@@ -117,8 +117,9 @@ qreal characterWidth(QChar ch)
 }
 
 void drawDigitalText(QPainter &painter, const QRectF &rect, const QString &text,
-                     const QColor &color, bool shadow, bool filledSegments)
+                     const QColor &color, bool shadow, bool filledSegments, QRectF *inkBounds)
 {
+    if (inkBounds) *inkBounds = {};
     if (text.isEmpty() || rect.width() <= 0 || rect.height() <= 0) return;
     constexpr qreal gap = .25;
     qreal width = -gap;
@@ -139,6 +140,16 @@ void drawDigitalText(QPainter &painter, const QRectF &rect, const QString &text,
         for (QChar ch : text) {
             const QChar upper = ch.toUpper();
             const bool solid = filledSegments && filled.contains(upper);
+            if (inkBounds && offset == 0) {
+                const auto &source = solid ? filled : paths;
+                const auto it = source.constFind(upper);
+                if (it != source.cend() && !it->isEmpty()) {
+                    const qreal stroke = solid ? 0 : std::max(.09, .7 / scale) / 2;
+                    const QRectF bounds = painter.transform().mapRect(
+                        it->boundingRect().adjusted(-stroke, -stroke, stroke, stroke));
+                    *inkBounds = inkBounds->united(bounds);
+                }
+            }
             if (solid) {
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(ink);

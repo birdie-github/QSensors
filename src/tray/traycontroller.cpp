@@ -148,8 +148,10 @@ FontTraits fontTraits(const QFont &font)
 // Render at the requested device resolution: paths and painter transforms lose
 // bitmap strikes and font hinting, particularly at small tray sizes.
 QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &color,
-                      QFont font, const SensorPreferences &preferences, TrayFontSizingState &sizing)
+                      QFont font, const SensorPreferences &preferences, TrayFontSizingState &sizing,
+                      QRect *inkBounds = nullptr)
 {
+    if (inkBounds) *inkBounds = {};
     if (size.isEmpty()) return {};
     QPixmap pixmap(size);
     pixmap.fill(preferences.trayTransparent ? QColor(Qt::transparent)
@@ -164,7 +166,9 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
             const QColor ink = color.lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white);
             drawDigitalText(painter, area.translated(shadow, shadow), text, ink, false, true);
         }
-        drawDigitalText(painter, area, text, color, false, true);
+        QRectF bounds;
+        drawDigitalText(painter, area, text, color, false, true, inkBounds ? &bounds : nullptr);
+        if (inkBounds) *inkBounds = bounds.toAlignedRect().intersected(pixmap.rect());
         return pixmap;
     }
 
@@ -348,6 +352,7 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
     }
     painter.setPen(color);
     painter.drawText(baseline, text);
+    if (inkBounds) *inkBounds = bounds.translated(baseline).intersected(pixmap.rect());
     return pixmap;
 }
 
@@ -393,12 +398,18 @@ public:
                 : m_preferences.trayBackground.isValid() ? m_preferences.trayBackground
                 : QApplication::palette().color(QPalette::Base));
             QPainter painter(&result);
+            QRect inkBounds;
             painter.drawPixmap(0, band, numericPixmap(QSize(size.width(), size.height() - 2 * band),
-                m_text, m_color, m_font, m_preferences, *m_sizing));
-            painter.setPen(QPen(m_color, std::max(1, size.width() / 32)));
-            const int x = size.width() / 2;
-            painter.drawLine(x, 0, x, band - 2);
-            painter.drawLine(x, size.height() - band + 1, x, size.height() - 1);
+                m_text, m_color, m_font, m_preferences, *m_sizing, &inkBounds));
+            if (!inkBounds.isEmpty()) {
+                QPen pen(m_color, std::max(1, size.width() / 32));
+                pen.setCapStyle(Qt::FlatCap);
+                painter.setPen(pen);
+                // Span the fitted foreground text, including its actual alignment.
+                painter.drawLine(inkBounds.left(), band - 2, inkBounds.right(), band - 2);
+                painter.drawLine(inkBounds.left(), size.height() - band + 1,
+                                 inkBounds.right(), size.height() - band + 1);
+            }
         } else result = numericPixmap(size, m_text, m_color, m_font, m_preferences, *m_sizing);
         const qint64 pixels = qint64(size.width()) * size.height();
         // Per-current-value LRU: retain the eleven advertised resolutions within

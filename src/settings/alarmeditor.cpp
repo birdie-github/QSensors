@@ -86,7 +86,7 @@ AlarmEditor::AlarmEditor(QWidget *parent) : QWidget(parent)
     });
     m_tray = new QGroupBox(tr("System tray alarm"), this);
     auto *tray = new QFormLayout(m_tray);
-    tray->addRow(flag(tr("Show vertical markers above and below the value"), &AlarmSettings::trayMarkers, m_tray));
+    tray->addRow(flag(tr("Show horizontal lines above and below the value"), &AlarmSettings::trayMarkers, m_tray));
     tray->addRow(flag(tr("Blink: 1 second visible, 0.75 seconds hidden"), &AlarmSettings::trayBlink, m_tray));
     tray->addRow(flag(tr("Change tray text color"), &AlarmSettings::trayColor, m_tray), color(&AlarmSettings::trayTextColor));
     auto *trayHint = new QLabel(tr("Tray actions affect the sensor's existing tray icon. Enable it in the System Tray tab."), m_tray);

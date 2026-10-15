@@ -7,7 +7,7 @@ and seven independently selectable actions:
 - Change its table-row text color.
 - Show a desktop notification.
 - Run an executable with arguments.
-- Draw short, thin vertical markers centered above and below the tray value.
+- Draw thin horizontal lines above and below the tray value, spanning the rendered text width.
 - Blink the tray icon: 1000 ms visible, 750 ms transparent.
 - Change the tray text color.
 
@@ -52,7 +52,11 @@ Tray tab). They do not create extra icons. Uptime does not support tray actions.
 Blinking substitutes a transparent icon rather than unregistering it, preserving
 its panel slot/menu. The visible icon is retained across blink phases. Markers
 reserve narrow top/bottom bands so they remain separate from normal or digital
-text; text is fitted directly at the remaining device resolution.
+text; text is fitted directly at the remaining device resolution. Line endpoints
+use the fitted font's ink bounds or the digital glyph geometry, rather than the
+whole icon width. Bounds are measured during rendering and reuse the icon cache;
+no image scanning or additional timer is needed. The existing `trayMarkers`
+setting remains valid and now selects these horizontal lines.
 
 Notifications use Qt's tray notification support and depend on the desktop host
 and its notification policy. An unavailable host/support is reported, but a host
