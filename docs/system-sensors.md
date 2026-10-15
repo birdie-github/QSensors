@@ -18,6 +18,31 @@ IDs contain package and kernel core IDs, independently of display names.
 | Available RAM | MemAvailable in canonical MiB, or as a percentage of MemTotal after optional calibration. |
 | Swap usage (%) | `(SwapTotal - SwapFree) / SwapTotal * 100`; no swap gives zero plus an explicit state in Settings/tooltips. |
 | Uptime | Dashboard-only clock from the first `/proc/uptime` field, without 32-bit integer conversions. |
+| Charge percentage | Kernel-reported remaining charge, from 0 to 100%, for each supported system battery. |
+
+## Battery charge
+
+Each system battery exposing `/sys/class/power_supply/<name>/capacity` adds a
+Charge percentage reading under Battery — `<name>` (for example, BAT0). Supplies
+must report `type=Battery`; `scope=Device` peripherals, explicitly absent batteries,
+and batteries without a capacity attribute are omitted. A missing scope attribute
+is accepted for drivers that do not expose it. No charge/energy-based estimate or
+combined multi-battery percentage is calculated.
+
+IDs use `system/battery/<escaped supply name>/charge`, independently of display
+labels and discovery order. Kernel supply renaming changes the ID. The reading
+starts disabled and supports the existing dashboard, table, tray, calibration,
+optional % suffix, refresh interval, and alarm settings. Gauges use the standard
+0–100 percentage range. No additional libraries, services, or timers are required.
+
+Only requested battery readings are polled, through the serialized system worker.
+When exposed, `present` must be 1; otherwise the reading is unavailable. Missing,
+unreadable, malformed, or out-of-range capacity also becomes unavailable, never a
+fabricated zero or a stale reading. Zero itself is a valid empty-battery reading.
+Newly attached/reinserted batteries may require Rescan (F5), as other new devices do.
+
+The [Linux power-supply documentation](https://www.kernel.org/doc/html/latest/power/power_supply_class.html)
+defines capacity as a percentage, distinct from charge and energy quantities.
 
 ## Physical-core frequencies
 

@@ -21,6 +21,13 @@ int main()
 {
     QLocale::setDefault(QLocale::c());
     try {
+        near(batteryChargePercent("57\n"), 57, "battery charge percentage");
+        near(batteryChargePercent("0\n"), 0, "empty battery is a valid reading");
+        near(batteryChargePercent("100\n"), 100, "full battery");
+        for (const QByteArray &invalid : {QByteArray(), QByteArray("-1"), QByteArray("101"),
+                 QByteArray("57.5"), QByteArray("NaN"), QByteArray("50\n60"),
+                 QByteArray("18446744073709551616")})
+            require(!batteryChargePercent(invalid), "invalid battery charge is unavailable");
         const auto before = cpuCounters("cpu 4294967300 0 0 4294967300 0 0 0 0 100 50\ncpu0 1 2 3 4\n");
         const auto after = cpuCounters("cpu 4294967320 0 0 4294967380 0 0 0 0 120 60\n");
         require(before && after, "64-bit aggregate counters");

@@ -46,6 +46,7 @@ configurable alerts, and an at-a-glance view of your system's health.
 | Hardware sensors | Temperature, fan speed, voltage, current, power, energy, and humidity exposed through Linux drivers and libsensors. |
 | CPU | Overall usage, per-physical-core frequency, and average/maximum frequency across physical cores. |
 | Memory | RAM used and available, plus swap usage, with amount and percentage views. |
+| Battery | Charge percentage for each system battery that exposes it. |
 | System | Uptime on the dashboard. |
 
 Hardware coverage depends on your kernel drivers and libsensors. GPU and disk

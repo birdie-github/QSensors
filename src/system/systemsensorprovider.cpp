@@ -8,6 +8,7 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QThread>
+#include <QUrl>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -96,6 +97,7 @@ SensorDiscovery SystemSensorProvider::discover()
     m_previousCpu.reset();
     clearFrequencyMetadata();
     m_cores.clear();
+    m_batteries.clear();
     QMap<QPair<int, int>, QList<int>> cores;
     bool complete = true;
     const QRegularExpression pattern(QStringLiteral("^cpu([0-9]+)$"));
@@ -139,6 +141,19 @@ SensorDiscovery SystemSensorProvider::discover()
     int index = 0;
     for (const auto &core : m_cores)
         result.descriptors.append({core.id, QStringLiteral("Core %1 frequency").arg(index++), SensorKind::Frequency, QStringLiteral("MHz"), cpu});
+    const QDir supplies(QStringLiteral("/sys/class/power_supply"));
+    for (const auto &name : supplies.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+        const QString path = supplies.filePath(name);
+        if (read(path + QStringLiteral("/type")).trimmed() != "Battery"
+            || read(path + QStringLiteral("/scope")).trimmed() == "Device"
+            || read(path + QStringLiteral("/present")).trimmed() == "0"
+            || !QFile::exists(path + QStringLiteral("/capacity"))) continue;
+        // Kernel supply names identify batteries independently of labels or order.
+        const QString id = QStringLiteral("system/battery/%1/charge").arg(QString::fromLatin1(QUrl::toPercentEncoding(name)));
+        m_batteries.insert(id, path);
+        result.descriptors.append({id, QStringLiteral("Charge percentage"), SensorKind::Percentage,
+                                   QStringLiteral("%"), QStringLiteral("Battery — %1").arg(name)});
+    }
     return result;
 }
 
@@ -250,6 +265,17 @@ QList<SensorSample> SystemSensorProvider::readBatch(const QStringList &ids)
                 sample.maximum = swap->totalMiB;
                 sample.detail = swap->detail;
             }
+        } else if (m_batteries.contains(id)) {
+            const QString path = m_batteries.value(id);
+            const QString presencePath = path + QStringLiteral("/present");
+            // Some drivers omit present. When exposed, only an explicit 1 is safe.
+            if (QFile::exists(presencePath) && read(presencePath).trimmed() != "1")
+                sample.error = QStringLiteral("Battery is absent or its presence is unavailable");
+            else {
+                value = systemmetrics::batteryChargePercent(read(path + QStringLiteral("/capacity")));
+                sample.error = QStringLiteral("Battery charge percentage is missing, malformed or outside 0–100");
+            }
+            sample.detail = QStringLiteral("Kernel-reported remaining charge (%1)").arg(QFileInfo(path).fileName());
         } else if (id == QStringLiteral("system/uptime")) value = systemmetrics::uptimeSeconds(up);
         else sample.error = QStringLiteral("Unknown system sensor");
         if (value && std::isfinite(*value)) { sample.value = *value; sample.available = true; sample.error.clear(); }

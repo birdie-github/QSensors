@@ -25,6 +25,7 @@ private:
     QList<QPair<int, int>> m_onlineRanges;
     QHash<int, QString> m_cpuPolicyPaths;
     QHash<QString, double> m_policyMaxima;
+    QHash<QString, QString> m_batteries; // Stable sensor ID -> power-supply directory.
     std::optional<systemmetrics::CpuCounters> m_previousCpu;
 };
 

@@ -95,6 +95,8 @@ if(QSENSORS_BUILD_TESTS)
         tests/systemmetrics_test.cpp
         src/system/systemmetrics.cpp
         src/rendering/valueformat.cpp
+        src/settings/numberformat.cpp
+        src/settings/numberformat.h
     )
     target_include_directories(qsensors-systemmetrics-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_link_libraries(qsensors-systemmetrics-test PRIVATE Qt6::Core)

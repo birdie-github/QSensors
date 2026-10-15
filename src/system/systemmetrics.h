@@ -28,5 +28,6 @@ std::optional<double> cpuActivity(const CpuCounters &previous, const CpuCounters
 std::optional<Usage> memoryUsage(const QByteArray &contents, bool swap);
 QString cpuModel(const QByteArray &contents);
 std::optional<double> uptimeSeconds(const QByteArray &contents);
+std::optional<double> batteryChargePercent(const QByteArray &contents);
 
 } // namespace qsensors::systemmetrics

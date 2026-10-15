@@ -28,6 +28,14 @@ bool add(quint64 &sum, quint64 value)
 }
 }
 
+std::optional<double> batteryChargePercent(const QByteArray &contents)
+{
+    // power_supply/capacity is an integer percentage, not charge or energy.
+    const auto value = unsignedNumber(contents.trimmed());
+    if (!value || *value > 100) return {};
+    return static_cast<double>(*value);
+}
+
 std::optional<CpuCounters> cpuCounters(const QByteArray &contents)
 {
     for (const auto &line : contents.split('\n')) {
