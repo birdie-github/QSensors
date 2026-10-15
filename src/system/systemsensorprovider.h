@@ -6,8 +6,10 @@
 
 #include <QByteArray>
 #include <QHash>
+#include <QElapsedTimer>
 #include <QPair>
 #include <QSet>
+#include <array>
 
 namespace qsensors {
 
@@ -27,6 +29,9 @@ private:
     QHash<QString, double> m_policyMaxima;
     QHash<QString, QString> m_batteries; // Stable sensor ID -> power-supply directory.
     std::optional<systemmetrics::CpuCounters> m_previousCpu;
+    // Stable system-wide counters: retain these across topology/recovery rescans.
+    QElapsedTimer m_pressureClock;
+    std::array<systemmetrics::PressureTracker, 3> m_pressure;
 };
 
 } // namespace qsensors

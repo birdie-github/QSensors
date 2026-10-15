@@ -4,6 +4,7 @@
 #include <cmath>
 #include <QLocale>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 
 using namespace qsensors::systemmetrics;
@@ -21,6 +22,43 @@ int main()
 {
     QLocale::setDefault(QLocale::c());
     try {
+        require(pressureSomeTotal("some avg10=99.00 avg60=88.00 avg300=77.00 total=123456\nfull total=999999\n")
+            == std::optional<quint64>(123456), "PSI uses some total, not averages or full");
+        require(pressureSomeTotal("full total=42\n  some\ttotal=0 future=ignored\n")
+            == std::optional<quint64>(0), "zero pressure and whitespace/field-order tolerance");
+        require(pressureSomeTotal("some total=18446744073709551615\n")
+            == std::optional<quint64>(std::numeric_limits<quint64>::max()), "64-bit pressure total");
+        for (const QByteArray &invalid : {QByteArray(), QByteArray("full total=10\n"),
+                 QByteArray("some avg10=1.00\n"), QByteArray("some total=\n"),
+                 QByteArray("some total=-1\n"), QByteArray("some total=+1\n"),
+                 QByteArray("some total=1.5\n"), QByteArray("some total=NaN\n"),
+                 QByteArray("some total=18446744073709551616\n"),
+                 QByteArray("some total=10 total=20\n"), QByteArray("some total=10\nsome total=20\n")})
+            require(!pressureSomeTotal(invalid), "missing/malformed/ambiguous PSI is unavailable");
+        PressureTracker cpuPressure, memoryPressure, ioPressure;
+        require(!cpuPressure.update(1000000, 0), "pressure first read needs a baseline");
+        require(!memoryPressure.update(2000000, 0) && !ioPressure.update(0, 0), "independent initial baselines");
+        near(cpuPressure.update(1750000, 3000000000LL), 25, "pressure over actual three-second interval");
+        near(memoryPressure.update(2500000, 1000000000LL), 50, "memory unaffected by CPU acquisition");
+        near(ioPressure.update(10000, 100000000LL), 10, "subsecond pressure interval");
+        near(cpuPressure.update(1800000, 3500000000LL), 10, "CPU cadence change uses actual elapsed time");
+        near(memoryPressure.update(3000000, 5000000000LL), 12.5, "CPU cadence change leaves memory baseline intact");
+        require(!cpuPressure.update(std::nullopt, 4000000000LL), "failed pressure reading unavailable");
+        near(cpuPressure.update(2300000, 5500000000LL), 25, "recovery spans last successful read, not failure");
+        require(!cpuPressure.update(10, 6500000000LL), "counter reset re-primes without spike");
+        near(cpuPressure.update(250010, 7500000000LL), 25, "pressure recovers after reset");
+        near(cpuPressure.update(250010, 8500000000LL), 0, "idle pressure is valid zero");
+        near(cpuPressure.update(2250010, 9500000000LL), 100, "pressure is bounded at 100 percent");
+        PressureTracker largePressure;
+        require(!largePressure.update(9007199254740992ULL, 0), "large pressure baseline");
+        near(largePressure.update(9007199254740993ULL, 100000), 1, "integer subtraction preserves small pressure delta");
+        PressureTracker invalidClock;
+        require(!invalidClock.update(100, -1), "negative monotonic timestamp rejected");
+        require(!invalidClock.update(100, 0), "invalid timestamp did not create baseline");
+        require(!invalidClock.update(100, 0), "zero elapsed time is unavailable");
+        near(invalidClock.update(100, 100000000), 0, "zero elapsed read causes no spike");
+        require(!invalidClock.update(100, 50000000), "backward clock re-primes");
+        near(invalidClock.update(50100, 150000000), 50, "backward clock recovers safely");
         const auto diskBefore = diskCounters("10 0 100 5 20 0 200 8 0 1000 12\n");
         const auto diskAfter = diskCounters("11 0 108 6 21 0 216 9 0 3500 14 0 0 0 0 0 0\n");
         require(diskBefore && diskAfter, "old and extended disk stat fields");

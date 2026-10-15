@@ -28,6 +28,40 @@ bool add(quint64 &sum, quint64 value)
 }
 }
 
+std::optional<quint64> pressureSomeTotal(const QByteArray &contents)
+{
+    std::optional<quint64> total;
+    bool foundSome = false;
+    for (const auto &line : contents.split('\n')) {
+        const auto fields = line.simplified().split(' ');
+        if (fields.isEmpty() || fields.front() != "some") continue;
+        if (foundSome) return {}; // Ambiguous duplicate records are not readings.
+        foundSome = true;
+        for (qsizetype i = 1; i < fields.size(); ++i) {
+            if (!fields[i].startsWith("total=")) continue;
+            if (total) return {};
+            total = unsignedNumber(fields[i].mid(6));
+            if (!total) return {};
+        }
+    }
+    return total; // Ignore rolling averages and the full-pressure record.
+}
+
+std::optional<double> PressureTracker::update(std::optional<quint64> totalMicroseconds, qint64 nanoseconds)
+{
+    // Failed reads retain both counter and time from the last successful read.
+    if (!totalMicroseconds || nanoseconds < 0) return {};
+    const Baseline current{*totalMicroseconds, nanoseconds};
+    const auto previous = m_previous;
+    m_previous = current;
+    if (!previous || current.totalMicroseconds < previous->totalMicroseconds
+        || current.nanoseconds <= previous->nanoseconds) return {};
+    // Subtract in integer space first to retain small deltas on long uptimes.
+    const double stalled = static_cast<double>(current.totalMicroseconds - previous->totalMicroseconds);
+    const double elapsedMicroseconds = static_cast<double>(current.nanoseconds - previous->nanoseconds) / 1000.0;
+    return std::clamp(stalled / elapsedMicroseconds * 100.0, 0.0, 100.0);
+}
+
 std::optional<DiskCounters> diskCounters(const QByteArray &contents)
 {
     const auto fields = contents.simplified().split(' ');

@@ -10,6 +10,16 @@
 
 namespace qsensors::systemmetrics {
 
+// PSI totals count microseconds of system-wide partial (some) pressure.
+std::optional<quint64> pressureSomeTotal(const QByteArray &contents);
+class PressureTracker {
+public:
+    std::optional<double> update(std::optional<quint64> totalMicroseconds, qint64 nanoseconds);
+private:
+    struct Baseline { quint64 totalMicroseconds; qint64 nanoseconds; };
+    std::optional<Baseline> m_previous;
+};
+
 struct CpuCounters {
     std::array<quint64, 8> fields{}; // user..steal; guest fields are already included.
 };

@@ -15,13 +15,20 @@
 
 namespace qsensors {
 namespace {
-QByteArray read(const QString &path)
+QByteArray read(const QString &path, qint64 limit = 4 * 1024 * 1024)
 {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) return {};
-    constexpr qint64 limit = 4 * 1024 * 1024;
     const QByteArray bytes = file.read(limit + 1);
     return file.error() == QFile::NoError && bytes.size() <= limit ? bytes : QByteArray();
+}
+struct PressureSensor { const char *resource; const char *label; };
+constexpr std::array<PressureSensor, 3> pressureSensors = {{
+    {"cpu", "CPU Pressure"}, {"memory", "Memory Pressure"}, {"io", "I/O Pressure"}
+}};
+QString pressureId(const PressureSensor &sensor)
+{
+    return QStringLiteral("system/pressure/") + QString::fromLatin1(sensor.resource);
 }
 QString cpuPath(int cpu) { return QStringLiteral("/sys/devices/system/cpu/cpu%1/").arg(cpu); }
 bool online(int cpu)
@@ -138,6 +145,9 @@ SensorDiscovery SystemSensorProvider::discover()
         {QStringLiteral("system/memory/swap"), QStringLiteral("Swap usage (%)"), SensorKind::Percentage, QStringLiteral("%"), QStringLiteral("Memory")},
         {QStringLiteral("system/uptime"), QStringLiteral("Uptime"), SensorKind::Duration, QStringLiteral("s"), QStringLiteral("System")}
     };
+    for (const auto &sensor : pressureSensors)
+        result.descriptors.append({pressureId(sensor), QString::fromLatin1(sensor.label), SensorKind::Percentage,
+                                   QStringLiteral("%"), QStringLiteral("System Pressure")});
     int index = 0;
     for (const auto &core : m_cores)
         result.descriptors.append({core.id, QStringLiteral("Core %1 frequency").arg(index++), SensorKind::Frequency, QStringLiteral("MHz"), cpu});
@@ -264,6 +274,20 @@ QList<SensorSample> SystemSensorProvider::readBatch(const QStringList &ids)
                 sample.reference = swap->totalMiB;
                 sample.maximum = swap->totalMiB;
                 sample.detail = swap->detail;
+            }
+        } else if (id.startsWith(QStringLiteral("system/pressure/"))) {
+            sample.error = QStringLiteral("Unknown system pressure sensor");
+            for (size_t index = 0; index < pressureSensors.size(); ++index) {
+                const auto &sensor = pressureSensors[index];
+                if (id != pressureId(sensor)) continue;
+                if (!m_pressureClock.isValid()) m_pressureClock.start();
+                const auto total = systemmetrics::pressureSomeTotal(read(
+                    QStringLiteral("/proc/pressure/") + QString::fromLatin1(sensor.resource), 4096));
+                value = m_pressure[index].update(total, m_pressureClock.nsecsElapsed());
+                sample.error = total ? QStringLiteral("Waiting for a valid pressure counter interval")
+                    : QStringLiteral("System pressure information missing, malformed or unsupported");
+                sample.detail = QStringLiteral("System-wide some pressure since this sensor's previous successful acquisition");
+                break;
             }
         } else if (m_batteries.contains(id)) {
             const QString path = m_batteries.value(id);

@@ -394,7 +394,9 @@ void SensorMonitor::completed(const SensorSnapshot &snapshot)
             && sample.error == QStringLiteral("Waiting for a valid CPU counter interval");
         const bool primingDisk = sample.id.startsWith(QStringLiteral("system/disk/"))
             && sample.error == QStringLiteral("Waiting for a valid disk counter interval");
-        if (sample.available || primingCpu || primingDisk) m_failedIds.remove(sample.id);
+        const bool primingPressure = sample.id.startsWith(QStringLiteral("system/pressure/"))
+            && sample.error == QStringLiteral("Waiting for a valid pressure counter interval");
+        if (sample.available || primingCpu || primingDisk || primingPressure) m_failedIds.remove(sample.id);
         else m_failedIds.insert(sample.id);
     }
     pruneDeadlines();

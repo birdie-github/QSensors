@@ -48,6 +48,7 @@ configurable alerts, and an at-a-glance view of your system's health.
 | Memory | RAM used and available, plus swap usage, with amount and percentage views. |
 | Battery | Charge percentage for each system battery that exposes it. |
 | Disk I/O | Bytes read and written per update, and I/O busy percentage, for each supported whole drive. |
+| System Pressure | CPU, memory, and I/O partial stall percentages over each sensor’s actual acquisition interval. |
 | System | Uptime on the dashboard. |
 
 Hardware coverage depends on your kernel drivers and libsensors. GPU and disk

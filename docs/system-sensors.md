@@ -20,6 +20,34 @@ IDs contain package and kernel core IDs, independently of display names.
 | Uptime | Dashboard-only clock from the first `/proc/uptime` field, without 32-bit integer conversions. |
 | Charge percentage | Kernel-reported remaining charge, from 0 to 100%, for each supported system battery. |
 
+## System Pressure
+
+CPU Pressure, Memory Pressure, and I/O Pressure appear under **System Pressure**.
+They use system-wide `some total` counters in `/proc/pressure/cpu`, `memory`, and
+`io`, respectively: the time when at least one task was waiting for CPU execution,
+stalled on memory, or stalled on I/O. Values are percentages from 0 to 100:
+`100 * delta(stalled microseconds) / elapsed microseconds`.
+
+Each requested sensor keeps its own counter and monotonic timestamp. The first
+read is unavailable; later readings cover the actual interval between successful
+acquisitions, including subsecond intervals. Kernel avg10/avg60/avg300 values are
+not used. Changing one sensor's cadence does not alter the others' baselines.
+As with existing sensors, acquisition follows the fastest active dashboard, tray,
+preview, or alarm demand for that sensor.
+
+Missing/unreadable/malformed PSI becomes unavailable, retaining the last successful
+baseline. Recovery then covers the full elapsed interval. Counter decreases and
+nonpositive elapsed intervals re-prime without reporting a percentage. Discovery
+rescans preserve pressure baselines; no counter history is stored between runs.
+Unsupported kernels show unavailable readings, never fabricated zero pressure.
+
+The sensors start disabled and reuse percentage gauges, digital/tray formatting,
+calibration, alarm rules, and the existing worker scheduler. Discovery does not
+read pressure files; only requested pressure sensors are acquired. No separate
+polling timer or trigger registration is used.
+
+See the [kernel PSI interface documentation](https://www.kernel.org/doc/html/latest/accounting/psi.html).
+
 ## Battery charge
 
 Each system battery exposing `/sys/class/power_supply/<name>/capacity` adds a
