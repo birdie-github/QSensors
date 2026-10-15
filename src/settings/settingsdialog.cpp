@@ -39,6 +39,10 @@
 #include <cmath>
 
 namespace qsensors {
+namespace {
+enum SensorColumn { NameColumn, DashboardColumn, TrayColumn, AlarmColumn, ValueColumn };
+}
+
 SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<SensorDescriptor> &catalog,
                                QWidget *parent)
     : QDialog(parent), m_store(store), m_draft(store->values()), m_unit(store->temperatureUnit())
@@ -58,16 +62,17 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     m_search->setClearButtonEnabled(true);
     browserLayout->addWidget(m_search);
     m_list = new QTreeWidget(browser);
-    m_list->setHeaderLabels({tr("Source / sensor"), tr("Dashboard"), tr("Tray"), tr("Value")});
+    m_list->setHeaderLabels({tr("Source / sensor"), tr("Dashboard"), tr("Tray"), tr("Alarm"), tr("Value")});
     m_list->setUniformRowHeights(true);
     m_list->setAlternatingRowColors(true);
     m_list->header()->setSectionResizeMode(QHeaderView::Interactive);
     m_list->header()->setStretchLastSection(false);
     m_list->header()->setMinimumSectionSize(48);
-    m_list->setColumnWidth(0, 240);
-    m_list->setColumnWidth(1, 105);
-    m_list->setColumnWidth(2, 60);
-    m_list->setColumnWidth(3, 130);
+    m_list->setColumnWidth(NameColumn, 240);
+    m_list->setColumnWidth(DashboardColumn, 105);
+    m_list->setColumnWidth(TrayColumn, 60);
+    m_list->setColumnWidth(AlarmColumn, 70);
+    m_list->setColumnWidth(ValueColumn, 130);
     browserLayout->addWidget(m_list);
     auto *disableAll = new QPushButton(tr("Disable all sensors"), browser);
     disableAll->setToolTip(tr("Clear dashboard and tray selections, including sensors hidden by search. Alarms remain enabled. Changes take effect on Apply or OK."));
@@ -119,7 +124,10 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     m_alarmEditor = new AlarmEditor(m_sensorTabs);
     m_sensorTabs->addTab(m_alarmEditor, tr("Alarms"));
     connect(m_alarmEditor, &AlarmEditor::edited, this, [this](const AlarmSettings &alarm) {
-        if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].alarm = alarm;
+        if (!m_loading && !m_currentId.isEmpty()) {
+            m_draft[m_currentId].alarm = alarm;
+            syncCurrentItem();
+        }
     });
     connect(m_alarmEditor, &AlarmEditor::resetRequested, this, [this] {
         if (m_currentId.isEmpty()) return;
@@ -144,14 +152,28 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     connect(buttons->button(QDialogButtonBox::Apply), &QPushButton::clicked, this, [this] { applyChanges(); });
     connect(m_list, &QTreeWidget::currentItemChanged, this,
             [this](QTreeWidgetItem *item, QTreeWidgetItem *) {
-        loadSensor(item ? item->data(0, Qt::UserRole).toString() : QString());
+        loadSensor(item ? item->data(NameColumn, Qt::UserRole).toString() : QString());
     });
     connect(m_list, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *item, int column) {
-        const QString id = item->data(0, Qt::UserRole).toString();
-        if (id.isEmpty() || (column != 1 && column != 2) || (column == 2 && !sensorSupportsTray(id))) return;
+        const QString id = item->data(NameColumn, Qt::UserRole).toString();
+        if (id.isEmpty() || (column != DashboardColumn && column != TrayColumn && column != AlarmColumn)
+            || (column == TrayColumn && !sensorSupportsTray(id))) return;
         auto &p = m_draft[id];
-        if (column == 1) p.dashboard = item->checkState(1) == Qt::Checked;
-        else p.tray = item->checkState(2) == Qt::Checked;
+        if (column == DashboardColumn) p.dashboard = item->checkState(DashboardColumn) == Qt::Checked;
+        else if (column == TrayColumn) p.tray = item->checkState(TrayColumn) == Qt::Checked;
+        else {
+            const bool checked = item->checkState(AlarmColumn) == Qt::Checked;
+            p.alarm.active = checked;
+            const bool configure = checked && !p.alarm.hasActions();
+            {
+                const QSignalBlocker blocker(m_list);
+                item->setCheckState(AlarmColumn, p.alarm.actionsEnabled() ? Qt::Checked : Qt::Unchecked);
+            }
+            if (configure) {
+                selectSensor(id);
+                m_sensorTabs->setCurrentWidget(m_alarmEditor);
+            }
+        }
         if (id == m_currentId) loadSensor(id);
     });
     connect(m_label, &QLineEdit::textEdited, this, [this](const QString &text) {
@@ -467,7 +489,7 @@ void SettingsDialog::selectSensor(const QString &id)
         auto *group = m_list->topLevelItem(i);
         for (int j = 0; j < group->childCount(); ++j) {
             auto *item = group->child(j);
-            if (item->data(0, Qt::UserRole).toString() == id) {
+            if (item->data(NameColumn, Qt::UserRole).toString() == id) {
                 group->setExpanded(true);
                 m_list->setCurrentItem(item);
                 m_list->scrollToItem(item);
@@ -547,7 +569,7 @@ void SettingsDialog::updateValues()
 
 void SettingsDialog::updateValue(QTreeWidgetItem *item)
 {
-    const QString id = item->data(0, Qt::UserRole).toString();
+    const QString id = item->data(NameColumn, Qt::UserRole).toString();
     const auto sample = m_samples.value(id);
     QString text;
     QString tooltip;
@@ -576,9 +598,9 @@ void SettingsDialog::updateValue(QTreeWidgetItem *item)
         if (sample.detail == QStringLiteral("No swap configured"))
             text = QStringLiteral("—");
     }
-    item->setText(3, text);
-    item->setToolTip(3, tooltip);
-    item->setTextAlignment(3, Qt::AlignRight | Qt::AlignVCenter);
+    item->setText(ValueColumn, text);
+    item->setToolTip(ValueColumn, tooltip);
+    item->setTextAlignment(ValueColumn, Qt::AlignRight | Qt::AlignVCenter);
 }
 
 void SettingsDialog::populate()
@@ -587,7 +609,7 @@ void SettingsDialog::populate()
     QHash<QString, bool> expanded;
     for (int i = 0; i < m_list->topLevelItemCount(); ++i) {
         const auto *group = m_list->topLevelItem(i);
-        expanded.insert(group->data(0, Qt::UserRole + 1).toString(), group->isExpanded());
+        expanded.insert(group->data(NameColumn, Qt::UserRole + 1).toString(), group->isExpanded());
     }
     const QSignalBlocker blocker(m_list);
     m_valueItems.clear();
@@ -627,11 +649,11 @@ void SettingsDialog::populate()
         auto *group = groups.value(source);
         if (!group) {
             group = new QTreeWidgetItem(m_list, {present ? source : tr("Unavailable sensors")});
-            group->setData(0, Qt::UserRole + 1, source);
+            group->setData(NameColumn, Qt::UserRole + 1, source);
             group->setFlags(Qt::ItemIsEnabled);
-            QFont font = group->font(0);
+            QFont font = group->font(NameColumn);
             font.setBold(true);
-            group->setFont(0, font);
+            group->setFont(NameColumn, font);
             group->setExpanded(expanded.value(source, true));
             groups.insert(source, group);
         }
@@ -639,18 +661,20 @@ void SettingsDialog::populate()
         const QString label = name(id);
         auto *item = new QTreeWidgetItem(group, {label.isEmpty() ? id : label});
         m_valueItems.insert(id, item);
-        item->setData(0, Qt::UserRole, id);
+        item->setData(NameColumn, Qt::UserRole, id);
         item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
-        item->setCheckState(1, p.dashboard ? Qt::Checked : Qt::Unchecked);
-        if (sensorSupportsTray(id)) item->setCheckState(2, p.tray ? Qt::Checked : Qt::Unchecked);
-        else { item->setText(2, tr("—")); item->setToolTip(2, tr("Dashboard only")); }
-        item->setToolTip(0, tr("Original name: %1\nSource: %2\n%3").arg(descriptor.label, source, id));
+        item->setCheckState(DashboardColumn, p.dashboard ? Qt::Checked : Qt::Unchecked);
+        if (sensorSupportsTray(id)) item->setCheckState(TrayColumn, p.tray ? Qt::Checked : Qt::Unchecked);
+        else { item->setText(TrayColumn, tr("—")); item->setToolTip(TrayColumn, tr("Dashboard only")); }
+        item->setCheckState(AlarmColumn, p.alarm.actionsEnabled() ? Qt::Checked : Qt::Unchecked);
+        item->setToolTip(AlarmColumn, tr("Enable or pause configured alarm actions without clearing their settings. Automatic alarms also require a limit."));
+        item->setToolTip(NameColumn, tr("Original name: %1\nSource: %2\n%3").arg(descriptor.label, source, id));
         if (!first) first = item;
         if (id == previous) selected = item;
     }
     m_list->setCurrentItem(selected ? selected : first);
     const auto *current = m_list->currentItem();
-    loadSensor(current ? current->data(0, Qt::UserRole).toString() : QString());
+    loadSensor(current ? current->data(NameColumn, Qt::UserRole).toString() : QString());
     filterSensors();
     updateValues();
 }
@@ -663,8 +687,8 @@ void SettingsDialog::filterSensors()
         bool any = false;
         for (int j = 0; j < group->childCount(); ++j) {
             auto *item = group->child(j);
-            const bool match = query.isEmpty() || item->text(0).contains(query, Qt::CaseInsensitive)
-                || item->toolTip(0).contains(query, Qt::CaseInsensitive);
+            const bool match = query.isEmpty() || item->text(NameColumn).contains(query, Qt::CaseInsensitive)
+                || item->toolTip(NameColumn).contains(query, Qt::CaseInsensitive);
             item->setHidden(!match);
             any |= match;
         }
@@ -676,16 +700,17 @@ void SettingsDialog::filterSensors()
 void SettingsDialog::syncCurrentItem()
 {
     auto *item = m_list->currentItem();
-    if (!item || m_currentId.isEmpty() || item->data(0, Qt::UserRole).toString() != m_currentId)
+    if (!item || m_currentId.isEmpty() || item->data(NameColumn, Qt::UserRole).toString() != m_currentId)
         return;
     const QSignalBlocker blocker(m_list);
     const auto p = m_draft.value(m_currentId);
     const QString original = m_catalog.value(m_currentId).label;
     const QString name = p.label.isEmpty() ? original : p.label;
-    item->setText(0, name.isEmpty() ? m_currentId : name);
-    item->setCheckState(1, p.dashboard ? Qt::Checked : Qt::Unchecked);
-    if (sensorSupportsTray(m_currentId)) item->setCheckState(2, p.tray ? Qt::Checked : Qt::Unchecked);
-    else item->setData(2, Qt::CheckStateRole, QVariant());
+    item->setText(NameColumn, name.isEmpty() ? m_currentId : name);
+    item->setCheckState(DashboardColumn, p.dashboard ? Qt::Checked : Qt::Unchecked);
+    if (sensorSupportsTray(m_currentId)) item->setCheckState(TrayColumn, p.tray ? Qt::Checked : Qt::Unchecked);
+    else item->setData(TrayColumn, Qt::CheckStateRole, QVariant());
+    item->setCheckState(AlarmColumn, p.alarm.actionsEnabled() ? Qt::Checked : Qt::Unchecked);
 }
 
 bool SettingsDialog::currentIsTemperature() const

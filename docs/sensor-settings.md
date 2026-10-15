@@ -30,7 +30,7 @@ Disable all sensors clears both selections across the catalog (including search
 results that are hidden), and takes effect on Apply or OK. Reset sensor preferences also
 returns that sensor to disabled.
 
-The dialog opens directly to the browser/editor, sized for all four browser columns and the largest
+The dialog opens directly to the browser/editor, sized for all five browser columns and the largest
 fully populated sensor-editor tab, bounded to 90% of the available screen.
 Splitter widths are assigned to those measured content widths, and both panes
 remain accessible. Qt font/style metrics account for scaling. The editor
@@ -38,8 +38,16 @@ scrolls only when screen space is limited or the user deliberately narrows the
 window/pane; long sensor lists still scroll vertically. The resizable browser groups sensors under collapsible source
 headings, naturally sorts source and display names (Core 2 before Core 18), and
 keeps unavailable sensors in a separate group. Search matches display names,
-original names, sources and stable IDs. Dashboard and tray checkboxes are directly
-available in each sensor row. The Value column shows live readings with applied
+original names, sources and stable IDs. The columns are Source / sensor,
+Dashboard, Tray, Alarm, and Value. Alarm is checked when at least one action is
+selected and the sensor's alarm master switch is on; automatic triggering also
+requires a configured limit. Unchecking Alarm pauses all actions without clearing
+any alarm settings. Checking restores the retained configuration. If no actions
+are configured, checking opens the Alarms tab and leaves the indicator unchecked
+until an action is selected. The Alarms tab's Enable alarms control mirrors the
+master switch and leaves paused choices visible but disabled. All edits follow
+Apply/OK/Cancel. Test Alarm remains an explicit manual test even while paused.
+Dashboard and tray checkboxes are directly available in each sensor row. The Value column shows live readings with applied
 calibration and display units; unapplied edits do not change the preview. All
 columns can be resized by dragging their header boundaries, including the last
 column. Reading updates and rescans leave those widths unchanged. Double-click a

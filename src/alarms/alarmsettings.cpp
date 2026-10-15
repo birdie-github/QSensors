@@ -8,6 +8,7 @@ namespace qsensors {
 namespace {
 // One field inventory shared by equality and persistence.
 const auto flags = {
+    std::pair{"enabled", &AlarmSettings::active},
     std::pair{"lowerEnabled", &AlarmSettings::lowerEnabled},
     std::pair{"upperEnabled", &AlarmSettings::upperEnabled},
     std::pair{"dashboard", &AlarmSettings::dashboard},

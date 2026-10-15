@@ -8,6 +8,7 @@ class QSettings;
 namespace qsensors {
 
 struct AlarmSettings {
+    bool active = true; // Master switch; retained actions/limits remain intact when paused.
     bool lowerEnabled = false;
     bool upperEnabled = false;
     double lower = 0;
@@ -27,7 +28,8 @@ struct AlarmSettings {
     QString arguments;
 
     bool hasActions() const;
-    bool enabled() const { return (lowerEnabled || upperEnabled) && hasActions(); }
+    bool actionsEnabled() const { return active && hasActions(); }
+    bool enabled() const { return (lowerEnabled || upperEnabled) && actionsEnabled(); }
     bool valid() const;
     bool operator==(const AlarmSettings &other) const;
 };

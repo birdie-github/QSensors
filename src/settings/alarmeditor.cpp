@@ -20,8 +20,12 @@ AlarmEditor::AlarmEditor(QWidget *parent) : QWidget(parent)
     auto *hint = new QLabel(tr("Limits apply to calibrated readings. Alarms keep monitoring hidden sensors at the global interval. Notifications and commands run once per alarm episode."), this);
     hint->setWordWrap(true);
     layout->addWidget(hint);
+    m_options = new QWidget(this);
+    auto *options = new QVBoxLayout(m_options);
+    options->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(m_options);
     auto *limits = new QFormLayout;
-    layout->addLayout(limits);
+    options->addLayout(limits);
     const auto flag = [this](const QString &text, bool AlarmSettings::*field, QWidget *parent) {
         auto *control = new QCheckBox(text, parent);
         m_flags.append({control, field});
@@ -33,6 +37,9 @@ AlarmEditor::AlarmEditor(QWidget *parent) : QWidget(parent)
         });
         return control;
     };
+    auto *enabled = flag(tr("Enable alarms"), &AlarmSettings::active, this);
+    enabled->setToolTip(tr("Pause this sensor's alarms without clearing limits, actions, colors, or command settings. At least one limit and action are needed for automatic alarms."));
+    layout->insertWidget(1, enabled);
     const auto number = [this](double AlarmSettings::*field, bool difference) {
         auto *control = new DecimalSpinBox(this);
         control->setSingleStep(.1);
@@ -68,7 +75,7 @@ AlarmEditor::AlarmEditor(QWidget *parent) : QWidget(parent)
         return button;
     };
     auto *actions = new QFormLayout;
-    layout->addLayout(actions);
+    options->addLayout(actions);
     actions->addRow(flag(tr("Change tile background"), &AlarmSettings::dashboard, this), color(&AlarmSettings::dashboardColor));
     actions->addRow(flag(tr("Change table text color"), &AlarmSettings::table, this), color(&AlarmSettings::tableColor));
     actions->addRow(flag(tr("Show a notification"), &AlarmSettings::notify, this));
@@ -94,7 +101,7 @@ AlarmEditor::AlarmEditor(QWidget *parent) : QWidget(parent)
     auto *trayHint = new QLabel(tr("Tray actions affect the sensor's existing tray icon. Enable it in the System Tray tab."), m_tray);
     trayHint->setWordWrap(true);
     tray->addRow(trayHint);
-    layout->addWidget(m_tray);
+    options->addWidget(m_tray);
     m_test = new QPushButton(tr("Test Alarm"), this);
     m_test->setToolTip(tr("Execute all checked actions using this draft, without saving. Visual effects last at least three seconds, then the live alarm state is restored."));
     connect(m_test, &QPushButton::clicked, this, &AlarmEditor::testRequested);
@@ -146,6 +153,7 @@ void AlarmEditor::load(const AlarmSettings &alarm, bool temperature, Temperature
 
 void AlarmEditor::updateControls()
 {
+    m_options->setEnabled(m_value.active);
     m_lower->setEnabled(m_value.lowerEnabled);
     m_upper->setEnabled(m_value.upperEnabled);
     m_program->setEnabled(m_value.command);

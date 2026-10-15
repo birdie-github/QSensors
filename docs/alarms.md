@@ -11,8 +11,21 @@ and seven independently selectable actions:
 - Blink the tray icon: 1000 ms visible, 750 ms transparent.
 - Change the tray text color.
 
-All actions and limits default to off. Enable at least one limit and action to
-arm an alarm. Alarms have their own limits, independent of gauge display bounds.
+All actions and limits default to off. Enable at least one limit and action,
+with the **Enable alarms** master switch on, to arm an alarm. The sensor browser's
+Alarm column (between Tray and Value) shows whether any action is selected and
+the master switch is on. It is a configuration indicator, not a live violation
+indicator. Unchecking it pauses every automatic action while preserving limits,
+action selections, colors, hysteresis, and the command. Checking it restores
+those choices; an unconfigured sensor opens the Alarms tab instead of inventing
+a threshold/action. Automatic triggering still requires a limit.
+
+The master state is stored as `Alarm/enabled` (default true), so older alarm
+configurations retain their behavior. The field participates in equality and
+persistence through the shared flag inventory. Paused sensors add no alarm
+monitoring demand, and applying a pause clears live alarm visuals. Master edits
+use the existing Apply/OK/Cancel draft workflow. Test Alarm deliberately bypasses
+the master switch and still runs checked actions when explicitly clicked. Alarms have their own limits, independent of gauge display bounds.
 The Below, Above, and Hysteresis editors use the shared `DecimalSpinBox`
 Standard policy: display and accept two decimal places.
 Loading the dialog, changing units, or editing another field preserves the full
@@ -111,7 +124,7 @@ Notifications are labelled Test Alarm; command execution is real.
 
 The Alarms tab has a **Reset** button beside Test Alarm. It replaces only the
 current sensor's alarm draft with `AlarmSettings{}`: both limits and all seven
-actions disabled, lower/upper values 0/100 in canonical units, zero hysteresis,
+actions disabled (the master switch returns to its default on), lower/upper values 0/100 in canonical units, zero hysteresis,
 default colors, and empty executable/arguments. Other sensor settings and other
 sensors are preserved. Apply/OK saves the reset and removes the default alarm
 subgroup; Cancel discards it. A test already in progress keeps its original

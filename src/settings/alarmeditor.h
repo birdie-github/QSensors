@@ -25,6 +25,7 @@ signals:
     void resetRequested();
 private:
     void updateControls();
+    QWidget *m_options;
     bool m_loading = false;
     bool m_temperature = false;
     TemperatureUnit m_unit = TemperatureUnit::Celsius;
