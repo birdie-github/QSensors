@@ -56,17 +56,29 @@ public:
         });
     }
 protected:
-    void mouseDoubleClickEvent(QMouseEvent *event) override
+    void mousePressEvent(QMouseEvent *event) override
     {
         if (event->button() == Qt::LeftButton && m_action && m_action->isEnabled()) {
+            m_pressed = true;
             event->accept();
-            m_action->trigger();
             return;
         }
-        QLabel::mouseDoubleClickEvent(event);
+        QLabel::mousePressEvent(event);
+    }
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton && m_pressed) {
+            m_pressed = false;
+            event->accept();
+            if (rect().contains(event->position().toPoint()) && m_action && m_action->isEnabled())
+                m_action->trigger();
+            return;
+        }
+        QLabel::mouseReleaseEvent(event);
     }
 private:
     QPointer<QAction> m_action;
+    bool m_pressed = false;
 };
 
 class SensorSortModel final : public QSortFilterProxyModel {
@@ -353,12 +365,12 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     m_snoozeStatus = new StatusActionLabel(m_snoozeAction, statusSummary);
     m_intervalStatus = new StatusActionLabel(m_intervalAction, statusSummary);
     m_tileSizeStatus = new StatusActionLabel(m_tileSizeAction, statusSummary);
-    m_alarmStatus = new QLabel(statusSummary);
+    m_alarmStatus = new StatusActionLabel(m_snoozeAction, statusSummary);
     for (auto *label : {m_snoozeStatus, m_intervalStatus, m_tileSizeStatus, m_alarmStatus})
         statusLayout->addWidget(label);
     statusLayout->addStretch();
     statusBar()->addWidget(statusSummary, 1);
-    statusBar()->setToolTip(tr("Double-click the interval, tile size, or snooze status to change it."));
+    statusBar()->setToolTip(tr("Click the interval or tile size to configure; click Alarms or Snoozed ON to toggle snooze."));
     connect(&NumberFormatSettings::instance(), &NumberFormatSettings::changed,
             this, &Dashboard::updateStatusSummary);
     updateStatusSummary();
