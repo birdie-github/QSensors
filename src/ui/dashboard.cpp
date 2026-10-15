@@ -319,6 +319,12 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
         updateVisibleIds();
     });
     m_tileSizeAction->setEnabled(!m_tableView->isChecked());
+    m_statusSummary = new QLabel(this);
+    statusBar()->addWidget(m_statusSummary, 1);
+    connect(&NumberFormatSettings::instance(), &NumberFormatSettings::changed,
+            this, &Dashboard::updateStatusSummary);
+    updateStatusSummary();
+    connect(m_grid, &SensorGrid::fieldSizeChanged, this, &Dashboard::updateStatusSummary);
     connect(statusBar(), &QStatusBar::messageChanged, empty, &QLabel::setText);
     m_trayWarning = new QLabel(tr("No system tray host — closing the window exits."), this);
     m_trayWarning->setWordWrap(true);
@@ -623,6 +629,12 @@ void Dashboard::setAlarmController(AlarmController *alarms)
 {
     m_grid->setAlarmController(alarms);
     m_model->setAlarmController(alarms);
+    connect(alarms, &AlarmController::activeCountChanged, this, [this](int count) {
+        m_activeAlarms = count;
+        updateStatusSummary();
+    });
+    m_activeAlarms = alarms->activeCount();
+    updateStatusSummary();
 }
 
 void Dashboard::clearReadings()
@@ -680,6 +692,18 @@ void Dashboard::closeEvent(QCloseEvent *event)
 void Dashboard::setIntervalSeconds(double seconds)
 {
     m_intervalSeconds = seconds;
+    updateStatusSummary();
+}
+
+void Dashboard::updateStatusSummary()
+{
+    QString interval = QString::number(m_intervalSeconds, 'f', standardDecimalPlaces);
+    while (interval.endsWith(QLatin1Char('0'))) interval.chop(1);
+    if (interval.endsWith(QLatin1Char('.'))) interval.chop(1);
+    interval.replace(QLatin1Char('.'), numberLocale().decimalPoint());
+    const QString summary = tr("Update interval: %1 seconds | Tile size: %2 pixels | Alarms: %3")
+        .arg(interval).arg(m_grid->tileSize()).arg(m_activeAlarms);
+    if (m_statusSummary->text() != summary) m_statusSummary->setText(summary);
 }
 
 void Dashboard::showEvent(QShowEvent *event)

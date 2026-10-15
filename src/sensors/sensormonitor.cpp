@@ -405,9 +405,9 @@ void SensorMonitor::completed(const SensorSnapshot &snapshot)
     else if (m_ids.isEmpty())
         emit statusChanged(tr("No supported readable sensors found. Use Rescan after hardware changes."));
     else if (failures)
-        emit statusChanged(tr("%1 channels; %2 unavailable").arg(m_ids.size()).arg(failures));
+        emit statusChanged(tr("%1 sensors unavailable").arg(failures));
     else
-        emit statusChanged(tr("%1 channels").arg(m_ids.size()));
+        emit statusChanged(QString());
 
     if (needsRecovery) {
         if (snapshot.rescanned || !m_nextRecovery) {

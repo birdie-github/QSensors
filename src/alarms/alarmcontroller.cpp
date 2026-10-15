@@ -64,6 +64,7 @@ void AlarmController::preferencesChanged()
         }
     }
     for (const auto &id : m_tests.keys()) changed(id);
+    updateActiveCount();
 }
 
 void AlarmController::applySnapshot(const SensorSnapshot &snapshot)
@@ -106,6 +107,18 @@ void AlarmController::applySnapshot(const SensorSnapshot &snapshot)
         if (state.available && active && !wasActive) actions(sample.id, p, sample, false);
         if (wasVisible != (state.available && active)) changed(sample.id);
     }
+    updateActiveCount();
+}
+
+void AlarmController::updateActiveCount()
+{
+    // Count real, available sensor alarms once per batch, excluding draft tests.
+    int count = 0;
+    for (const auto &state : m_states)
+        if (state.available && (state.low || state.high)) ++count;
+    if (count == m_activeCount) return;
+    m_activeCount = count;
+    emit activeCountChanged(count);
 }
 
 void AlarmController::test(const QString &id, const SensorPreferences &draft)

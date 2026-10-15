@@ -55,6 +55,7 @@ protected:
 
 private:
     void createSettingsMenu();
+    void updateStatusSummary();
     void chooseCustomTileSize();
     void updateVisibleIds();
     void updatePresentation(const QList<SensorSample> &samples, bool incremental);
@@ -66,6 +67,7 @@ private:
     void finishCompactResize();
     SensorPreferencesStore *m_preferences;
     SensorTableModel *m_model;
+    int m_activeAlarms = 0;
     double m_intervalSeconds = 5;
     QAction *m_intervalAction;
     SensorGrid *m_grid;
@@ -80,6 +82,7 @@ private:
     QHash<QString, SensorSample> m_dashboardSamples;
     bool m_gridDirty = true;
     bool m_tableDirty = true;
+    QLabel *m_statusSummary;
     QLabel *m_trayWarning;
     bool m_trayAvailable = false;
     bool m_compact = false;
