@@ -76,7 +76,13 @@ The setting is `trayShowUnit`. Existing memory-amount sensors default to enabled
 other sensors default to disabled, including available RAM already configured as
 a percentage. Explicit choices are retained across format changes and restarts.
 Unit glyphs participate in font fitting and its cache identity, including degree
-and percent signs. Saving, Cancel, and reset use the ordinary sensor draft path.
+and percent signs. Optional unit readouts fit their current digit/sign/decimal
+pattern: `11%` and `88%` share a stable two-digit fit, while `100%`, negative
+readings, and different decimal layouts use independent fits. This avoids
+reserving four unused digits plus a unit, and prevents a longer exceptional
+reading from permanently shrinking ordinary readings. Frequency and adaptive
+memory fitting retain their existing rules. Saving, Cancel, and reset use the
+ordinary sensor draft path.
 
 The tray font uses a family selector and automatically fits the complete value
 to the icon. Bitmap fonts use native glyph sizes; if no size fits, a scalable

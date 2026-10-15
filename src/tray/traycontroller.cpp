@@ -40,6 +40,7 @@ struct TrayFontSizingState {
     QHash<QByteArray, int> pixelLimits;
     QHash<QByteArray, int> pointLimits;
     QStringList fitTemplates;
+    QString unitSuffix; // Optional unit readouts fit their actual digit/sign class.
     bool compactSuffix = false; // Frequency/memory retain their adaptive suffix fitting.
     quint64 generation = 0;
 };
@@ -219,6 +220,17 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
         for (auto &character : pattern) {
             if (character.isDigit()) character = QLatin1Char('#');
         }
+        fitTemplates = {pattern};
+    } else if (!sizing.unitSuffix.isEmpty() && text.endsWith(sizing.unitSuffix)) {
+        // Fit the current numeric shape, not four speculative digits plus a
+        // unit. Reserve every digit width so 11% and 88% share a stable fit;
+        // signs, decimal places, and longer values get independent classes.
+        QString pattern = text.left(text.size() - sizing.unitSuffix.size());
+        for (auto &character : pattern) {
+            if (character.isDigit()) character = QLatin1Char('#');
+        }
+        pattern += sizing.unitSuffix;
+        formatClass = QStringLiteral("unit/") + pattern;
         fitTemplates = {pattern};
     } else if (sizing.compactSuffix && !text.isEmpty() && text.back().isLetter()) {
         formatClass = QString(text.back());
@@ -749,11 +761,7 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
         entry.fontSizing = std::make_shared<TrayFontSizingState>();
         entry.fontSizing->compactSuffix = compactSuffix;
         entry.fontSizing->fitTemplates = trayFitTemplates(descriptor.kind);
-        // Reserve the actual chosen unit together with the normal numeric fit.
-        // It must not enter the adaptive frequency/memory suffix rules.
-        if (!compactSuffix && !suffix.isEmpty()) {
-            for (auto &pattern : entry.fontSizing->fitTemplates) pattern += suffix;
-        }
+        if (!compactSuffix) entry.fontSizing->unitSuffix = suffix;
     }
     const bool changed = key != entry.renderKey;
     if (changed) {
