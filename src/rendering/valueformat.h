@@ -8,5 +8,8 @@ UptimeValue formatUptime(double seconds);
 struct FormattedValue { QString number; QString unit; };
 // Dashboard-only digital formatting; never used for calibration or sorting.
 QString formatDigitalSensorValue(const SensorDescriptor &descriptor, double value, bool kelvin = false);
+// Unit-free tray numbers: four characters, including decimal point/sign.
+QString formatTrayNumber(double value);
+QString formatTrayMemoryNumber(double mebibytes);
 FormattedValue formatSensorValue(const SensorDescriptor &descriptor, double value, bool tray = false);
 }

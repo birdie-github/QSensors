@@ -68,8 +68,16 @@ System Tray → Appearance has a per-sensor **Show the unit** checkbox. It appen
 humidity, `A` for current, and `V` for voltage. Other supported compact suffixes
 are `W`, `J`, `s`, and `kRPM` (fan values already display thousands of RPM).
 Memory amounts retain automatic M/G/T/P scaling (binary MiB/GiB/TiB/PiB); ordinary
-RAM amounts therefore show `G`. Unchecking the option hides only the suffix,
-not the scale. Full values/units remain in the tooltips. Frequency sensors hide
+RAM amounts therefore show `G`. Unchecking the option retains that scale and
+uses the shared four-character numeric formatter, as do all other unit-free
+non-frequency tray readings. It counts the decimal point and minus sign,
+uses up to two decimal places that fit, and removes trailing zeros: examples
+include `14.5`, `1.25`, `45.3`, and `1234`. Rounding overflows retry with fewer
+decimals. Very small/large values use compact scientific notation where it fits
+(`1e-3`, `1e4`); otherwise the icon shows `ERR`, with the value in its tooltip.
+Tiny nonzero numbers do not silently round to zero. Existing memory values
+below one MiB still display zero. Fan readings remain in thousands of RPM.
+Readouts with units retain their current precision rules. Full values/units remain in the tooltips. Frequency sensors hide
 this option and retain their existing normal/digital formatting rules.
 
 The setting is `trayShowUnit`. Existing memory-amount sensors default to enabled;

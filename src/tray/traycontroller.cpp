@@ -40,6 +40,7 @@ struct TrayFontSizingState {
     QHash<QByteArray, int> pixelLimits;
     QHash<QByteArray, int> pointLimits;
     QStringList fitTemplates;
+    bool plainNumber = false; // Shared four-character numeric format, without a unit.
     QString unitSuffix; // Optional unit readouts fit their actual digit/sign class.
     bool compactSuffix = false; // Frequency/memory retain their adaptive suffix fitting.
     quint64 generation = 0;
@@ -101,9 +102,12 @@ QString compactValue(const SensorDescriptor &descriptor, double value, bool show
         return QString::number(std::round(value / 1000), 'f', 0) + QStringLiteral("G");
     }
     if (descriptor.kind == SensorKind::Memory) {
+        if (!showUnit) return formatTrayMemoryNumber(value);
         const auto formatted = formatSensorValue(descriptor, value, true);
-        return formatted.number + (showUnit ? formatted.unit : QString());
+        return formatted.number + formatted.unit;
     }
+    if (!showUnit)
+        return formatTrayNumber(descriptor.kind == SensorKind::Fan ? value / 1000.0 : value);
     QString text;
     switch (descriptor.kind) {
     case SensorKind::Temperature:
@@ -115,7 +119,7 @@ QString compactValue(const SensorDescriptor &descriptor, double value, bool show
     }
     if (text.size() > 5)
         text = QString::number(descriptor.kind == SensorKind::Fan ? value / 1000.0 : value, 'g', 2);
-    return text + (showUnit ? trayUnitSuffix(descriptor) : QString());
+    return text + trayUnitSuffix(descriptor);
 }
 
 struct FontTraits {
@@ -221,16 +225,15 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
             if (character.isDigit()) character = QLatin1Char('#');
         }
         fitTemplates = {pattern};
-    } else if (!sizing.unitSuffix.isEmpty() && text.endsWith(sizing.unitSuffix)) {
+    } else if (sizing.plainNumber || (!sizing.unitSuffix.isEmpty() && text.endsWith(sizing.unitSuffix))) {
         // Fit the current numeric shape, not four speculative digits plus a
         // unit. Reserve every digit width so 11% and 88% share a stable fit;
         // signs, decimal places, and longer values get independent classes.
-        QString pattern = text.left(text.size() - sizing.unitSuffix.size());
+        QString pattern = text;
         for (auto &character : pattern) {
             if (character.isDigit()) character = QLatin1Char('#');
         }
-        pattern += sizing.unitSuffix;
-        formatClass = QStringLiteral("unit/") + pattern;
+        formatClass = (sizing.plainNumber ? QStringLiteral("number/") : QStringLiteral("unit/")) + pattern;
         fitTemplates = {pattern};
     } else if (sizing.compactSuffix && !text.isEmpty() && text.back().isLetter()) {
         formatClass = QString(text.back());
@@ -759,6 +762,7 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
         entry.renderKey.clear();
         entry.fontSizingKey = sizingKey;
         entry.fontSizing = std::make_shared<TrayFontSizingState>();
+        entry.fontSizing->plainNumber = !preferences.trayShowUnit && descriptor.kind != SensorKind::Frequency;
         entry.fontSizing->compactSuffix = compactSuffix;
         entry.fontSizing->fitTemplates = trayFitTemplates(descriptor.kind);
         if (!compactSuffix) entry.fontSizing->unitSuffix = suffix;

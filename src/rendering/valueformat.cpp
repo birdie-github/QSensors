@@ -9,6 +9,14 @@
 
 namespace qsensors {
 namespace {
+struct ScaledMemory { double value; int unit; };
+ScaledMemory scaleMemory(double value)
+{
+    if (value >= 0 && value < 1) value = 0;
+    int unit = 0;
+    while (std::abs(value) >= 999.5 && unit < 3) { value /= 1024; ++unit; }
+    return {value, unit};
+}
 QString compact(double value)
 {
     if (!std::isfinite(value)) return QStringLiteral("—");
@@ -19,6 +27,36 @@ QString compact(double value)
     return QLocale().toString(std::clamp(value, -limit, limit), 'f', decimals);
 }
 }
+QString formatTrayNumber(double value)
+{
+    if (!std::isfinite(value)) return QStringLiteral("—");
+    constexpr int characterBudget = 4;
+    constexpr int maximumDecimals = 2;
+    for (int decimals = maximumDecimals; decimals >= 0; --decimals) {
+        QString text = QString::number(value, 'f', decimals);
+        if (text.contains(QLatin1Char('.'))) {
+            while (text.endsWith(QLatin1Char('0'))) text.chop(1);
+            if (text.endsWith(QLatin1Char('.'))) text.chop(1);
+        }
+        if (text == QStringLiteral("0") || text == QStringLiteral("-0")) {
+            if (value != 0) continue; // Do not turn a tiny nonzero reading into zero.
+            text = QStringLiteral("0");
+        }
+        if (text.size() <= characterBudget) return text;
+    }
+    // Drop the redundant plus and exponent padding: 1e+04 becomes 1e4.
+    const QString scientific = QString::number(value, 'e', 0);
+    const int exponent = scientific.indexOf(QLatin1Char('e'));
+    const QString text = scientific.left(exponent) + QLatin1Char('e')
+        + QString::number(scientific.mid(exponent + 1).toInt());
+    return text.size() <= characterBudget ? text : QStringLiteral("ERR");
+}
+
+QString formatTrayMemoryNumber(double mebibytes)
+{
+    return formatTrayNumber(scaleMemory(mebibytes).value);
+}
+
 UptimeValue formatUptime(double seconds)
 {
     if (!std::isfinite(seconds) || seconds < 0) return {QStringLiteral("—"), {}};
@@ -85,11 +123,8 @@ FormattedValue formatSensorValue(const SensorDescriptor &descriptor, double valu
     if (descriptor.kind == SensorKind::Memory) {
         const QStringList units = {QStringLiteral("MiB"), QStringLiteral("GiB"), QStringLiteral("TiB"), QStringLiteral("PiB")};
         const QStringList shortUnits = {QStringLiteral("M"), QStringLiteral("G"), QStringLiteral("T"), QStringLiteral("P")};
-        if (value >= 0 && value < 1) value = 0; // Less than one MiB is displayed as zero.
-        int index = 0;
-        // Promote just before four-digit rounding would exceed the text budget.
-        while (std::abs(value) >= 999.5 && index < 3) { value /= 1024; ++index; }
-        return {compact(value), tray ? shortUnits[index] : units[index]};
+        const auto scaled = scaleMemory(value);
+        return {compact(scaled.value), tray ? shortUnits[scaled.unit] : units[scaled.unit]};
     }
     if (descriptor.kind == SensorKind::Percentage)
         return {compact(value), QStringLiteral("%")};
