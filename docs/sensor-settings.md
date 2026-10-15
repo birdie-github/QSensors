@@ -96,6 +96,17 @@ reading from permanently shrinking ordinary readings. Frequency and adaptive
 memory fitting retain their existing rules. Saving, Cancel, and reset use the
 ordinary sensor draft path.
 
+Each sensor tray menu identifies its configured/original name as `[ Name ]`;
+selecting that entry opens its System Tray settings. **Remove Sensor**
+immediately saves only that sensor's tray enablement as off. Colors, font, units,
+intervals, alarms, dashboard selection, and other preferences are retained.
+Re-enable it in Configure Sensors to restore its icon with those settings.
+If the settings dialog is already open, its tray checkbox follows removal while
+other draft edits remain intact, so a later Apply/OK cannot undo the removal.
+Cancel does not undo this separate menu action. Removing the last sensor restores
+the existing application tray icon. Save errors leave the sensor selected and
+are reported. The name brackets preserve literal ampersands as well.
+
 The tray font uses a family selector and automatically fits the complete value
 to the icon. Bitmap fonts use native glyph sizes; if no size fits, a scalable
 fallback renders that value. Text is rasterized at the requested device

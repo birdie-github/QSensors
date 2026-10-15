@@ -34,6 +34,7 @@ public:
     void selectSensor(const QString &id);
     void selectTraySensor(const QString &id);
     void disableDashboardSensor(const QString &id);
+    void disableTraySensor(const QString &id);
     void applySnapshot(const SensorSnapshot &snapshot);
 
 signals:

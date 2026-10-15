@@ -54,6 +54,7 @@ signals:
     void selectionChanged(const QStringList &ids);
     void settingsRequested();
     void sensorSettingsRequested(const QString &id);
+    void sensorRemoved(const QString &id);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -73,6 +74,7 @@ private:
     void checkAvailability();
     void setSelectedIds(QStringList ids);
     void reconcileIcons();
+    void removeSensor(const QString &id);
     void updateEntry(const QString &id, Entry &entry);
     QSystemTrayIcon *createIcon();
 

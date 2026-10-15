@@ -165,6 +165,9 @@ int main(int argc, char *argv[])
     QObject::connect(&dashboard, &qsensors::Dashboard::sensorDisabled, &dashboard, [&settingsDialog](const QString &id) {
         if (settingsDialog) settingsDialog->disableDashboardSensor(id);
     });
+    QObject::connect(&tray, &qsensors::TrayController::sensorRemoved, &dashboard, [&settingsDialog](const QString &id) {
+        if (settingsDialog) settingsDialog->disableTraySensor(id);
+    });
     monitor.setBackgroundIds(tray.selectedIds());
     tray.start();
     dashboard.show();

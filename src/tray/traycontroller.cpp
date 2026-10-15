@@ -655,7 +655,15 @@ void TrayController::reconcileIcons()
                 // to the icon whose context menu was opened.
                 for (auto *action : m_menu->actions()) {
                     entry.menu->addAction(action);
-                    if (action == m_rescanAction) entry.reading = entry.menu->addAction(id);
+                    if (action == m_rescanAction) {
+                        entry.reading = entry.menu->addAction(id);
+                        auto *remove = entry.menu->addAction(tr("Remove Sensor"));
+                        connect(remove, &QAction::triggered, this, [this, id] {
+                            // Saving reconciles icons and deletes this menu/action.
+                            // Wait until the triggering menu callback has returned.
+                            QTimer::singleShot(0, this, [this, id] { removeSensor(id); });
+                        });
+                    }
                 }
                 QFont readingFont = entry.menu->font();
                 readingFont.setBold(true);
@@ -673,6 +681,19 @@ void TrayController::reconcileIcons()
             entry.icon->show(); // Qt automatically registers with a later/restarted host.
         }
     }
+}
+
+void TrayController::removeSensor(const QString &id)
+{
+    auto preferences = m_preferences->value(id);
+    if (!preferences.tray) return;
+    preferences.tray = false;
+    QString error;
+    if (!m_preferences->apply({{id, preferences}}, m_preferences->temperatureUnit(), error)) {
+        QMessageBox::warning(m_window, tr("Remove Sensor"), error);
+        return;
+    }
+    emit sensorRemoved(id);
 }
 
 void TrayController::applySnapshot(const SensorSnapshot &snapshot)
@@ -724,7 +745,7 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
         : descriptor.label.isEmpty() ? id : descriptor.label;
     // Names are literal text, not menu mnemonics. Do not export a menu label
     // update on every value change; full readings remain in the icon tooltip.
-    QString menuLabel = label;
+    QString menuLabel = QStringLiteral("[ %1 ]").arg(label);
     menuLabel.replace(QLatin1Char('&'), QStringLiteral("&&"));
     if (entry.reading->text() != menuLabel) entry.reading->setText(menuLabel);
     const auto formatted = formatSensorValue(descriptor, sample.value);

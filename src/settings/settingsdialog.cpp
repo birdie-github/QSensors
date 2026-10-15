@@ -485,6 +485,13 @@ void SettingsDialog::disableDashboardSensor(const QString &id)
     populate();
 }
 
+void SettingsDialog::disableTraySensor(const QString &id)
+{
+    // Preserve pending appearance edits while honoring removal from the tray.
+    if (m_draft.contains(id)) m_draft[id].tray = false;
+    populate();
+}
+
 void SettingsDialog::showEvent(QShowEvent *event)
 {
     QDialog::showEvent(event);
