@@ -68,10 +68,11 @@ SensorPreferences defaultSensorPreferences(const QString &id)
 {
     SensorPreferences p;
     const bool uptime = id == QStringLiteral("system/uptime");
-    p.trayShowUnit = id == QStringLiteral("system/memory/available")
+    const bool diskBytes = id.startsWith(QStringLiteral("system/disk/")) && !id.endsWith(QStringLiteral("/busy"));
+    p.trayShowUnit = diskBytes || id == QStringLiteral("system/memory/available")
         || id == QStringLiteral("system/memory/ram-used") || id == QStringLiteral("system/memory/swap-used");
     p.dashboardShadow = uptime;
-    p.dashboardGauge = !uptime;
+    p.dashboardGauge = !uptime && !diskBytes;
     p.dashboardTextStyle = uptime ? DashboardTextStyle::Digital : DashboardTextStyle::Normal;
     return p;
 }

@@ -2,6 +2,7 @@
 #include "sensors/sensormonitor.h"
 #include "sensors/lmsensorsprovider.h"
 #include "system/systemsensorprovider.h"
+#include "system/disksensorprovider.h"
 #include "settings/sensorpreferences.h"
 
 #include <QSettings>
@@ -30,6 +31,7 @@ public:
             snapshot.descriptors = discovery.descriptors;
             snapshot.error = discovery.error;
             snapshot.descriptors.append(m_system.discover().descriptors);
+            snapshot.descriptors.append(m_disks.discover().descriptors);
             if (readAll) {
                 QSet<QString> known(ids.cbegin(), ids.cend());
                 for (const auto &descriptor : snapshot.descriptors) {
@@ -39,14 +41,16 @@ public:
                 }
             }
         }
-        QStringList hardwareIds, systemIds;
+        QStringList hardwareIds, systemIds, diskIds;
         for (const auto &id : ids) {
-            if (id.startsWith(QStringLiteral("system/"))) systemIds.append(id);
+            if (id.startsWith(QStringLiteral("system/disk/"))) diskIds.append(id);
+            else if (id.startsWith(QStringLiteral("system/"))) systemIds.append(id);
             else hardwareIds.append(id);
         }
         // A libsensors failure must not suppress independent system readings.
         snapshot.samples = m_provider->readBatch(hardwareIds);
         snapshot.samples.append(m_system.readBatch(systemIds));
+        snapshot.samples.append(m_disks.readBatch(diskIds));
         emit finished(snapshot);
     }
 
@@ -56,6 +60,7 @@ signals:
 private:
     std::unique_ptr<LmSensorsProvider> m_provider;
     SystemSensorProvider m_system;
+    DiskSensorProvider m_disks;
 };
 
 SensorMonitor::SensorMonitor(SensorPreferencesStore *preferences, QObject *parent)
@@ -383,11 +388,13 @@ void SensorMonitor::completed(const SensorSnapshot &snapshot)
     // request a follow-up without overwriting this batch's scheduling metadata.
     emit snapshotReady(batch);
     for (const auto &sample : batch.samples) {
-        // CPU usage needs two counter samples. Its first pending value is not
+        // Interval sensors need two counter samples. A first pending value is not
         // a discovery failure, especially with a deliberately long interval.
         const bool primingCpu = sample.id == QStringLiteral("system/cpu/activity")
             && sample.error == QStringLiteral("Waiting for a valid CPU counter interval");
-        if (sample.available || primingCpu) m_failedIds.remove(sample.id);
+        const bool primingDisk = sample.id.startsWith(QStringLiteral("system/disk/"))
+            && sample.error == QStringLiteral("Waiting for a valid disk counter interval");
+        if (sample.available || primingCpu || primingDisk) m_failedIds.remove(sample.id);
         else m_failedIds.insert(sample.id);
     }
     pruneDeadlines();

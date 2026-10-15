@@ -44,6 +44,53 @@ Newly attached/reinserted batteries may require Rescan (F5), as other new device
 The [Linux power-supply documentation](https://www.kernel.org/doc/html/latest/power/power_supply_class.html)
 defines capacity as a percentage, distinct from charge and energy quantities.
 
+## Whole-drive I/O
+
+Each supported drive adds Read per update, Written per update, and Busy under
+Disk — `<kernel name>` (with the model when available). Read/write values are
+**bytes transferred between consecutive acquisitions**, not B/s: with a ten-second
+acquisition interval they cover those ten seconds. Labels and units use that
+meaning consistently. Busy is elapsed I/O-active time divided by elapsed wall
+time, bounded to 0–100%; it is not a drive performance-capacity measurement.
+
+Discovery uses whole devices in `/sys/block` backed by a kernel device outside
+`/sys/devices/virtual`. Partitions and software layers such as LVM/device mapper,
+MD, loop, RAM, and zram devices are excluded. USB, SATA, NVMe, SCSI, and iSCSI
+drives can qualify through the same interface. Hardware RAID volumes and virtual
+machine disks may look like ordinary drives to the guest/kernel and cannot be
+resolved to their underlying hardware here. Native NVMe multipath virtual heads
+are excluded by this rule; hidden paths cannot be monitored through this interface.
+
+The existing serialized worker reads one `stat` snapshot per requested drive.
+Each channel has its own baseline. No unselected drive is polled, no new timer
+or dependency is added, and all new selections default to off. The first sample,
+rescan, counter reset, or recovery needs a new baseline before a value is shown.
+Removal/read failure yields unavailable. Where exposed, `diskseq` detects device
+replacement, including replacement by counters that happen to be larger.
+
+As with other sensors, acquisition follows the fastest active dashboard, tray,
+alarm, or configuration-preview demand. A ten-second dashboard with a one-second
+tray for the **same channel** therefore displays one-second transfer samples;
+keep those demands aligned when you want a particular transfer window. Busy
+updates do not change the transfer channels' windows. After a pause without
+demand, the next valid delta covers the elapsed gap since the previous sample.
+
+Canonical read/write values and calibration, ranges, and alarm limits use bytes.
+Dashboard/table values scale through B, KiB, MiB, GiB, TiB, PiB, and EiB, with at
+most two decimals. Tray/digital readouts use compact B/K/M/G/T/P/E suffixes;
+the tray unit can be hidden while retaining scaling. Decimal separators use the
+global policy. Read/write gauges start off; choose explicit bounds to enable a
+meaningful gauge. Busy uses the usual percentage gauge and alarm controls.
+
+IDs hash the canonical sysfs path and append the channel name. Display-name or
+model changes retain preferences; port, driver, or kernel-device-name changes
+can change the ID. New drives may need Rescan (F5). On kernels without `diskseq`,
+replacement at exactly the same path cannot always be distinguished from the
+original device; Rescan resets its baselines.
+
+Counter interpretation follows the [kernel I/O statistics documentation](https://cdn.kernel.org/doc/html/latest/admin-guide/iostats.html).
+Busy is an approximate kernel accounting statistic, especially with concurrent I/O.
+
 ## Physical-core frequencies
 
 Frequency presentation/calculations exclude HT/SMT siblings. Usage does not.

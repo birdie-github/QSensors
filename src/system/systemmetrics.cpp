@@ -28,6 +28,32 @@ bool add(quint64 &sum, quint64 value)
 }
 }
 
+std::optional<DiskCounters> diskCounters(const QByteArray &contents)
+{
+    const auto fields = contents.simplified().split(' ');
+    if (fields.size() < 11) return {};
+    DiskCounters result{};
+    for (qsizetype i = 0; i < fields.size(); ++i) {
+        const auto value = unsignedNumber(fields[i]);
+        if (!value) return {};
+        if (i == 2) result.sectorsRead = *value;
+        else if (i == 6) result.sectorsWritten = *value;
+        else if (i == 9) result.busyMilliseconds = *value;
+    }
+    return result;
+}
+
+std::optional<DiskInterval> diskInterval(const DiskCounters &before, const DiskCounters &after, double elapsedMilliseconds)
+{
+    if (!std::isfinite(elapsedMilliseconds) || elapsedMilliseconds <= 0
+        || after.sectorsRead < before.sectorsRead || after.sectorsWritten < before.sectorsWritten
+        || after.busyMilliseconds < before.busyMilliseconds) return {};
+    // Kernel disk-stat sectors are always 512 bytes, including on 4K-sector disks.
+    return DiskInterval{static_cast<double>(after.sectorsRead - before.sectorsRead) * 512.0,
+        static_cast<double>(after.sectorsWritten - before.sectorsWritten) * 512.0,
+        std::clamp(static_cast<double>(after.busyMilliseconds - before.busyMilliseconds) / elapsedMilliseconds * 100.0, 0.0, 100.0)};
+}
+
 std::optional<double> batteryChargePercent(const QByteArray &contents)
 {
     // power_supply/capacity is an integer percentage, not charge or energy.

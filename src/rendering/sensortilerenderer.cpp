@@ -29,6 +29,7 @@ GaugeRange gaugeRange(SensorKind kind, double value)
     case SensorKind::Energy: range = {0, 1000}; break;
     case SensorKind::Humidity:
     case SensorKind::Percentage: range = {0, 100}; break;
+    case SensorKind::Bytes:
     case SensorKind::Frequency: return {0, 0}; // Only a provider limit or explicit custom range is valid.
     case SensorKind::Duration: range = {0, 86400}; break;
     case SensorKind::Memory: range = {0, 1024}; break;
@@ -140,7 +141,8 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
         case SensorKind::Humidity: result.text = locale.toString(sample.value, 'f', 1); break;
         case SensorKind::Percentage:
         case SensorKind::Frequency:
-        case SensorKind::Memory: {
+        case SensorKind::Memory:
+        case SensorKind::Bytes: {
             const auto formatted = formatSensorValue(descriptor, sample.value);
             result.text = formatted.number;
             result.unit = formatted.unit;
@@ -179,7 +181,7 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
     if (gaugeLabels && span > 0 && std::isfinite(span)) {
         result.lowerText = locale.toString(result.range.lower, 'g', 6);
         result.upperText = locale.toString(result.range.upper, 'g', 6);
-        if (descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory) {
+        if (descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory || descriptor.kind == SensorKind::Bytes) {
             const auto lower = formatSensorValue(descriptor, result.range.lower);
             const auto upper = formatSensorValue(descriptor, result.range.upper);
             result.lowerText = lower.number + lower.unit;
@@ -195,7 +197,7 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
                              bool selected, const SensorPreferences &preferences, const DashboardAppearance &appearance)
 {
     bool gauge = preferences.dashboardGauge && sensorSupportsGauge(descriptor.id, descriptor.kind);
-    if (descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory)
+    if (descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory || descriptor.kind == SensorKind::Bytes)
         gauge = gauge && std::isfinite(reading.range.upper) && reading.range.upper > reading.range.lower;
     painter.save();
     painter.setClipRect(rect, Qt::IntersectClip);

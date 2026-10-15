@@ -21,6 +21,28 @@ int main()
 {
     QLocale::setDefault(QLocale::c());
     try {
+        const auto diskBefore = diskCounters("10 0 100 5 20 0 200 8 0 1000 12\n");
+        const auto diskAfter = diskCounters("11 0 108 6 21 0 216 9 0 3500 14 0 0 0 0 0 0\n");
+        require(diskBefore && diskAfter, "old and extended disk stat fields");
+        const auto disk = diskInterval(*diskBefore, *diskAfter, 10000);
+        require(disk && disk->readBytes == 4096 && disk->writtenBytes == 8192
+            && disk->busyPercent == 25, "disk bytes per ten-second update and busy percentage");
+        const auto diskOneSecond = diskInterval(*diskBefore, *diskAfter, 1000);
+        require(diskOneSecond && diskOneSecond->readBytes == 4096 && diskOneSecond->busyPercent == 100,
+            "transfer counts are not normalized per second; busy is bounded");
+        const auto idleDisk = diskInterval(*diskAfter, *diskAfter, 1000);
+        require(idleDisk && idleDisk->readBytes == 0 && idleDisk->writtenBytes == 0 && idleDisk->busyPercent == 0,
+            "idle disk is valid zero");
+        require(!diskInterval(*diskAfter, *diskBefore, 1000), "disk counter reset");
+        require(!diskInterval(*diskBefore, *diskAfter, 0)
+            && !diskInterval(*diskBefore, *diskAfter, -1), "invalid disk sample interval");
+        const DiskCounters largeBefore{9007199254740992ULL, 0, 0};
+        const DiskCounters largeAfter{9007199254740993ULL, 0, 0};
+        const auto largeDisk = diskInterval(largeBefore, largeAfter, 1000);
+        require(largeDisk && largeDisk->readBytes == 512, "subtract 64-bit counters before converting to double");
+        require(!diskCounters("1 2 3 4") && !diskCounters("1 0 bad 0 0 0 0 0 0 0 0")
+            && !diskCounters("1 0 -1 0 0 0 0 0 0 0 0")
+            && !diskCounters("1 0 18446744073709551616 0 0 0 0 0 0 0 0"), "invalid disk counters");
         near(batteryChargePercent("57\n"), 57, "battery charge percentage");
         near(batteryChargePercent("0\n"), 0, "empty battery is a valid reading");
         near(batteryChargePercent("100\n"), 100, "full battery");
@@ -62,6 +84,26 @@ int main()
         require(!qsensors::sensorSupportsTray(QStringLiteral("system/uptime")), "uptime dashboard only");
         require(qsensors::sensorSupportsTray(QStringLiteral("system/cpu/activity")), "ordinary sensor tray eligibility");
         qsensors::SensorDescriptor descriptor;
+        descriptor.kind = qsensors::SensorKind::Bytes;
+        auto byteReading = qsensors::formatSensorValue(descriptor, 512);
+        require(byteReading.number == "512" && byteReading.unit == "B", "bytes below KiB remain visible");
+        byteReading = qsensors::formatSensorValue(descriptor, 1536);
+        require(byteReading.number == "1.5" && byteReading.unit == "KiB", "binary byte scaling");
+        byteReading = qsensors::formatSensorValue(descriptor, 1073741824);
+        require(byteReading.number == "1" && byteReading.unit == "GiB", "GiB byte scaling");
+        byteReading = qsensors::formatSensorValue(descriptor, 0, true);
+        require(byteReading.number == "0" && byteReading.unit == "B", "idle bytes in tray");
+        require(qsensors::formatTrayByteNumber(1536) == "1.5", "unit-free byte scaling");
+        require(qsensors::formatDigitalSensorValue(descriptor, 1536) == "1.5K", "digital byte suffix");
+        for (double bytes : {0.0, 512.0, 999.4, 1023.0, 1536.0, 1048576.0, 1e12}) {
+            const auto trayBytes = qsensors::formatSensorValue(descriptor, bytes, true);
+            require((trayBytes.number + trayBytes.unit).size() <= 4 && trayBytes.number != "ERR",
+                "byte tray values fit without clipping");
+        }
+        QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
+        require(qsensors::formatSensorValue(descriptor, 1536).number == "1,5"
+            && qsensors::formatTrayByteNumber(1536) == "1,5", "localized byte decimals");
+        QLocale::setDefault(QLocale::c());
         descriptor.kind = qsensors::SensorKind::Frequency;
         auto formatted = qsensors::formatSensorValue(descriptor, 900);
         require(formatted.number == "900" && formatted.unit == "MHz", "MHz format");

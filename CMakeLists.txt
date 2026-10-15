@@ -42,6 +42,8 @@ qt_add_executable(qsensors
     src/system/systemmetrics.h
     src/system/systemsensorprovider.cpp
     src/system/systemsensorprovider.h
+    src/system/disksensorprovider.cpp
+    src/system/disksensorprovider.h
     src/sensors/sensorprovider.h
     src/sensors/sensortypes.h
     src/sensors/lmsensorsprovider.cpp

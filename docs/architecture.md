@@ -19,7 +19,7 @@ See [building.md](building.md) for installation prerequisites and commands.
 | --- | --- |
 | `src/app` | Application assembly, metadata, command line, single-instance IPC. |
 | `src/sensors` | libsensors provider, demand scheduling, worker, raw-to-display presentation. |
-| `src/system` | CPU, memory, swap, and uptime providers and parsers. |
+| `src/system` | CPU, memory, swap, uptime, battery, and whole-drive I/O providers and parsers. |
 | `src/settings` | Stable-ID preferences, sensor drafts, numeric-format policy, editors, and autostart. |
 | `src/alarms` | Threshold/hysteresis state, persistence fields, actions, tests, and visual timing. |
 | `src/tray` | Per-sensor numeric icons, shared menus, font fitting, caches, and host recovery. |

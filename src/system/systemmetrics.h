@@ -29,5 +29,9 @@ std::optional<Usage> memoryUsage(const QByteArray &contents, bool swap);
 QString cpuModel(const QByteArray &contents);
 std::optional<double> uptimeSeconds(const QByteArray &contents);
 std::optional<double> batteryChargePercent(const QByteArray &contents);
+struct DiskCounters { quint64 sectorsRead; quint64 sectorsWritten; quint64 busyMilliseconds; };
+struct DiskInterval { double readBytes; double writtenBytes; double busyPercent; };
+std::optional<DiskCounters> diskCounters(const QByteArray &contents);
+std::optional<DiskInterval> diskInterval(const DiskCounters &before, const DiskCounters &after, double elapsedMilliseconds);
 
 } // namespace qsensors::systemmetrics

@@ -27,6 +27,33 @@ QString compact(double value)
     const double limit = value < 0 ? 99 : 999;
     return numberLocale().toString(std::clamp(value, -limit, limit), 'f', decimals);
 }
+struct ScaledBytes { double value; int unit; };
+ScaledBytes scaleBytes(double value, bool tray)
+{
+    int unit = 0;
+    const double limit = tray ? (value < 0 ? 99.5 : 999.5) : 1024.0;
+    while (std::abs(value) >= limit && unit < 6) { value /= 1024; ++unit; }
+    return {value, unit};
+}
+FormattedValue byteValue(double value, bool tray)
+{
+    if (!std::isfinite(value)) return {QStringLiteral("—"), {}};
+    const auto scaled = scaleBytes(value, tray);
+    static const QStringList units = {QStringLiteral("B"), QStringLiteral("KiB"), QStringLiteral("MiB"),
+        QStringLiteral("GiB"), QStringLiteral("TiB"), QStringLiteral("PiB"), QStringLiteral("EiB")};
+    static const QStringList shortUnits = {QStringLiteral("B"), QStringLiteral("K"), QStringLiteral("M"),
+        QStringLiteral("G"), QStringLiteral("T"), QStringLiteral("P"), QStringLiteral("E")};
+    if (tray) {
+        if (std::abs(std::round(scaled.value)) > (value < 0 ? 99 : 999))
+            return {QStringLiteral("ERR"), {}};
+        return {compact(scaled.value), shortUnits[scaled.unit]};
+    }
+    QString number = QString::number(scaled.value, 'f', standardDecimalPlaces);
+    while (number.endsWith(QLatin1Char('0'))) number.chop(1);
+    if (number.endsWith(QLatin1Char('.'))) number.chop(1);
+    if (number == QStringLiteral("-0")) number = QStringLiteral("0");
+    return {localizeDecimalPoint(number), units[scaled.unit]};
+}
 }
 QString localizeDecimalPoint(QString number)
 {
@@ -63,6 +90,10 @@ QString formatTrayMemoryNumber(double mebibytes)
 {
     return formatTrayNumber(scaleMemory(mebibytes).value);
 }
+QString formatTrayByteNumber(double bytes)
+{
+    return formatTrayNumber(scaleBytes(bytes, true).value);
+}
 
 UptimeValue formatUptime(double seconds)
 {
@@ -94,6 +125,10 @@ QString formatDigitalSensorValue(const SensorDescriptor &descriptor, double valu
         return localizeDecimalPoint(text);
     };
     switch (descriptor.kind) {
+    case SensorKind::Bytes: {
+        const auto formatted = byteValue(value, true);
+        return formatted.number + formatted.unit;
+    }
     case SensorKind::Memory: {
         constexpr std::array<char, 4> units = {{'M','G','T','P'}};
         if (std::abs(value) < 1) value = 0;
@@ -127,6 +162,7 @@ FormattedValue formatSensorValue(const SensorDescriptor &descriptor, double valu
         return {compact(giga ? value / 1000 : value), tray ? (giga ? QStringLiteral("G") : QStringLiteral("M"))
             : (giga ? QStringLiteral("GHz") : QStringLiteral("MHz"))};
     }
+    if (descriptor.kind == SensorKind::Bytes) return byteValue(value, tray);
     if (descriptor.kind == SensorKind::Memory) {
         const QStringList units = {QStringLiteral("MiB"), QStringLiteral("GiB"), QStringLiteral("TiB"), QStringLiteral("PiB")};
         const QStringList shortUnits = {QStringLiteral("M"), QStringLiteral("G"), QStringLiteral("T"), QStringLiteral("P")};

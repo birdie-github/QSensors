@@ -47,6 +47,7 @@ configurable alerts, and an at-a-glance view of your system's health.
 | CPU | Overall usage, per-physical-core frequency, and average/maximum frequency across physical cores. |
 | Memory | RAM used and available, plus swap usage, with amount and percentage views. |
 | Battery | Charge percentage for each system battery that exposes it. |
+| Disk I/O | Bytes read and written per update, and I/O busy percentage, for each supported whole drive. |
 | System | Uptime on the dashboard. |
 
 Hardware coverage depends on your kernel drivers and libsensors. GPU and disk

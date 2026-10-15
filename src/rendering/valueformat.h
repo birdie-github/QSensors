@@ -13,5 +13,6 @@ QString localizeDecimalPoint(QString number);
 // Unit-free tray numbers: four characters, including decimal point/sign.
 QString formatTrayNumber(double value);
 QString formatTrayMemoryNumber(double mebibytes);
+QString formatTrayByteNumber(double bytes);
 FormattedValue formatSensorValue(const SensorDescriptor &descriptor, double value, bool tray = false);
 }

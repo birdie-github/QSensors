@@ -53,6 +53,7 @@ QStringList trayFitTemplates(SensorKind kind)
     switch (kind) {
     case SensorKind::Frequency:
         return {QStringLiteral("####")};
+    case SensorKind::Bytes:
     case SensorKind::Memory:
         return {QStringLiteral("###"), QStringLiteral("-##")};
     case SensorKind::Fan:
@@ -79,6 +80,7 @@ QString trayUnitSuffix(const SensorDescriptor &descriptor)
     case SensorKind::Energy: return QStringLiteral("J");
     case SensorKind::Fan: return QStringLiteral("kRPM"); // Compact fan values are thousands of RPM.
     case SensorKind::Duration: return QStringLiteral("s");
+    case SensorKind::Bytes:
     case SensorKind::Memory: // Its adaptive suffix comes from formatSensorValue.
     case SensorKind::Frequency: return {};
     }
@@ -103,6 +105,11 @@ QString compactValue(const SensorDescriptor &descriptor, double value, bool show
     }
     if (descriptor.kind == SensorKind::Memory) {
         if (!showUnit) return formatTrayMemoryNumber(value);
+        const auto formatted = formatSensorValue(descriptor, value, true);
+        return formatted.number + formatted.unit;
+    }
+    if (descriptor.kind == SensorKind::Bytes) {
+        if (!showUnit) return formatTrayByteNumber(value);
         const auto formatted = formatSensorValue(descriptor, value, true);
         return formatted.number + formatted.unit;
     }
@@ -774,7 +781,7 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
         + QStringLiteral("|%1|%2|%3").arg(preferences.trayShadow)
             .arg(preferences.trayTransparent).arg(preferences.trayTransparent ? QString() :
                 (preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base)).name(QColor::HexArgb));
-    const bool compactSuffix = descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory;
+    const bool compactSuffix = descriptor.kind == SensorKind::Frequency || descriptor.kind == SensorKind::Memory || descriptor.kind == SensorKind::Bytes;
     const QString suffix = preferences.trayShowUnit ? trayUnitSuffix(descriptor) : QString();
     const QString sizingKey = QString::number(markers) + QLatin1Char('|') + font.toString() + QStringLiteral("|%1|%2|%3|%4|")
         .arg(preferences.trayDigital).arg(preferences.trayShadow).arg(static_cast<int>(descriptor.kind))
