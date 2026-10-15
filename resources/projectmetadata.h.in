@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-only
+#pragma once
+
+// Generated from project.json at configure time; no runtime file is required.
+#define QSENSORS_NAME "@APP_NAME@"
+#define QSENSORS_VERSION "@APP_VERSION@"
+#define QSENSORS_RELEASE_DATE "@APP_RELEASE_DATE@"
+#define QSENSORS_ORGANIZATION "@APP_ORGANIZATION@"
+#define QSENSORS_DOMAIN "@APP_DOMAIN@"
+#define QSENSORS_DESKTOP_ID "@APP_DESKTOP_ID@"
+#define QSENSORS_DESCRIPTION "@APP_DESCRIPTION@"
+#define QSENSORS_REPOSITORY "@APP_REPOSITORY@"
+#define QSENSORS_LICENSE "@APP_LICENSE@"

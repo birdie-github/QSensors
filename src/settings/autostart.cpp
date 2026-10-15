@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "settings/autostart.h"
+#include "projectmetadata.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -11,7 +12,7 @@
 namespace qsensors {
 namespace Autostart {
 namespace {
-const QString relativePath = QStringLiteral("autostart/io.github.birdie_github.QSensors.desktop");
+const QString relativePath = QStringLiteral("autostart/" QSENSORS_DESKTOP_ID ".desktop");
 
 QString execArgument(const QString &path)
 {
@@ -41,7 +42,9 @@ bool enabled()
 
 bool setEnabled(bool enable, QString &error)
 {
-    const QString executable = QCoreApplication::applicationFilePath();
+    // AppImage's executable lives on a temporary mount; persist the outer file.
+    const QString appImage = qEnvironmentVariable("APPIMAGE");
+    const QString executable = appImage.isEmpty() ? QCoreApplication::applicationFilePath() : appImage;
     if (executable.contains(QLatin1Char('\n')) || executable.contains(QLatin1Char('\r'))
         || executable.contains(QLatin1Char('='))) {
         error = QCoreApplication::translate("Autostart", "The executable path cannot be represented in a desktop entry.");
@@ -53,7 +56,7 @@ bool setEnabled(bool enable, QString &error)
         error = QCoreApplication::translate("Autostart", "Cannot create the autostart directory.");
         return false;
     }
-    const QByteArray entry = (QStringLiteral("[Desktop Entry]\nType=Application\nName=QSensors\nTerminal=false\nHidden=")
+    const QByteArray entry = (QStringLiteral("[Desktop Entry]\nType=Application\nName=" QSENSORS_NAME "\nTerminal=false\nHidden=")
         + (enable ? QStringLiteral("false") : QStringLiteral("true"))
         + QStringLiteral("\nExec=") + execArgument(executable) + QLatin1Char('\n')).toUtf8();
     QSaveFile file(path);

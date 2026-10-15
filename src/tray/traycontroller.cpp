@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "tray/traycontroller.h"
+#include "projectmetadata.h"
 #include "alarms/alarmcontroller.h"
 #include "rendering/valueformat.h"
 #include "rendering/digitaltext.h"
@@ -541,9 +542,12 @@ TrayController::TrayController(QWidget *window, SensorPreferencesStore *preferen
     connect(m_quitAction, &QAction::triggered, this, &TrayController::quitRequested);
     connect(m_aboutAction, &QAction::triggered, this, [this] {
         emit showRequested();
-        QMessageBox::about(m_window, tr("About QSensors"),
-            tr("QSensors %1\nA Qt hardware-sensor monitor inspired by KSensors.\nLicensed under GPL version 3.")
-                .arg(QCoreApplication::applicationVersion()));
+        QMessageBox::about(m_window, tr("About %1").arg(QCoreApplication::applicationName()),
+            tr("%1 %2\n%3\nReleased: %4\nLicense: %5\n%6")
+                .arg(QCoreApplication::applicationName(), QCoreApplication::applicationVersion(),
+                     QCoreApplication::translate("main", QSENSORS_DESCRIPTION),
+                     QStringLiteral(QSENSORS_RELEASE_DATE), QStringLiteral(QSENSORS_LICENSE),
+                     QStringLiteral(QSENSORS_REPOSITORY)));
     });
     m_selected = preferences->trayIds();
     connect(preferences, &SensorPreferencesStore::changed, this, [this] {

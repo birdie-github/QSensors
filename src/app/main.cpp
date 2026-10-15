@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "app/singleinstance.h"
+#include "projectmetadata.h"
 #include "settings/numberformat.h"
 #include "alarms/alarmcontroller.h"
 #include "settings/sensorpreferences.h"
@@ -23,18 +24,18 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    QCoreApplication::setApplicationName(QStringLiteral("QSensors"));
-    QCoreApplication::setOrganizationName(QStringLiteral("QSensors"));
-    QCoreApplication::setOrganizationDomain(QStringLiteral("birdie-github.github.io"));
+    QCoreApplication::setApplicationName(QStringLiteral(QSENSORS_NAME));
+    QCoreApplication::setOrganizationName(QStringLiteral(QSENSORS_ORGANIZATION));
+    QCoreApplication::setOrganizationDomain(QStringLiteral(QSENSORS_DOMAIN));
     QCoreApplication::setApplicationVersion(QStringLiteral(QSENSORS_VERSION));
-    QGuiApplication::setDesktopFileName(QStringLiteral("io.github.birdie_github.QSensors"));
+    QGuiApplication::setDesktopFileName(QStringLiteral(QSENSORS_DESKTOP_ID));
     QIcon icon;
     icon.addFile(QStringLiteral(":/icons/qsensors-64.png"));
     icon.addFile(QStringLiteral(":/icons/qsensors-256.png"));
     QApplication::setWindowIcon(icon);
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(QCoreApplication::translate("main", "Linux hardware sensor monitor"));
+    parser.setApplicationDescription(QCoreApplication::translate("main", QSENSORS_DESCRIPTION));
     parser.addHelpOption();
     parser.addVersionOption();
     parser.process(app);
@@ -44,7 +45,7 @@ int main(int argc, char *argv[])
     if (result == qsensors::SingleInstance::Result::ActivatedExisting)
         return 0;
     if (result == qsensors::SingleInstance::Result::Failed) {
-        QMessageBox::critical(nullptr, QStringLiteral("QSensors"), instance.errorString());
+        QMessageBox::critical(nullptr, QCoreApplication::applicationName(), instance.errorString());
         return 1;
     }
     app.setQuitOnLastWindowClosed(false);

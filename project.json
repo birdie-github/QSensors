@@ -1,0 +1,23 @@
+{
+  "identity": {
+    "name": "QSensors",
+    "executable": "qsensors",
+    "bundle_namespace": "io.github.birdie_github",
+    "organization": "QSensors",
+    "organization_domain": "birdie-github.github.io"
+  },
+  "release": {
+    "version": "1.0.0",
+    "date": "2026-10-15"
+  },
+  "project": {
+    "description": "A Qt hardware-sensor monitor for Linux inspired by KSensors.",
+    "repository": "https://github.com/birdie-github/QSensors",
+    "license": "GPL-3.0-only"
+  },
+  "platform": {
+    "os": "Linux",
+    "minimum_qt": "6.8",
+    "cpp_standard": 17
+  }
+}

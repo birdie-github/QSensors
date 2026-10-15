@@ -1,0 +1,92 @@
+name: Linux AppImage
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  appimage:
+    name: Linux AppImage (Qt 6.8, x86_64)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config python3 wget file \
+            libsensors-dev libgl-dev libegl-dev \
+            libxkbcommon-dev libxcb-cursor0 libxcb-randr0-dev libwayland-dev
+
+      # Ubuntu 24.04's packaged Qt is older than our required Qt 6.8.
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+
+      - name: Build and stage AppDir
+        run: |
+          set -euo pipefail
+          cmake -S . -B _build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DQSENSORS_BUILD_TESTS=OFF
+          cmake --build _build --parallel "$(nproc)"
+          DESTDIR="$PWD/_build/AppDir" cmake --install _build
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          import json
+          from pathlib import Path
+          metadata = json.loads(Path("project.json").read_text())
+          print("PROJECT_NAME=" + metadata["identity"]["name"])
+          print("PROJECT_VERSION=" + metadata["release"]["version"])
+          print("DESKTOP_ID=" + metadata["identity"]["bundle_namespace"] + "." + metadata["identity"]["name"])
+          PY
+
+      - name: Package AppImage
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/linuxdeploy"
+          mkdir -p "$tools" _build/artifacts
+          wget -q -O "$tools/linuxdeploy-x86_64.AppImage" \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q -O "$tools/linuxdeploy-plugin-qt-x86_64.AppImage" \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x "$tools"/*.AppImage
+          export PATH="$tools:$PATH"
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          export QMAKE="$QT_ROOT_DIR/bin/qmake"
+          export LD_LIBRARY_PATH="$QT_ROOT_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          export EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so"
+          export EXTRA_QT_MODULES="waylandclient;waylandcompositor"
+          export VERSION="$PROJECT_VERSION"
+          export LDAI_OUTPUT="$PWD/_build/artifacts/$PROJECT_NAME-$PROJECT_VERSION-Linux-x86_64.AppImage"
+          export MKSQUASHFS_ARGUMENTS="-comp zstd -Xcompression-level 22 -b 1M"
+          # libsensors and its linked dependencies are collected by linuxdeploy.
+          "$tools/linuxdeploy-x86_64.AppImage" \
+            --appdir _build/AppDir \
+            --desktop-file "_build/AppDir/usr/share/applications/$DESKTOP_ID.desktop" \
+            --icon-file "_build/AppDir/usr/share/icons/hicolor/256x256/apps/$DESKTOP_ID.png" \
+            --library /usr/lib/x86_64-linux-gnu/libxcb.so.1 \
+            --library /usr/lib/x86_64-linux-gnu/libxcb-randr.so.0 \
+            --library /usr/lib/x86_64-linux-gnu/libwayland-client.so.0 \
+            --plugin qt \
+            --output appimage
+          test -f "$LDAI_OUTPUT"
+          for library in libsensors.so.5 libqxcb.so libqwayland-egl.so libqwayland-generic.so; do
+            test -n "$(find _build/AppDir -name "$library" -print -quit)"
+          done
+
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-Linux-AppImage-x86_64-${{ github.sha }}
+          path: _build/artifacts/*.AppImage
+          if-no-files-found: error
+          retention-days: 14
