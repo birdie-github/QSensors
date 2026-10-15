@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QProgressBar>
+#include <QSignalBlocker>
 #include <QPushButton>
 #include <QVBoxLayout>
 
@@ -31,7 +32,8 @@ AlarmEditor::AlarmEditor(QWidget *parent) : QWidget(parent)
         m_flags.append({control, field});
         connect(control, &QCheckBox::toggled, this, [this, field](bool checked) {
             if (m_loading) return;
-            m_value.*field = checked;
+            if (field == &AlarmSettings::active) m_value.setActive(checked);
+            else m_value.*field = checked;
             updateControls();
             emit edited(m_value);
         });
@@ -131,7 +133,6 @@ void AlarmEditor::load(const AlarmSettings &alarm, bool temperature, Temperature
     m_value = alarm;
     m_temperature = temperature;
     m_unit = unit;
-    for (const auto &flag : m_flags) flag.control->setChecked(alarm.*flag.field);
     const auto display = [temperature, unit](double value, bool difference) {
         return !temperature ? value : difference ? temperatureDifferenceToDisplay(value, unit) : temperatureToDisplay(value, unit);
     };
@@ -153,6 +154,12 @@ void AlarmEditor::load(const AlarmSettings &alarm, bool temperature, Temperature
 
 void AlarmEditor::updateControls()
 {
+    // One projection of the draft for both master and action controls. Loading
+    // an empty alarm must not display an enabled master or create an action.
+    for (const auto &flag : m_flags) {
+        const QSignalBlocker blocker(flag.control);
+        flag.control->setChecked(flag.field == &AlarmSettings::active ? m_value.actionsEnabled() : m_value.*flag.field);
+    }
     m_options->setEnabled(m_value.active);
     m_lower->setEnabled(m_value.lowerEnabled);
     m_upper->setEnabled(m_value.upperEnabled);

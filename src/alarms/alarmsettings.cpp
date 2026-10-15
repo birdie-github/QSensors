@@ -36,6 +36,14 @@ bool AlarmSettings::hasActions() const
     return dashboard || table || notify || command || trayMarkers || trayBlink || trayColor;
 }
 
+void AlarmSettings::setActive(bool enabled)
+{
+    active = enabled;
+    // Explicit enabling must select a useful action. Pausing and loading never
+    // clear or invent settings, and re-enabling preserves existing choices.
+    if (enabled && !hasActions()) notify = true;
+}
+
 bool AlarmSettings::valid() const
 {
     return std::isfinite(lower) && std::abs(lower) <= 1e12

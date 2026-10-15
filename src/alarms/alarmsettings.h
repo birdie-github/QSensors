@@ -28,6 +28,7 @@ struct AlarmSettings {
     QString arguments;
 
     bool hasActions() const;
+    void setActive(bool enabled);
     bool actionsEnabled() const { return active && hasActions(); }
     bool enabled() const { return (lowerEnabled || upperEnabled) && actionsEnabled(); }
     bool valid() const;

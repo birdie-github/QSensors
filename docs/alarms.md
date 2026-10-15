@@ -17,8 +17,12 @@ Alarm column (between Tray and Value) shows whether any action is selected and
 the master switch is on. It is a configuration indicator, not a live violation
 indicator. Unchecking it pauses every automatic action while preserving limits,
 action selections, colors, hysteresis, and the command. Checking it restores
-those choices; an unconfigured sensor opens the Alarms tab instead of inventing
-a threshold/action. Automatic triggering still requires a limit.
+those choices. Explicit enabling from either the column or the Alarms tab selects
+Show a notification if no actions were selected. Both column-toggle directions
+select/highlight that sensor and open its Alarms tab. Neither operation invents
+a threshold: automatic triggering still requires a limit. Opening or resetting
+an empty configuration leaves actions off, and both master indicators appear off
+until an action is selected.
 
 The master state is stored as `Alarm/enabled` (default true), so older alarm
 configurations retain their behavior. The field participates in equality and
@@ -124,7 +128,7 @@ Notifications are labelled Test Alarm; command execution is real.
 
 The Alarms tab has a **Reset** button beside Test Alarm. It replaces only the
 current sensor's alarm draft with `AlarmSettings{}`: both limits and all seven
-actions disabled (the master switch returns to its default on), lower/upper values 0/100 in canonical units, zero hysteresis,
+actions disabled (both master indicators appear off), lower/upper values 0/100 in canonical units, zero hysteresis,
 default colors, and empty executable/arguments. Other sensor settings and other
 sensors are preserved. Apply/OK saves the reset and removes the default alarm
 subgroup; Cancel discards it. A test already in progress keeps its original

@@ -42,10 +42,13 @@ original names, sources and stable IDs. The columns are Source / sensor,
 Dashboard, Tray, Alarm, and Value. Alarm is checked when at least one action is
 selected and the sensor's alarm master switch is on; automatic triggering also
 requires a configured limit. Unchecking Alarm pauses all actions without clearing
-any alarm settings. Checking restores the retained configuration. If no actions
-are configured, checking opens the Alarms tab and leaves the indicator unchecked
-until an action is selected. The Alarms tab's Enable alarms control mirrors the
-master switch and leaves paused choices visible but disabled. All edits follow
+any alarm settings. Checking restores the retained configuration. Enabling when
+no actions are selected automatically selects Show a notification, so the row
+stays checked. Both checking and unchecking explicitly select/highlight that
+sensor's row and open its Alarms tab, even when a different sensor was selected.
+The Alarms tab's Enable alarms control uses the same enable operation and
+reflects the same master/action state; paused choices remain visible but disabled.
+Opening or resetting an empty configuration does not create an action. All edits follow
 Apply/OK/Cancel. Test Alarm remains an explicit manual test even while paused.
 Dashboard and tray checkboxes are directly available in each sensor row. The Value column shows live readings with applied
 calibration and display units; unapplied edits do not change the preview. All

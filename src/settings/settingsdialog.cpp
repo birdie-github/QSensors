@@ -19,6 +19,7 @@
 #include <QLineEdit>
 #include <QTreeWidget>
 #include <QHeaderView>
+#include <QItemSelectionModel>
 #include <QCollator>
 #include <QLocale>
 #include <QScreen>
@@ -163,16 +164,16 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
         else if (column == TrayColumn) p.tray = item->checkState(TrayColumn) == Qt::Checked;
         else {
             const bool checked = item->checkState(AlarmColumn) == Qt::Checked;
-            p.alarm.active = checked;
-            const bool configure = checked && !p.alarm.hasActions();
-            {
-                const QSignalBlocker blocker(m_list);
-                item->setCheckState(AlarmColumn, p.alarm.actionsEnabled() ? Qt::Checked : Qt::Unchecked);
-            }
-            if (configure) {
-                selectSensor(id);
-                m_sensorTabs->setCurrentWidget(m_alarmEditor);
-            }
+            p.alarm.setActive(checked);
+            // Checkbox clicks need not select a tree row. Capture/save the new
+            // state first, then explicitly select and load exactly this sensor.
+            // Block the selection callback so it cannot reload stale controls.
+            const QSignalBlocker blocker(m_list);
+            m_list->setCurrentItem(item, AlarmColumn, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+            loadSensor(id);
+            m_sensorTabs->setCurrentWidget(m_alarmEditor);
+            m_list->scrollToItem(item);
+            return;
         }
         if (id == m_currentId) loadSensor(id);
     });
@@ -667,7 +668,7 @@ void SettingsDialog::populate()
         if (sensorSupportsTray(id)) item->setCheckState(TrayColumn, p.tray ? Qt::Checked : Qt::Unchecked);
         else { item->setText(TrayColumn, tr("—")); item->setToolTip(TrayColumn, tr("Dashboard only")); }
         item->setCheckState(AlarmColumn, p.alarm.actionsEnabled() ? Qt::Checked : Qt::Unchecked);
-        item->setToolTip(AlarmColumn, tr("Enable or pause configured alarm actions without clearing their settings. Automatic alarms also require a limit."));
+        item->setToolTip(AlarmColumn, tr("Enable or pause alarms and open this sensor's Alarms tab. Enabling with no selected actions chooses Show a notification. Automatic alarms also require a limit."));
         item->setToolTip(NameColumn, tr("Original name: %1\nSource: %2\n%3").arg(descriptor.label, source, id));
         if (!first) first = item;
         if (id == previous) selected = item;
