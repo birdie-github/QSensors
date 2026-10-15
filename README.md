@@ -101,10 +101,10 @@ readings—while replacing its legacy desktop stack and expanding customization.
 
 | Area | [KSensors5](https://sourceforge.net/projects/ksensors5/) SourceForge | QSensors |
 | --- | --- | --- |
-| Sensor backend | Legacy libsensors interfaces. | Current libsensors interfaces plus Linux CPU, memory, swap, and uptime readings. |
+| Dependencies | Needs multiple KDE components | Uses only Qt6 |
 | Dashboard | Original draggable sensor panels. | Scalable tiles, three tile shapes, custom palettes/fonts, table view, and compact mode. |
 | Alarm actions | A choice between sound playback and a command. | Independently combinable visual, notification, command, and tray actions, with hysteresis, pause, reset, and draft testing. |
-| Charts | Present | Currently missing |
+| Charts | ☑️ Present | ❌ Currently missing |
 
 The **Classic KSensors** palette and digital readouts retain the original app's
 visual character, with modern display sizes and desktop integration.
