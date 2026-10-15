@@ -119,7 +119,7 @@ QString compactValue(const SensorDescriptor &descriptor, double value, bool show
     }
     if (text.size() > 5)
         text = QString::number(descriptor.kind == SensorKind::Fan ? value / 1000.0 : value, 'g', 2);
-    return text + trayUnitSuffix(descriptor);
+    return localizeDecimalPoint(text) + trayUnitSuffix(descriptor);
 }
 
 struct FontTraits {
@@ -811,7 +811,8 @@ void TrayController::openSettings()
 bool TrayController::eventFilter(QObject *watched, QEvent *event)
 {
     if (event->type() == QEvent::ApplicationPaletteChange
-        || event->type() == QEvent::ApplicationFontChange) {
+        || event->type() == QEvent::ApplicationFontChange
+        || event->type() == QEvent::LocaleChange) {
         for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
             updateEntry(it.key(), it.value());
         }

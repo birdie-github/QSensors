@@ -72,7 +72,11 @@ RAM amounts therefore show `G`. Unchecking the option retains that scale and
 uses the shared four-character numeric formatter, as do all other unit-free
 non-frequency tray readings. It counts the decimal point and minus sign,
 uses up to two decimal places that fit, and removes trailing zeros: examples
-include `14.5`, `1.25`, `45.3`, and `1234`. Rounding overflows retry with fewer
+include `14.5`, `1.25`, `45.3`, and `1234`. Decimal separators follow `QLocale`,
+so comma locales show `14,5`, `1,25`, and `45,3`. Separator localization occurs
+before checking the character budget; grouping separators are not added.
+Unit-bearing tray readings use the same separator helper. Font fitting measures
+the resulting localized text, and locale-change events refresh tray entries. Rounding overflows retry with fewer
 decimals. Very small/large values use compact scientific notation where it fits
 (`1e-3`, `1e4`); otherwise the icon shows `ERR`, with the value in its tooltip.
 Tiny nonzero numbers do not silently round to zero. Existing memory values

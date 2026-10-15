@@ -27,6 +27,11 @@ QString compact(double value)
     return QLocale().toString(std::clamp(value, -limit, limit), 'f', decimals);
 }
 }
+QString localizeDecimalPoint(QString number)
+{
+    return number.replace(QLatin1Char('.'), QLocale().decimalPoint());
+}
+
 QString formatTrayNumber(double value)
 {
     if (!std::isfinite(value)) return QStringLiteral("—");
@@ -42,6 +47,7 @@ QString formatTrayNumber(double value)
             if (value != 0) continue; // Do not turn a tiny nonzero reading into zero.
             text = QStringLiteral("0");
         }
+        text = localizeDecimalPoint(text);
         if (text.size() <= characterBudget) return text;
     }
     // Drop the redundant plus and exponent padding: 1e+04 becomes 1e4.
@@ -84,7 +90,7 @@ QString formatDigitalSensorValue(const SensorDescriptor &descriptor, double valu
             while (text.endsWith(QLatin1Char('0'))) text.chop(1);
             if (text.endsWith(QLatin1Char('.'))) text.chop(1);
         }
-        return text.replace(QLatin1Char('.'), QLocale().decimalPoint());
+        return localizeDecimalPoint(text);
     };
     switch (descriptor.kind) {
     case SensorKind::Memory: {
