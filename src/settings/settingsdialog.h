@@ -22,10 +22,14 @@ class QFontComboBox;
 
 namespace qsensors {
 
+class AlarmEditor;
+class AlarmController;
+
 class SettingsDialog final : public QDialog {
     Q_OBJECT
 public:
     SettingsDialog(SensorPreferencesStore *store, const QList<SensorDescriptor> &catalog, QWidget *parent);
+    void setAlarmController(AlarmController *alarms);
     void updateCatalog(const QList<SensorDescriptor> &catalog);
     void selectSensor(const QString &id);
     void selectTraySensor(const QString &id);
@@ -71,6 +75,8 @@ private:
     double fromDisplay(double value, bool difference) const;
     double toDisplay(double value, bool difference) const;
 
+    AlarmEditor *m_alarmEditor;
+    AlarmController *m_alarms = nullptr;
     SensorPreferencesStore *m_store;
     QHash<QString, SensorPreferences> m_draft;
     QHash<QString, SensorDescriptor> m_catalog;

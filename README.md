@@ -1,5 +1,8 @@
 # QSensors
 
+Per-sensor threshold alarms, seven independent actions, and draft testing are
+described in [docs/alarms.md](docs/alarms.md).
+
 A small Linux hardware-sensor monitor inspired by KSensors 0.7.3, rebuilt
 with Qt 6 Widgets and modern libsensors. No KDE dependencies.
 

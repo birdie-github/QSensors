@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ui/sensortablemodel.h"
+#include "alarms/alarmcontroller.h"
 #include "rendering/valueformat.h"
 #include "settings/sensorpreferences.h"
 
@@ -14,6 +15,15 @@ namespace qsensors {
 
 SensorTableModel::SensorTableModel(SensorPreferencesStore *preferences, QObject *parent)
     : QAbstractTableModel(parent), m_preferences(preferences) {}
+
+void SensorTableModel::setAlarmController(AlarmController *alarms)
+{
+    m_alarms = alarms;
+    connect(alarms, &AlarmController::visualChanged, this, [this](const QString &id) {
+        const auto row = m_rows.constFind(id);
+        if (row != m_rows.cend()) emit dataChanged(index(row.value(), 0), index(row.value(), columnCount() - 1), {Qt::ForegroundRole});
+    });
+}
 
 int SensorTableModel::rowCount(const QModelIndex &parent) const
 {
@@ -34,6 +44,10 @@ QVariant SensorTableModel::data(const QModelIndex &index, int role) const
     const auto &sample = m_samples[index.row()];
     if (role == SortRole && index.column() == 2)
         return sample.available ? QVariant(sample.value) : QVariant();
+    if (role == Qt::ForegroundRole && m_alarms) {
+        const auto alarm = m_alarms->visual(descriptor.id);
+        if (alarm && alarm->table) return alarm->tableColor;
+    }
     const auto preferences = m_preferences->value(descriptor.id);
     if (role == Qt::ForegroundRole && (preferences.foreground.isValid() || preferences.background.isValid()))
         return dashboardTextColor(preferences, QApplication::palette().color(QPalette::Text));

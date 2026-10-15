@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "app/singleinstance.h"
+#include "alarms/alarmcontroller.h"
 #include "settings/sensorpreferences.h"
 #include "settings/settingsdialog.h"
 #include "sensors/sensorpresentation.h"
@@ -45,6 +46,7 @@ int main(int argc, char *argv[])
     }
     app.setQuitOnLastWindowClosed(false);
     qsensors::SensorPreferencesStore preferences;
+    qsensors::AlarmController alarms(&preferences);
     qsensors::SensorPresentation presentation(&preferences);
     qsensors::SensorTableModel model(&preferences);
     qsensors::SensorMonitor monitor(&preferences);
@@ -53,6 +55,14 @@ int main(int argc, char *argv[])
     QPointer<qsensors::SettingsDialog> settingsDialog;
     qsensors::Dashboard dashboard(&model, &preferences);
     qsensors::TrayController tray(&dashboard, &preferences);
+    dashboard.setAlarmController(&alarms);
+    tray.setAlarmController(&alarms);
+    QObject::connect(&alarms, &qsensors::AlarmController::notificationRequested,
+                     &tray, &qsensors::TrayController::showAlarmNotification);
+    QObject::connect(&tray, &qsensors::TrayController::alarmNotificationFailed,
+                     &alarms, &qsensors::AlarmController::actionError);
+    QObject::connect(&alarms, &qsensors::AlarmController::actionError, &dashboard,
+                     [&dashboard](const QString &, const QString &message) { dashboard.statusBar()->showMessage(message, 10000); });
     dashboard.setIntervalSeconds(monitor.intervalSeconds());
     dashboard.setActions(tray.hideAction(), tray.settingsAction(),
                          tray.rescanAction(), tray.aboutAction(), tray.quitAction());
@@ -108,6 +118,8 @@ int main(int argc, char *argv[])
         bar->showMessage(text);
     });
     QObject::connect(&monitor, &qsensors::SensorMonitor::snapshotReady,
+                     &alarms, &qsensors::AlarmController::applySnapshot);
+    QObject::connect(&monitor, &qsensors::SensorMonitor::snapshotReady,
                      &presentation, &qsensors::SensorPresentation::applySnapshot);
     QObject::connect(&presentation, &qsensors::SensorPresentation::snapshotReady,
                      &dashboard, &qsensors::Dashboard::applySnapshot);
@@ -124,9 +136,10 @@ int main(int argc, char *argv[])
         if (settingsDialog)
             settingsDialog->applySnapshot(snapshot);
     });
-    const auto showSettings = [&dashboard, &preferences, &rawCatalog, &settingsDialog, &monitor](const QString &id) {
+    const auto showSettings = [&dashboard, &preferences, &rawCatalog, &settingsDialog, &monitor, &alarms](const QString &id) {
         if (!settingsDialog) {
             settingsDialog = new qsensors::SettingsDialog(&preferences, rawCatalog, &dashboard);
+            settingsDialog->setAlarmController(&alarms);
             QObject::connect(settingsDialog.data(), &qsensors::SettingsDialog::previewIdsChanged,
                              &monitor, &qsensors::SensorMonitor::setPreviewIds);
             // Also release demand if Quit deletes the dialog without a hide event.

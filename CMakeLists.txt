@@ -17,6 +17,12 @@ find_package(Sensors REQUIRED)
 qt_standard_project_setup(REQUIRES 6.8)
 
 qt_add_executable(qsensors
+    src/alarms/alarmsettings.cpp
+    src/alarms/alarmsettings.h
+    src/alarms/alarmcontroller.cpp
+    src/alarms/alarmcontroller.h
+    src/settings/alarmeditor.cpp
+    src/settings/alarmeditor.h
     src/app/main.cpp
     src/app/singleinstance.cpp
     src/app/singleinstance.h

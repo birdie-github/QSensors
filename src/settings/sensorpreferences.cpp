@@ -76,7 +76,7 @@ SensorPreferences defaultSensorPreferences(const QString &id)
 
 bool SensorPreferences::operator==(const SensorPreferences &other) const
 {
-    return position == other.position && dashboard == other.dashboard && tray == other.tray && label == other.label
+    return alarm == other.alarm && position == other.position && dashboard == other.dashboard && tray == other.tray && label == other.label
         && multiplier == other.multiplier && offset == other.offset
         && foreground == other.foreground && background == other.background
         && dashboardInterval == other.dashboardInterval && trayInterval == other.trayInterval
@@ -121,6 +121,7 @@ double number(QSettings &settings, const QString &key, double fallback, double l
 SensorPreferences readPreferences(QSettings &settings, const QString &id)
 {
     SensorPreferences p = defaultSensorPreferences(id);
+    p.alarm = readAlarmSettings(settings);
     p.dashboard = boolean(settings, QStringLiteral("dashboard"), false);
     p.tray = boolean(settings, QStringLiteral("tray"), false);
     p.label = settings.value(QStringLiteral("label")).toString();
@@ -166,7 +167,7 @@ SensorPreferences readPreferences(QSettings &settings, const QString &id)
 
 bool validPreferences(const SensorPreferences &p)
 {
-    return std::isfinite(p.multiplier) && std::abs(p.multiplier) <= 1e6
+    return p.alarm.valid() && std::isfinite(p.multiplier) && std::abs(p.multiplier) <= 1e6
         && std::isfinite(p.offset) && std::abs(p.offset) <= 1e12
         && std::isfinite(p.rangeLower) && std::abs(p.rangeLower) <= 1e12
         && std::isfinite(p.rangeUpper) && std::abs(p.rangeUpper) <= 1e12
@@ -189,7 +190,10 @@ SensorPreferencesStore::SensorPreferencesStore(QObject *parent) : QObject(parent
         const QString id = sensorInternalId(settings.value(QStringLiteral("id")).toString());
         if (!id.isEmpty()) {
             auto p = readPreferences(settings, id);
-            if (!sensorSupportsTray(id)) p.tray = false;
+            if (!sensorSupportsTray(id)) {
+                p.tray = false;
+                p.alarm.trayMarkers = p.alarm.trayBlink = p.alarm.trayColor = false;
+            }
             m_values.insert(id, p);
         }
         settings.endGroup();
@@ -220,7 +224,7 @@ bool SensorPreferencesStore::apply(const QHash<QString, SensorPreferences> &valu
     }
     for (auto it = values.cbegin(); it != values.cend(); ++it) {
         if (it.key().isEmpty() || !validPreferences(it.value())) {
-            error = tr("Invalid calibration, display range, or refresh preferences for %1.").arg(it.key());
+            error = tr("Invalid alarm, calibration, display range, or refresh preferences for %1.").arg(it.key());
             return false;
         }
     }
@@ -230,7 +234,10 @@ bool SensorPreferencesStore::apply(const QHash<QString, SensorPreferences> &valu
         auto p = it.value();
         // Settings drafts do not edit layout. A drag may have updated it since the dialog opened.
         p.position = p.dashboard ? m_values.value(it.key()).position : std::nullopt;
-        if (!sensorSupportsTray(it.key())) p.tray = false;
+        if (!sensorSupportsTray(it.key())) {
+            p.tray = false;
+            p.alarm.trayMarkers = p.alarm.trayBlink = p.alarm.trayColor = false;
+        }
         if (p == defaultSensorPreferences(it.key())) merged.remove(it.key());
         else merged.insert(it.key(), p);
     }
@@ -288,6 +295,7 @@ bool SensorPreferencesStore::write(const QHash<QString, SensorPreferences> &valu
         const auto p = values.value(id);
         settings.beginGroup(QStringLiteral("Sensor-%1").arg(++index, 3, 10, QLatin1Char('0')));
         settings.setValue(QStringLiteral("id"), sensorConfigId(id));
+        writeAlarmSettings(settings, p.alarm);
         if (p.dashboard) settings.setValue(QStringLiteral("dashboard"), true);
         if (p.dashboard && p.position) {
             settings.setValue(QStringLiteral("column"), p.position->x());

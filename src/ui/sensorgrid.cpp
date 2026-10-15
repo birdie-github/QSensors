@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ui/sensorgrid.h"
+#include "alarms/alarmcontroller.h"
 #include "ui/dashboardcolorsdialog.h"
 #include "rendering/valueformat.h"
 #include "settings/sensorpreferences.h"
@@ -434,6 +435,15 @@ bool SensorGrid::trimBounds()
     return true;
 }
 
+void SensorGrid::setAlarmController(AlarmController *alarms)
+{
+    m_alarms = alarms;
+    connect(alarms, &AlarmController::visualChanged, this, [this](const QString &id) {
+        const auto position = m_positions.constFind(id);
+        if (position != m_positions.cend()) viewport()->update(cellRect(position.value()));
+    });
+}
+
 void SensorGrid::paintEvent(QPaintEvent *event)
 {
     QPainter painter(viewport());
@@ -455,7 +465,12 @@ void SensorGrid::paintEvent(QPaintEvent *event)
     const auto draw = [&](const QString &id, const QRect &rect) {
         const auto &tile = m_tiles.constFind(id).value();
         QPalette colors = m_appearance.colors;
-        const auto prefs = m_preferences->value(id);
+        auto prefs = m_preferences->value(id);
+        const auto alarm = m_alarms ? m_alarms->visual(id) : std::nullopt;
+        if (alarm && alarm->dashboard) {
+            prefs.background = alarm->dashboardColor;
+            prefs.dashboardTransparent = false;
+        }
         if (prefs.foreground.isValid() || prefs.background.isValid()) {
             const QColor text = dashboardTextColor(prefs, colors.color(QPalette::Text));
             colors.setColor(QPalette::Active, QPalette::Text, text);

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "tray/traycontroller.h"
+#include "alarms/alarmcontroller.h"
 #include "rendering/valueformat.h"
 #include "rendering/digitaltext.h"
 #include "settings/sensorpreferences.h"
@@ -353,8 +354,10 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
 class NumericIconEngine final : public QIconEngine {
 public:
     NumericIconEngine(const QString &text, const QColor &color, const QFont &font,
-                      const SensorPreferences &preferences, std::shared_ptr<TrayFontSizingState> sizing)
-        : m_text(text), m_color(color), m_font(font), m_preferences(preferences), m_sizing(std::move(sizing)) {}
+                      const SensorPreferences &preferences, std::shared_ptr<TrayFontSizingState> sizing,
+                      bool markers, bool hidden)
+        : m_text(text), m_color(color), m_font(font), m_preferences(preferences), m_sizing(std::move(sizing)),
+          m_markers(markers), m_hidden(hidden) {}
 
     QIconEngine *clone() const override { return new NumericIconEngine(*this); }
     bool isNull() override { return m_text.isEmpty(); }
@@ -379,7 +382,24 @@ public:
                 return result;
             }
         }
-        QPixmap result = numericPixmap(size, m_text, m_color, m_font, m_preferences, *m_sizing);
+        QPixmap result;
+        if (m_hidden) {
+            result = QPixmap(size);
+            result.fill(Qt::transparent);
+        } else if (m_markers && size.height() >= 12) {
+            const int band = std::max(3, size.height() / 8);
+            result = QPixmap(size);
+            result.fill(m_preferences.trayTransparent ? QColor(Qt::transparent)
+                : m_preferences.trayBackground.isValid() ? m_preferences.trayBackground
+                : QApplication::palette().color(QPalette::Base));
+            QPainter painter(&result);
+            painter.drawPixmap(0, band, numericPixmap(QSize(size.width(), size.height() - 2 * band),
+                m_text, m_color, m_font, m_preferences, *m_sizing));
+            painter.setPen(QPen(m_color, std::max(1, size.width() / 32)));
+            const int x = size.width() / 2;
+            painter.drawLine(x, 0, x, band - 2);
+            painter.drawLine(x, size.height() - band + 1, x, size.height() - 1);
+        } else result = numericPixmap(size, m_text, m_color, m_font, m_preferences, *m_sizing);
         const qint64 pixels = qint64(size.width()) * size.height();
         // Per-current-value LRU: retain the eleven advertised resolutions within
         // 64K raster pixels (~256 KiB at 32bpp). Oversized requests aren't cached.
@@ -421,6 +441,8 @@ private:
     QFont m_font;
     SensorPreferences m_preferences;
     std::shared_ptr<TrayFontSizingState> m_sizing;
+    bool m_markers;
+    bool m_hidden;
     QList<QPixmap> m_pixmaps;
     qint64 m_cachedPixels = 0;
     quint64 m_fontGeneration = 0;
@@ -429,9 +451,10 @@ private:
 };
 
 QIcon numericIcon(const QString &text, const QColor &color, const QFont &font,
-                  const SensorPreferences &preferences, const std::shared_ptr<TrayFontSizingState> &sizing)
+                  const SensorPreferences &preferences, const std::shared_ptr<TrayFontSizingState> &sizing,
+                  bool markers = false, bool hidden = false)
 {
-    return QIcon(new NumericIconEngine(text, color, font, preferences, sizing));
+    return QIcon(new NumericIconEngine(text, color, font, preferences, sizing, markers, hidden));
 }
 
 } // namespace
@@ -643,6 +666,10 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
     const bool available = m_descriptors.contains(id) && sample.available && std::isfinite(sample.value) && sample.timestamp.isValid();
     auto preferences = m_preferences->value(id);
     preferences.trayDigital = preferences.trayDigital && descriptor.kind == SensorKind::Frequency;
+    const auto alarm = m_alarms ? m_alarms->visual(id) : std::nullopt;
+    const bool markers = alarm && alarm->trayMarkers;
+    const bool hidden = m_alarms && m_alarms->trayHidden(id);
+    if (alarm && alarm->trayColor) preferences.trayForeground = alarm->trayTextColor;
     const QString text = !available ? QStringLiteral("—")
         : preferences.trayDigital
             ? (sample.value < 1 || sample.value > 9999 ? QStringLiteral("ERR")
@@ -675,11 +702,11 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
             : QApplication::palette().color(QPalette::Text);
     QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     if (!preferences.trayFontFamily.isEmpty()) font.setFamily(preferences.trayFontFamily);
-    const QString key = QString::number(preferences.trayDigital) + QLatin1Char('|') + text + QStringLiteral("|") + color.name(QColor::HexArgb) + font.toString()
+    const QString key = QString::number(markers) + QLatin1Char('|') + QString::number(preferences.trayDigital) + QLatin1Char('|') + text + QStringLiteral("|") + color.name(QColor::HexArgb) + font.toString()
         + QStringLiteral("|%1|%2|%3").arg(preferences.trayShadow)
             .arg(preferences.trayTransparent).arg(preferences.trayTransparent ? QString() :
                 (preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base)).name(QColor::HexArgb));
-    const QString sizingKey = font.toString() + QStringLiteral("|%1|%2|%3")
+    const QString sizingKey = QString::number(markers) + QLatin1Char('|') + font.toString() + QStringLiteral("|%1|%2|%3")
         .arg(preferences.trayDigital).arg(preferences.trayShadow).arg(static_cast<int>(descriptor.kind));
     if (!entry.fontSizing || entry.fontSizingKey != sizingKey) {
         entry.renderKey.clear();
@@ -687,10 +714,39 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
         entry.fontSizing = std::make_shared<TrayFontSizingState>();
         entry.fontSizing->fitTemplates = trayFitTemplates(descriptor.kind);
     }
-    if (key != entry.renderKey) {
+    const bool changed = key != entry.renderKey;
+    if (changed) {
         entry.renderKey = key;
-        entry.icon->setIcon(numericIcon(text, color, font, preferences, entry.fontSizing));
+        entry.renderedIcon = numericIcon(text, color, font, preferences, entry.fontSizing, markers);
     }
+    if (changed || entry.alarmHidden != hidden) {
+        // Keep the icon registered so the panel slot and context menu do not move.
+        static const QIcon blank = numericIcon(QStringLiteral(" "), Qt::transparent, QFont(),
+            SensorPreferences{}, std::make_shared<TrayFontSizingState>(), false, true);
+        entry.alarmHidden = hidden;
+        entry.icon->setIcon(hidden ? blank : entry.renderedIcon);
+    }
+}
+
+void TrayController::setAlarmController(AlarmController *alarms)
+{
+    m_alarms = alarms;
+    connect(alarms, &AlarmController::trayChanged, this, [this](const QString &id) {
+        auto it = m_entries.find(id);
+        if (it != m_entries.end()) updateEntry(id, it.value());
+    });
+}
+
+void TrayController::showAlarmNotification(const QString &id, const QString &title, const QString &message)
+{
+    QSystemTrayIcon *icon = m_entries.value(id).icon;
+    if (!icon) icon = m_fallback;
+    if (!icon && !m_entries.isEmpty()) icon = m_entries.first().icon;
+    if (!m_available || !icon || !QSystemTrayIcon::supportsMessages()) {
+        emit alarmNotificationFailed(id, tr("Desktop notifications are unavailable: no supporting tray host."));
+        return;
+    }
+    icon->showMessage(title, message, QSystemTrayIcon::Warning, 5000);
 }
 
 void TrayController::openSettings()

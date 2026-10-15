@@ -17,7 +17,8 @@ and rounded to two decimals; malformed/non-finite values fall back to 5 seconds.
 The existing `Monitoring/intervalSeconds` key also accepts old integer values.
 
 Configure Sensors opens directly to the sensor browser/editor, with Properties,
-Dashboard and (if supported) System Tray tabs. It has no outer General/Sensors
+Dashboard, (if supported) System Tray, and Alarms tabs. See [alarms.md](alarms.md)
+for thresholds, actions, tests, and background monitoring. It has no outer General/Sensors
 tabs. Its Apply/OK/Cancel behavior concerns sensor drafts. Global unit changes
 refresh an open editor without replacing canonical calibration/range values or
 other draft edits; Apply/OK always use the current global unit. Calibration
@@ -197,9 +198,9 @@ pressing OK without modifications does not dump the discovered catalog.
 
 Only selected dashboard sensors are exposed by either dashboard view. Tiles
 request those intersecting the viewport, table mode requests the selected
-catalog, and tray selections add background demand. No-selection/no-tray mode
-stops reading while keeping settings accessible. No new polling worker or
-continuous repaint timer is introduced.
+catalog, and tray selections add background demand. With no selected presentations, armed alarms still request readings. Reading
+stops when there is also no alarm or preview demand. No new polling worker is
+introduced; alarm tests and tray blinking use a timer only while active.
 
 Each presentation can use global timing or a retained custom interval in
 0.05–3600 seconds. The existing single-shot timer schedules independent

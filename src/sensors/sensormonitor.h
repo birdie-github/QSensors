@@ -75,6 +75,7 @@ private:
     QSet<QString> m_backgroundSet;
     QSet<QString> m_previewSet;
     QSet<QString> m_demandSet;
+    QSet<QString> m_alarmSet;
     bool m_dashboardIdsExplicit = false;
     bool m_active = false;
     bool m_busy = false;

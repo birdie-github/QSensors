@@ -4,6 +4,7 @@
 #include "sensors/sensortypes.h"
 
 #include <QHash>
+#include <QIcon>
 #include <QMap>
 #include <QObject>
 #include <QStringList>
@@ -18,6 +19,7 @@ class QWidget;
 
 namespace qsensors {
 
+class AlarmController;
 class SensorPreferencesStore;
 struct TrayFontSizingState;
 
@@ -26,9 +28,11 @@ class TrayController final : public QObject {
 public:
     explicit TrayController(QWidget *window, SensorPreferencesStore *preferences, QObject *parent = nullptr);
     ~TrayController() override;
+    void setAlarmController(AlarmController *alarms);
     void start();
     void applySnapshot(const SensorSnapshot &snapshot);
     void openSettings();
+    void showAlarmNotification(const QString &id, const QString &title, const QString &message);
     void addApplicationSettingsMenu(QMenu *menu);
     void setDashboardVisible(bool visible);
     QStringList selectedIds() const { return m_selected; }
@@ -40,6 +44,7 @@ public:
     QAction *quitAction() const { return m_quitAction; }
 
 signals:
+    void alarmNotificationFailed(const QString &id, const QString &message);
     void showRequested();
     void hideRequested();
     void toggleRequested();
@@ -59,6 +64,8 @@ private:
         QMenu *menu = nullptr; // Owns this sensor's reading action.
         QAction *reading = nullptr;
         QString renderKey;
+        QIcon renderedIcon;
+        bool alarmHidden = false;
         QString tooltip;
         QString fontSizingKey;
         std::shared_ptr<TrayFontSizingState> fontSizing;
@@ -70,6 +77,7 @@ private:
     QSystemTrayIcon *createIcon();
 
     QWidget *m_window;
+    AlarmController *m_alarms = nullptr;
     SensorPreferencesStore *m_preferences;
     std::unique_ptr<QMenu> m_menu;
     QAction *m_dashboardAction;

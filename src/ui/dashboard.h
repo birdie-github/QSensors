@@ -22,6 +22,7 @@ namespace qsensors {
 
 class SensorTableModel;
 class SensorGrid;
+class AlarmController;
 class SensorPreferencesStore;
 
 class Dashboard final : public QMainWindow {
@@ -31,6 +32,7 @@ public:
     explicit Dashboard(SensorTableModel *model, SensorPreferencesStore *preferences, QWidget *parent = nullptr);
     ~Dashboard() override;
     void applySnapshot(const SensorSnapshot &snapshot);
+    void setAlarmController(AlarmController *alarms);
     void clearReadings();
     void setIntervalSeconds(double seconds);
     void setTrayAvailable(bool available);

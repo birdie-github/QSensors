@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 
+#include "alarms/alarmsettings.h"
 #include <QColor>
 #include <QHash>
 #include <QObject>
@@ -30,6 +31,7 @@ QString sensorConfigId(const QString &id);
 QString sensorInternalId(const QString &id);
 
 struct SensorPreferences {
+    AlarmSettings alarm;
     std::optional<QPoint> position; // Dashboard cell, saved with the sensor.
     bool dashboard = false;
     bool tray = false;

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "settings/settingsdialog.h"
+#include "settings/alarmeditor.h"
+#include "alarms/alarmcontroller.h"
 #include "rendering/valueformat.h"
 
 #include <QCheckBox>
@@ -119,7 +121,7 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     m_list->setColumnWidth(3, 130);
     browserLayout->addWidget(m_list);
     auto *disableAll = new QPushButton(tr("Disable all sensors"), browser);
-    disableAll->setToolTip(tr("Clear dashboard and tray selections, including sensors hidden by search. Changes take effect on Apply or OK."));
+    disableAll->setToolTip(tr("Clear dashboard and tray selections, including sensors hidden by search. Alarms remain enabled. Changes take effect on Apply or OK."));
     browserLayout->addWidget(disableAll);
     sensors->addWidget(browser);
     browser->setMinimumWidth(340);
@@ -165,6 +167,17 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     m_sensorTabs->addTab(m_dashboardControls.page, tr("Dashboard"));
     m_trayControls = createPresentationPage(true);
     m_sensorTabs->addTab(m_trayControls.page, tr("System Tray"));
+    m_alarmEditor = new AlarmEditor(m_sensorTabs);
+    m_sensorTabs->addTab(m_alarmEditor, tr("Alarms"));
+    connect(m_alarmEditor, &AlarmEditor::edited, this, [this](const AlarmSettings &alarm) {
+        if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].alarm = alarm;
+    });
+    connect(m_alarmEditor, &AlarmEditor::testRequested, this, [this] {
+        if (m_alarms && !m_currentId.isEmpty()) {
+            m_alarmEditor->setError({});
+            m_alarms->test(m_currentId, m_draft.value(m_currentId));
+        }
+    });
     scroll->setWidget(m_editor);
     sensors->setChildrenCollapsible(false);
     sensors->setStretchFactor(0, 1);
@@ -742,7 +755,7 @@ void SettingsDialog::loadSensor(const QString &id)
     m_memoryDisplay->setVisible(memory);
     const int trayIndex = m_sensorTabs->indexOf(m_trayControls.page);
     if (!sensorSupportsTray(id) && trayIndex >= 0) m_sensorTabs->removeTab(trayIndex);
-    else if (sensorSupportsTray(id) && trayIndex < 0) m_sensorTabs->addTab(m_trayControls.page, tr("System Tray"));
+    else if (sensorSupportsTray(id) && trayIndex < 0) m_sensorTabs->insertTab(m_sensorTabs->indexOf(m_alarmEditor), m_trayControls.page, tr("System Tray"));
     loadPresentation(m_dashboardControls, false);
     loadPresentation(m_trayControls, true);
     m_gauge->setChecked(p.dashboardGauge && sensorSupportsGauge(id, descriptor.kind));
@@ -755,6 +768,9 @@ void SettingsDialog::loadSensor(const QString &id)
     m_trayDigital->setChecked(p.trayDigital);
     loadNumber(m_multiplier, p.multiplier);
     const QString unit = currentIsTemperature() ? temperatureUnitText(m_unit) : descriptor.unit;
+    m_alarmEditor->load(p.alarm, currentIsTemperature(), m_unit, unit, sensorSupportsTray(id));
+    m_alarmEditor->setTestRemaining(m_alarms ? m_alarms->testRemaining(id) : 0);
+    if (m_alarms) m_alarmEditor->setError(m_alarms->lastError(id));
     m_offset->setSuffix(unit.isEmpty() ? QString() : QLatin1Char(' ') + unit);
     m_lower->setSuffix(m_offset->suffix());
     m_upper->setSuffix(m_offset->suffix());
@@ -809,9 +825,26 @@ void SettingsDialog::updateColorButtons()
     update(m_trayControls.background, p.trayBackground);
 }
 
+void SettingsDialog::setAlarmController(AlarmController *alarms)
+{
+    m_alarms = alarms;
+    connect(alarms, &AlarmController::testProgress, this, [this](const QString &id, int remaining) {
+        if (id == m_currentId) m_alarmEditor->setTestRemaining(remaining);
+    });
+    connect(alarms, &AlarmController::actionError, this, [this](const QString &id, const QString &message) {
+        if (id == m_currentId) m_alarmEditor->setError(message);
+    });
+}
+
 bool SettingsDialog::applyChanges()
 {
     for (auto it = m_draft.cbegin(); it != m_draft.cend(); ++it) {
+        if (!it->alarm.valid()) {
+            selectSensor(it.key());
+            m_sensorTabs->setCurrentWidget(m_alarmEditor);
+            QMessageBox::warning(this, tr("Invalid alarm"), tr("Check the limits and executable. Hysteresis must be nonnegative and, with two limits, no greater than half their separation."));
+            return false;
+        }
         if (it->customRange && it->rangeLower >= it->rangeUpper) {
             QMessageBox::warning(this, tr("Invalid gauge range"), tr("The minimum must be below the maximum for %1.").arg(it.key()));
             return false;

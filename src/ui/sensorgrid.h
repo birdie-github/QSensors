@@ -10,12 +10,14 @@
 namespace qsensors {
 class SensorPreferencesStore;
 // Sparse fixed cells; viewport resizing never rearranges sensors.
+class AlarmController;
 class SensorGrid final : public QAbstractScrollArea {
     Q_OBJECT
 public:
     explicit SensorGrid(SensorPreferencesStore *preferences, QWidget *parent = nullptr);
     int tileSize() const { return m_style.size; }
     QSize fieldSize() const;
+    void setAlarmController(AlarmController *alarms);
     QSize fieldSizeForTileSize(int size) const;
     int tileSizeForFieldSize(const QSize &size) const;
     void setCompactView(bool compact);
@@ -77,6 +79,7 @@ private:
     void expandTo(const QPoint &cell);
     bool trimBounds();
 
+    AlarmController *m_alarms = nullptr;
     SensorPreferencesStore *m_preferences;
     QHash<QString, Tile> m_tiles;
     QHash<QString, QPoint> m_positions;

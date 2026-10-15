@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ui/dashboard.h"
+#include "alarms/alarmcontroller.h"
 #include "ui/sensortablemodel.h"
 #include "ui/sensorgrid.h"
 #include "settings/sensorpreferences.h"
@@ -609,6 +610,12 @@ void Dashboard::refreshPresentation()
     // requesting extra readings or applying the hidden view's formatting work.
     if ((m_compact || m_stack->currentIndex() == 1) ? m_gridDirty : m_tableDirty)
         updatePresentation({}, true);
+}
+
+void Dashboard::setAlarmController(AlarmController *alarms)
+{
+    m_grid->setAlarmController(alarms);
+    m_model->setAlarmController(alarms);
 }
 
 void Dashboard::clearReadings()

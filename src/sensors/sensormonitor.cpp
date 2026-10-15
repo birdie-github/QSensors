@@ -78,6 +78,7 @@ SensorMonitor::SensorMonitor(SensorPreferencesStore *preferences, QObject *paren
     connect(m_worker, &SensorWorker::finished, this, &SensorMonitor::completed, Qt::QueuedConnection);
     connect(&m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
     m_thread.start();
+    rebuildDemand();
 }
 
 SensorMonitor::~SensorMonitor()
@@ -186,6 +187,12 @@ void SensorMonitor::rebuildDemand()
     };
     append(m_backgroundIds);
     append(m_previewIds);
+    m_alarmSet.clear();
+    const auto values = m_preferences->values();
+    for (auto it = values.cbegin(); it != values.cend(); ++it) {
+        if (it->alarm.enabled()) m_alarmSet.insert(it.key());
+    }
+    append(m_alarmSet.values());
 }
 
 qint64 SensorMonitor::globalIntervalMilliseconds() const
@@ -206,6 +213,7 @@ qint64 SensorMonitor::acquisitionMilliseconds(const QString &id) const
     qint64 period = std::numeric_limits<qint64>::max();
     if (m_dashboardSet.contains(id)) period = std::min(period, intervalMilliseconds(id, false));
     if (m_backgroundSet.contains(id)) period = std::min(period, intervalMilliseconds(id, true));
+    if (m_alarmSet.contains(id)) period = std::min(period, globalIntervalMilliseconds());
     if (m_previewSet.contains(id)) period = std::min(period, globalIntervalMilliseconds());
     return period;
 }
@@ -237,6 +245,7 @@ void SensorMonitor::pruneDeadlines()
 
 void SensorMonitor::resetSchedule()
 {
+    rebuildDemand();
     m_acquisitionDue.clear();
     m_acquisitionPeriods.clear();
     m_dashboardDue.clear();
