@@ -90,13 +90,16 @@ AlarmSettings readAlarmSettings(QSettings &settings)
 void writeAlarmSettings(QSettings &settings, const AlarmSettings &alarm)
 {
     const AlarmSettings defaults;
-    if (alarm == defaults) return;
     settings.beginGroup(QStringLiteral("Alarm"));
-    for (const auto &[key, field] : flags) settings.setValue(QLatin1String(key), alarm.*field);
-    for (const auto &[key, field] : numbers) settings.setValue(QLatin1String(key), alarm.*field);
-    for (const auto &[key, field] : colors) settings.setValue(QLatin1String(key), (alarm.*field).name());
-    settings.setValue(QStringLiteral("program"), alarm.program);
-    settings.setValue(QStringLiteral("arguments"), alarm.arguments);
+    const auto write = [&settings](const QString &key, const auto &value, const auto &fallback) {
+        if (value == fallback) settings.remove(key);
+        else settings.setValue(key, value);
+    };
+    for (const auto &[key, field] : flags) write(QLatin1String(key), alarm.*field, defaults.*field);
+    for (const auto &[key, field] : numbers) write(QLatin1String(key), alarm.*field, defaults.*field);
+    for (const auto &[key, field] : colors) write(QLatin1String(key), (alarm.*field).name(), (defaults.*field).name());
+    write(QStringLiteral("program"), alarm.program, defaults.program);
+    write(QStringLiteral("arguments"), alarm.arguments, defaults.arguments);
     settings.endGroup();
 }
 

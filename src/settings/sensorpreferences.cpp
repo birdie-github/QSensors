@@ -313,8 +313,8 @@ bool SensorPreferencesStore::write(const QHash<QString, SensorPreferences> &valu
         if (p.offset != 0) settings.setValue(QStringLiteral("offset"), p.offset);
         if (p.foreground.isValid()) settings.setValue(QStringLiteral("foreground"), p.foreground.name(QColor::HexArgb));
         if (p.background.isValid()) settings.setValue(QStringLiteral("background"), p.background.name(QColor::HexArgb));
-        // Write the split tray foreground explicitly, including its system-default sentinel.
-        settings.setValue(QStringLiteral("trayForeground"), p.trayForeground.isValid() ? p.trayForeground.name(QColor::HexArgb) : QStringLiteral("default"));
+        // A missing key already loads as the system-default tray foreground.
+        if (p.trayForeground.isValid()) settings.setValue(QStringLiteral("trayForeground"), p.trayForeground.name(QColor::HexArgb));
         if (p.trayBackground.isValid()) settings.setValue(QStringLiteral("trayBackground"), p.trayBackground.name(QColor::HexArgb));
         const auto defaults = defaultSensorPreferences(id);
         if (p.dashboardShadow != defaults.dashboardShadow) settings.setValue(QStringLiteral("dashboardShadow"), p.dashboardShadow);

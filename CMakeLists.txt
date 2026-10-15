@@ -91,8 +91,8 @@ foreach(size IN ITEMS 64 256)
 endforeach()
 install(FILES LICENSE DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/QSensors")
 
-# Parser fixtures are opt-in and require only the existing Qt Core dependency.
-option(QSENSORS_BUILD_TESTS "Build system parser fixtures" OFF)
+# Parser and settings fixtures are opt-in and use existing Qt dependencies.
+option(QSENSORS_BUILD_TESTS "Build parser and settings fixtures" OFF)
 if(QSENSORS_BUILD_TESTS)
     enable_testing()
     add_executable(qsensors-systemmetrics-test
@@ -105,4 +105,11 @@ if(QSENSORS_BUILD_TESTS)
     target_include_directories(qsensors-systemmetrics-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_link_libraries(qsensors-systemmetrics-test PRIVATE Qt6::Core)
     add_test(NAME systemmetrics COMMAND qsensors-systemmetrics-test)
+    add_executable(qsensors-alarmsettings-test
+        tests/alarmsettings_test.cpp
+        src/alarms/alarmsettings.cpp
+    )
+    target_include_directories(qsensors-alarmsettings-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(qsensors-alarmsettings-test PRIVATE Qt6::Core Qt6::Gui)
+    add_test(NAME alarmsettings COMMAND qsensors-alarmsettings-test)
 endif()
