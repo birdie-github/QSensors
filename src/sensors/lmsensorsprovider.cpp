@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "sensors/lmsensorsprovider.h"
+#include "system/systemmetrics.h"
 
 #include <QByteArray>
+#include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QThread>
@@ -14,6 +17,14 @@
 
 namespace qsensors {
 namespace {
+
+QByteArray batteryAttribute(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) return {};
+    const auto contents = file.read(65);
+    return file.error() == QFile::NoError && contents.size() <= 64 ? contents.trimmed() : QByteArray();
+}
 
 QString chipName(const sensors_chip_name *chip)
 {
@@ -84,6 +95,14 @@ SensorDiscovery LmSensorsProvider::discover()
         return result;
     }
     m_initialized = true;
+    // Match sysfs ancestry, never a display label such as BAT0-acpi-0.
+    QHash<QString, QString> batteryStatuses;
+    const QDir supplies(QStringLiteral("/sys/class/power_supply"));
+    for (const auto &entry : supplies.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        const QString path = QFileInfo(supplies.filePath(entry)).canonicalFilePath();
+        if (!path.isEmpty() && batteryAttribute(path + QStringLiteral("/type")) == "Battery")
+            batteryStatuses.insert(path, path + QStringLiteral("/status"));
+    }
     int chipIndex = 0;
     while (const auto *chip = sensors_get_detected_chips(nullptr, &chipIndex)) {
         if (QThread::currentThread()->isInterruptionRequested())
@@ -94,6 +113,16 @@ SensorDiscovery LmSensorsProvider::discover()
             break;
         }
         const QString identity = deviceIdentity(chip, name);
+        const QString chipPath = chip->path ? QFileInfo(QString::fromLocal8Bit(chip->path)).canonicalFilePath() : QString();
+        const QString devicePath = chipPath.isEmpty() ? QString()
+            : QFileInfo(chipPath + QStringLiteral("/device")).canonicalFilePath();
+        QString batteryStatus;
+        for (auto it = batteryStatuses.cbegin(); it != batteryStatuses.cend(); ++it) {
+            if (chipPath == it.key() || chipPath.startsWith(it.key() + QLatin1Char('/')) || devicePath == it.key()) {
+                batteryStatus = it.value();
+                break;
+            }
+        }
         int featureIndex = 0;
         while (const auto *feature = sensors_get_features(chip, &featureIndex)) {
             for (const auto &type : inputs) {
@@ -115,7 +144,10 @@ SensorDiscovery LmSensorsProvider::discover()
                 if (type.input == SENSORS_SUBFEATURE_POWER_AVERAGE)
                     label += QStringLiteral(" (average)");
                 result.descriptors.append({id, label, type.kind, QString::fromUtf8(type.unit), name});
-                m_channels.insert(id, {chip, input->number});
+                // An average may span both charging and discharging; current
+                // status can establish direction only for instantaneous power.
+                m_channels.insert(id, {chip, input->number,
+                    type.input == SENSORS_SUBFEATURE_POWER_INPUT ? batteryStatus : QString()});
             }
             if (!result.error.isEmpty())
                 break;
@@ -136,6 +168,7 @@ QList<SensorSample> LmSensorsProvider::readBatch(const QStringList &ids)
 {
     QList<SensorSample> samples;
     samples.reserve(ids.size());
+    QHash<QString, QByteArray> batteryStatuses;
     for (const auto &id : ids) {
         if (QThread::currentThread()->isInterruptionRequested())
             break;
@@ -154,6 +187,19 @@ QList<SensorSample> LmSensorsProvider::readBatch(const QStringList &ids)
             else {
                 sample.value = value;
                 sample.available = true;
+                if (!channel->batteryStatusPath.isEmpty()) {
+                    const QString &path = channel->batteryStatusPath;
+                    if (!batteryStatuses.contains(path)) batteryStatuses.insert(path, batteryAttribute(path));
+                    const auto &status = batteryStatuses[path];
+                    const auto power = systemmetrics::batteryPowerWatts(value, status);
+                    if (power) {
+                        sample.value = *power;
+                        sample.detail = QStringLiteral("Battery: %1; negative while discharging").arg(QString::fromLatin1(status));
+                    } else {
+                        sample.available = false;
+                        sample.error = QStringLiteral("Battery charging/discharging status unavailable");
+                    }
+                }
             }
         }
         sample.timestamp = QDateTime::currentDateTimeUtc();

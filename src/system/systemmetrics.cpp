@@ -88,6 +88,16 @@ std::optional<DiskInterval> diskInterval(const DiskCounters &before, const DiskC
         std::clamp(static_cast<double>(after.busyMilliseconds - before.busyMilliseconds) / elapsedMilliseconds * 100.0, 0.0, 100.0)};
 }
 
+std::optional<double> batteryPowerWatts(double magnitude, const QByteArray &status)
+{
+    if (!std::isfinite(magnitude)) return {};
+    const auto state = status.trimmed();
+    const double power = std::abs(magnitude);
+    if (state == "Discharging") return power == 0 ? 0.0 : -power;
+    if (state == "Charging" || state == "Full" || state == "Not charging") return power;
+    return {}; // Unknown direction must not look like charging.
+}
+
 std::optional<double> batteryChargePercent(const QByteArray &contents)
 {
     // power_supply/capacity is an integer percentage, not charge or energy.

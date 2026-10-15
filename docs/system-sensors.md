@@ -72,6 +72,23 @@ Newly attached/reinserted batteries may require Rescan (F5), as other new device
 The [Linux power-supply documentation](https://www.kernel.org/doc/html/latest/power/power_supply_class.html)
 defines capacity as a percentage, distinct from charge and energy quantities.
 
+### Battery power exposed through libsensors
+
+Instantaneous battery wattage is signed using the associated power supply's
+`status`: negative for Discharging and positive for Charging. Full and Not charging
+retain the reported magnitude; no synthetic zero is imposed. Missing or Unknown
+status makes this signed reading unavailable. Zero is shown without a minus sign.
+
+Association uses the hwmon chip's canonical sysfs ancestry or device link and a
+verified `type=Battery` supply, not a sensor name. Unassociated hardware channels
+retain the value from libsensors. Averaged power is also left unchanged because
+its interval may span a charging/discharging transition. Each requested battery's
+status is read at most once per worker batch, without additional timers.
+
+The existing sensor ID, preferences, and libsensors compute rules are retained.
+Direction normalization precedes QSensors calibration, formatting, and alarm checks.
+Positive values use the application's existing convention of no explicit plus sign.
+
 ## Whole-drive I/O
 
 Each supported drive adds Read per update, Written per update, and Busy under

@@ -19,6 +19,7 @@ private:
     struct Channel {
         const sensors_chip_name *chip;
         int subfeature;
+        QString batteryStatusPath; // Only instantaneous power from a verified battery.
     };
     void cleanup();
     bool m_initialized = false;

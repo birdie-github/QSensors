@@ -81,6 +81,14 @@ int main()
         require(!diskCounters("1 2 3 4") && !diskCounters("1 0 bad 0 0 0 0 0 0 0 0")
             && !diskCounters("1 0 -1 0 0 0 0 0 0 0 0")
             && !diskCounters("1 0 18446744073709551616 0 0 0 0 0 0 0 0"), "invalid disk counters");
+        near(batteryPowerWatts(5.205, "Discharging\n"), -5.205, "battery discharge power is negative");
+        near(batteryPowerWatts(-5.205, "Discharging"), -5.205, "signed driver discharge is not inverted twice");
+        near(batteryPowerWatts(-30, "Charging"), 30, "battery charging power is positive");
+        near(batteryPowerWatts(0, "Discharging"), 0, "zero battery power remains zero");
+        near(batteryPowerWatts(0, "Full"), 0, "full battery zero power");
+        near(batteryPowerWatts(1, "Not charging"), 1, "idle status preserves reported power magnitude");
+        require(!batteryPowerWatts(8, "Unknown") && !batteryPowerWatts(8, ""), "unknown battery direction unavailable");
+        require(!batteryPowerWatts(std::numeric_limits<double>::infinity(), "Charging"), "invalid battery power unavailable");
         near(batteryChargePercent("57\n"), 57, "battery charge percentage");
         near(batteryChargePercent("0\n"), 0, "empty battery is a valid reading");
         near(batteryChargePercent("100\n"), 100, "full battery");
