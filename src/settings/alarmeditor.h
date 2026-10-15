@@ -22,6 +22,7 @@ public:
 signals:
     void edited(const qsensors::AlarmSettings &settings);
     void testRequested();
+    void resetRequested();
 private:
     void updateControls();
     bool m_loading = false;

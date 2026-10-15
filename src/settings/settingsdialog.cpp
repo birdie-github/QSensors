@@ -121,6 +121,12 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     connect(m_alarmEditor, &AlarmEditor::edited, this, [this](const AlarmSettings &alarm) {
         if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].alarm = alarm;
     });
+    connect(m_alarmEditor, &AlarmEditor::resetRequested, this, [this] {
+        if (m_currentId.isEmpty()) return;
+        m_draft[m_currentId].alarm = AlarmSettings{};
+        loadSensor(m_currentId);
+        m_alarmEditor->setError({});
+    });
     connect(m_alarmEditor, &AlarmEditor::testRequested, this, [this] {
         if (m_alarms && !m_currentId.isEmpty()) {
             m_alarmEditor->setError({});

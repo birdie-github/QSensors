@@ -6,6 +6,7 @@
 #include <QColorDialog>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QProgressBar>
@@ -97,7 +98,13 @@ AlarmEditor::AlarmEditor(QWidget *parent) : QWidget(parent)
     m_test = new QPushButton(tr("Test Alarm"), this);
     m_test->setToolTip(tr("Execute all checked actions using this draft, without saving. Visual effects last at least three seconds, then the live alarm state is restored."));
     connect(m_test, &QPushButton::clicked, this, &AlarmEditor::testRequested);
-    layout->addWidget(m_test);
+    auto *buttons = new QHBoxLayout;
+    buttons->addWidget(m_test);
+    auto *reset = new QPushButton(tr("Reset"), this);
+    reset->setToolTip(tr("Restore this sensor's alarm defaults and clear its command. Changes take effect on Apply or OK; Cancel discards the reset."));
+    connect(reset, &QPushButton::clicked, this, &AlarmEditor::resetRequested);
+    buttons->addWidget(reset);
+    layout->addLayout(buttons);
     m_progress = new QProgressBar(this);
     m_progress->setRange(0, 3000);
     layout->addWidget(m_progress);

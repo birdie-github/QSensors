@@ -109,6 +109,14 @@ state. Switching sensors, closing the dialog, or pressing Cancel does not shorte
 an already started test. Test actions target existing tiles/table rows/tray icons.
 Notifications are labelled Test Alarm; command execution is real.
 
+The Alarms tab has a **Reset** button beside Test Alarm. It replaces only the
+current sensor's alarm draft with `AlarmSettings{}`: both limits and all seven
+actions disabled, lower/upper values 0/100 in canonical units, zero hysteresis,
+default colors, and empty executable/arguments. Other sensor settings and other
+sensors are preserved. Apply/OK saves the reset and removes the default alarm
+subgroup; Cancel discards it. A test already in progress keeps its original
+three-second lifetime, and the live alarm remains unchanged until Apply/OK.
+
 Alarm edits follow the existing Apply/OK/Cancel sensor draft behavior. Settings
 are stored under each sensor's `Alarm/` subgroup. Invalid restored settings are
 disarmed. Reset sensor preferences resets alarms as well. "Disable all sensors"
