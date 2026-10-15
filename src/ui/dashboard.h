@@ -83,7 +83,10 @@ private:
     QHash<QString, SensorSample> m_dashboardSamples;
     bool m_gridDirty = true;
     bool m_tableDirty = true;
-    QLabel *m_statusSummary;
+    QLabel *m_snoozeStatus;
+    QLabel *m_intervalStatus;
+    QLabel *m_tileSizeStatus;
+    QLabel *m_alarmStatus;
     QLabel *m_trayWarning;
     bool m_trayAvailable = false;
     bool m_compact = false;

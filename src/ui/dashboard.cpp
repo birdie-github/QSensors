@@ -20,6 +20,9 @@
 #include <QCloseEvent>
 #include <QEvent>
 #include <QHeaderView>
+#include <QHBoxLayout>
+#include <QMouseEvent>
+#include <QPointer>
 #include <QFontMetrics>
 #include <QKeySequence>
 #include <QLabel>
@@ -42,6 +45,30 @@
 
 namespace qsensors {
 namespace {
+class StatusActionLabel final : public QLabel {
+public:
+    StatusActionLabel(QAction *action, QWidget *parent) : QLabel(parent), m_action(action)
+    {
+        setCursor(Qt::PointingHandCursor);
+        setEnabled(action->isEnabled());
+        connect(action, &QAction::changed, this, [this] {
+            setEnabled(m_action && m_action->isEnabled());
+        });
+    }
+protected:
+    void mouseDoubleClickEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton && m_action && m_action->isEnabled()) {
+            event->accept();
+            m_action->trigger();
+            return;
+        }
+        QLabel::mouseDoubleClickEvent(event);
+    }
+private:
+    QPointer<QAction> m_action;
+};
+
 class SensorSortModel final : public QSortFilterProxyModel {
 public:
     explicit SensorSortModel(QObject *parent) : QSortFilterProxyModel(parent) {}
@@ -319,8 +346,19 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
         updateVisibleIds();
     });
     m_tileSizeAction->setEnabled(!m_tableView->isChecked());
-    m_statusSummary = new QLabel(this);
-    statusBar()->addWidget(m_statusSummary, 1);
+    auto *statusSummary = new QWidget(this);
+    auto *statusLayout = new QHBoxLayout(statusSummary);
+    statusLayout->setContentsMargins(0, 0, 0, 0);
+    statusLayout->setSpacing(0);
+    m_snoozeStatus = new StatusActionLabel(m_snoozeAction, statusSummary);
+    m_intervalStatus = new StatusActionLabel(m_intervalAction, statusSummary);
+    m_tileSizeStatus = new StatusActionLabel(m_tileSizeAction, statusSummary);
+    m_alarmStatus = new QLabel(statusSummary);
+    for (auto *label : {m_snoozeStatus, m_intervalStatus, m_tileSizeStatus, m_alarmStatus})
+        statusLayout->addWidget(label);
+    statusLayout->addStretch();
+    statusBar()->addWidget(statusSummary, 1);
+    statusBar()->setToolTip(tr("Double-click the interval, tile size, or snooze status to change it."));
     connect(&NumberFormatSettings::instance(), &NumberFormatSettings::changed,
             this, &Dashboard::updateStatusSummary);
     updateStatusSummary();
@@ -716,10 +754,14 @@ void Dashboard::updateStatusSummary()
     while (interval.endsWith(QLatin1Char('0'))) interval.chop(1);
     if (interval.endsWith(QLatin1Char('.'))) interval.chop(1);
     interval.replace(QLatin1Char('.'), numberLocale().decimalPoint());
-    QString summary = tr("Update interval: %1 seconds | Tile size: %2 pixels | Alarms: %3")
-        .arg(interval).arg(m_grid->tileSize()).arg(m_activeAlarms);
-    if (m_snoozeAction->isChecked()) summary.prepend(tr("Snoozed ON | "));
-    if (m_statusSummary->text() != summary) m_statusSummary->setText(summary);
+    const auto setText = [](QLabel *label, const QString &text) {
+        if (label->text() != text) label->setText(text);
+    };
+    setText(m_snoozeStatus, tr("Snoozed ON | "));
+    m_snoozeStatus->setVisible(m_snoozeAction->isChecked());
+    setText(m_intervalStatus, tr("Update interval: %1 seconds | ").arg(interval));
+    setText(m_tileSizeStatus, tr("Tile size: %1 pixels | ").arg(m_grid->tileSize()));
+    setText(m_alarmStatus, tr("Alarms: %1").arg(m_activeAlarms));
 }
 
 void Dashboard::showEvent(QShowEvent *event)
