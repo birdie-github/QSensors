@@ -1,118 +1,128 @@
-# QSensors
+# QSensors — Lightweight Linux Hardware Monitor
 
-Per-sensor threshold alarms, seven independent actions, and draft testing are
-described in [docs/alarms.md](docs/alarms.md).
+QSensors monitors **CPU temperature, fan speed, voltage, current, power, CPU usage
+and frequency, RAM, swap, and uptime** on your Linux desktop. Choose the readings
+you care about, arrange them on a customizable dashboard, or keep them visible as
+individual numbers in the system tray.
 
-A small Linux hardware-sensor monitor inspired by KSensors 0.7.3, rebuilt
-with Qt 6 Widgets and modern libsensors. No KDE dependencies.
+Inspired by **KSensors**, QSensors brings its desktop sensor panels to modern
+**Qt 6**, with **no KDE library dependencies**. It supports X11 and Wayland through
+Qt, with a compatible desktop tray host for system tray features.
 
-## Current status
+If you use [HWiNFO64](https://www.hwinfo.com/) or
+[HWMonitor](https://www.cpuid.com/softwares/hwmonitor.html) on Windows, QSensors
+provides a Linux home for everyday hardware sensor monitoring: live readings,
+configurable alerts, and an at-a-glance view of your system's health.
 
-Phase 7 adds optional system readings: aggregate CPU usage (including SMT), physical-core average/maximum/per-core
-frequencies with CPU model metadata, RAM usage, available RAM, swap usage and
-uptime. RAM/Swap usage have separate percentage and MiB readings. Available RAM supports MiB or percent display; frequency and memory
-readings choose compact units automatically. Hardware and
-system sensors use the same Settings, dashboard and numeric tray selections.
-New sensors default to disabled. Settings groups sensors by source, supports
-renaming and search, and previews live values in resizable columns. Calibration,
-colors, custom gauge ranges, C/F/K units and opt-in desktop autostart remain
-available. Each selected sensor has Properties, Dashboard and (when supported)
-System Tray tabs, with independent refresh timing and appearance. Apply saves the
-current draft; Cancel discards changes since the last Apply. Numeric editors
-show two or three decimals without reducing untouched stored precision.
-Dashboard sensors independently select Normal/Digital text and gauge visibility.
-Digital readouts use scalable vector segments; CPU frequencies use filled watch
-segments, while temperatures retain one decimal and a square degree mark. Tile
-source footers are omitted; sources remain in Settings, table rows and tooltips.
-Dashboard tooltips omit internal sensor IDs and retain useful status/error details;
-diagnostic IDs remain accessible in Settings.
-Phase 6 (alarms) is deferred.
+## Why QSensors?
 
-Vector tiles default to 128 logical pixels; the toolbar accepts 64–2048, with
-presets under View. Both Tile Size selectors offer Custom… for an integer-entry
-dialog with OK/Cancel; Cancel leaves the current size unchanged. **View → Table View** retains the sensor table. Use Settings
-to choose dashboard/tray sensors and **QSensors → Rescan Sensors** (F5) after hardware
-changes. The global interval is 0.10–999.99 seconds (default 5); presentation overrides
-accept 0.05–3600 seconds. A single timer schedules acquisition at each sensor's
-fastest active interval, with separate presentation deadlines using its cache.
-Tile mode requests visible selected tiles plus tray selections; table mode
-requests selected dashboard sensors. Tile positions are fixed across window resizing; dragging can grow the
-rectangular field. New sensors fill its first empty cell. Double-click empty
-space or press Ctrl+Shift+M to toggle Compact Mode.
-The Settings menu (also in the tray) controls temperature units, global interval
-and Start at Login; View contains presentation and appearance choices.
-Closing hides when a tray host exists; **Quit** exits. Without a tray
-host the dashboard stays recoverable and closing exits.
+- **A dashboard that fits your desktop.** Arrange sensor tiles by dragging them,
+  switch to a sortable table, or use a compact, always-on-top dashboard without
+  menus and toolbars. Tile sizes range from 64 to 2048 pixels.
+- **A separate tray readout for each chosen sensor.** Keep temperatures, CPU
+  clocks, memory usage, or other readings visible while the dashboard is hidden.
+  Choose fonts, colors, shadows, transparency, optional units, and independent
+  update intervals. Remove an icon without losing its settings.
+- **Alarms with independent actions.** Combine tile and table colors, desktop
+  notifications, commands or sound playback, and tray lines, blinking, and text
+  colors. Set lower/upper limits and hysteresis, pause alarms without clearing
+  their configuration, and try them with a three-second Test Alarm countdown.
+- **Your choice of appearance.** Rounded rectangles, square tiles, or circles;
+  normal or digital readouts; optional gauges; separate sensor-name and data
+  fonts; System, Classic KSensors, Graphite, and custom colors; solid, dotted,
+  or grid backgrounds.
+- **Useful sensor controls.** Search and rename sensors, adjust calibration and
+  gauge ranges, choose Celsius/Fahrenheit/Kelvin, and use dot, comma, or system
+  decimal separators. Settings stay attached to the sensor rather than its name.
+- **Lean by design.** Native Qt Widgets, a small dependency footprint, shared
+  sensor reads, and updates driven by the readings you actually use. Hidden
+  dashboard views do not keep repainting; tray readings and enabled alarms can
+  continue monitoring in the background.
 
-The minimum target is **Qt 6.8**. Phase 7 has only been statically reviewed,
-without configuring, compiling or running it. See
-[system-sensors.md](docs/system-sensors.md),
-[sensor-settings.md](docs/sensor-settings.md),
-[vector-dashboard.md](docs/vector-dashboard.md),
-[hardware-backend.md](docs/hardware-backend.md) and
-[tray-lifecycle.md](docs/tray-lifecycle.md) for controls, architecture and limitations.
+## What can it monitor?
 
-## Prerequisites
+| Category | Readings |
+| --- | --- |
+| Hardware sensors | Temperature, fan speed, voltage, current, power, energy, and humidity exposed through Linux drivers and libsensors. |
+| CPU | Overall usage, per-physical-core frequency, and average/maximum frequency across physical cores. |
+| Memory | RAM used and available, plus swap usage, with amount and percentage views. |
+| System | Uptime on the dashboard. |
 
-- Linux, CMake 3.21 or later and a C++17 compiler.
-- Qt 6.8 or later development files for Core, Gui, Widgets and Network.
-- libsensors development files (`sensors/sensors.h` and `libsensors`).
-- Qt's xcb or Wayland platform plugin for your desktop.
+Hardware coverage depends on your kernel drivers and libsensors. GPU and disk
+sensors appear when those interfaces expose them; coverage varies by device.
+QSensors reads sensor values; fan-speed control and privileged SMART access are
+outside its scope.
 
-Typical Fedora packages: `cmake gcc-c++ qt6-qtbase-devel lm_sensors-devel`
-and `qt6-qtwayland` for Wayland. Debian-family package names include
-`cmake g++ qt6-base-dev libsensors-dev qt6-wayland`; ensure the distribution
-actually supplies Qt 6.8 or later, or use a separate Qt installation.
+## Getting started
 
-## Build and run
+QSensors runs on Linux with **Qt 6.8 or newer** and **libsensors**. It uses Qt's
+Core, Gui, Widgets, and Network components and your desktop's X11 or Wayland
+platform plugin. There is no KDE runtime, browser engine, or separate monitoring
+daemon to install for QSensors itself.
 
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
-./build/qsensors
-```
+For source installation, follow the [build and installation guide](docs/building.md).
+Then launch `qsensors` from your application menu or terminal.
 
-For a separate Qt installation, pass `-DCMAKE_PREFIX_PATH=/path/to/Qt/prefix`.
-`--help` and `--version` are supported. Qt selects the platform plugin normally;
-explicit native checks can use `QT_QPA_PLATFORM=xcb` or
-`QT_QPA_PLATFORM=wayland` when those plugins and desktop sessions are available.
-This does not claim either environment has been tested.
+1. Open **QSensors → Configure Sensors**.
+2. Check **Dashboard** and/or **Tray** for the sensors you want. New sensors start
+   unselected, so the initial dashboard is empty until you choose them.
+3. Select a sensor to customize its label, dashboard, tray readout, or alarms.
+   **Apply** saves your edits; **OK** saves and closes; **Cancel** discards edits
+   since the last Apply.
+4. To set an alarm, check **Alarm**, choose the limits in the Alarms tab, and
+   select its actions. Enabling an alarm with no actions selects notifications.
+   Automatic alarms require at least one limit and action.
 
-```sh
-cmake --install build --prefix /chosen/prefix
-```
+Use **View** for dashboard/table mode and appearance. **Settings** controls
+refresh timing, temperature units, and Start at Login. Dashboard and tray updates
+can have different intervals; the global interval accepts 0.10–999.99 seconds.
 
-Installation uses GNUInstallDirs for the executable, desktop entry, icon and
-license. A custom prefix's `bin` and data directories must be discoverable by
-your desktop (`PATH` and `XDG_DATA_DIRS`). CMake's `build/install_manifest.txt`
-lists installed files; no custom uninstaller or privileged helper is provided.
+## Everyday controls
 
-## Architecture
+| Action | Control |
+| --- | --- |
+| Select dashboard tiles | Arrow keys; selection wraps through occupied tiles. |
+| Configure the selected tile | Enter. |
+| Move or swap a tile | Drag it, or use Ctrl + an arrow key in normal mode. |
+| Toggle Compact Mode | Ctrl+Shift+M; double-click empty dashboard space to enter, or anywhere in compact view to leave. |
+| Rescan hardware sensors | QSensors → Rescan Sensors, or F5. |
+| Configure a tray sensor | Right-click its icon and select `[ Sensor name ]`. |
+| Remove a tray icon | Right-click its icon → Remove Sensor. Its settings are retained. |
 
-- `src/app`: metadata, command line, application assembly and single-instance IPC.
-- `src/sensors`: libsensors backend, serialized worker/demand scheduler and raw-to-display presentation.
-- `src/system`: bounded proc reads and independent CPU/memory/uptime parsers.
-- `src/settings`: stable-ID preferences, settings dialog and desktop-neutral autostart.
-- `src/tray`: shared actions, numeric icons, host recovery and selection dialog.
-- `src/ui`: persistent dashboard, virtual tile grid and table model. The model rejects missing,
-  non-finite or invalid-timestamp readings and does not present stale values.
-- `src/rendering`: vector tile geometry/fonts, type-aware display ranges and formatting.
-- `resources`: embedded PNG icon resolutions and desktop integration.
-- `cmake`: libsensors discovery without requiring a vendor package file.
+Closing the dashboard hides it when a system tray host is available. Use
+**QSensors → Quit** or the tray menu to exit. Without a tray host, closing exits
+and the dashboard remains the way to access the application. Native Wayland
+movement, focus, and always-on-top behavior follow your compositor's policy.
 
-Provider calls have one owner/execution context. Hardware initialization,
-discovery, batched reads and cleanup use one serialized worker; only copied
-snapshots cross to the UI. A single completion-driven timer prevents overlap.
-Add rendering, tray, settings and alarm modules when their phases need them;
-there are no placeholder service layers or unused module trees.
+## Why use QSensors instead of KSensors 0.7.3?
 
-Widgets use QPainter vector primitives for dashboard tiles; the small PNG
-application icons are unrelated to tile rendering. Vulkan acceleration is not
-promised. Tray support will require a compatible desktop host; libsensors/hwmon
-disk-temperature coverage will not include every SATA or USB disk.
+QSensors keeps the appeal of KSensors—small sensor panels and persistent tray
+readings—while replacing its legacy desktop stack and expanding customization.
 
-## License and reference
+| Area | KSensors 0.7.3 | QSensors |
+| --- | --- | --- |
+| Desktop dependencies | Built around the KDE and Qt libraries of its era. | Qt 6 Widgets and modern libsensors, without KDE libraries. |
+| Desktop integration | KDE/X11-era window and tray integration. | Qt-based X11/Wayland integration with compatible desktop tray hosts. |
+| Sensor backend | Legacy libsensors interfaces. | Current libsensors interfaces plus Linux CPU, memory, swap, and uptime readings. |
+| Dashboard | Original draggable sensor panels. | Scalable tiles, three tile shapes, custom palettes/fonts, table view, and compact mode. |
+| Alarm actions | A choice between sound playback and a command. | Independently combinable visual, notification, command, and tray actions, with hysteresis, pause, reset, and draft testing. |
 
-QSensors uses the repository's GPL version 3 license; see [LICENSE](LICENSE).
-See [docs/reference-audit.md](docs/reference-audit.md) for KSensors authorship,
-reference inventory and the record of material reused in this phase.
+The **Classic KSensors** palette and digital readouts retain the original app's
+visual character, with modern display sizes and desktop integration.
+
+## More information
+
+- [Sensor configuration and formatting](docs/sensor-settings.md)
+- [Alarms, notifications, and commands](docs/alarms.md)
+- [Dashboard controls and appearance](docs/vector-dashboard.md)
+- [System readings and their meaning](docs/system-sensors.md)
+- [Tray behavior and desktop compatibility](docs/tray-lifecycle.md)
+- [Build and installation](docs/building.md)
+- [Architecture and dependency details](docs/architecture.md)
+
+## License and acknowledgments
+
+QSensors is free software under the [GNU GPL version 3](LICENSE).
+It is inspired by Miguel Novas's KSensors 0.7.3. The
+[reference audit](docs/reference-audit.md) records the original application's
+attribution and the implementation references.

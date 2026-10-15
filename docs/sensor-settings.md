@@ -151,9 +151,8 @@ releases that demand, leaving dashboard/tray selections unchanged. Missing or
 failed readings show Unavailable, with error details in a tooltip; readings that
 have not arrived yet show Waiting. No last-good value is retained after failure.
 
-Alarm limits/actions, hysteresis and reference-based alarm presets are added
-with the working phase-6 alarm engine. This page's gauge bounds are display-only
-and do not produce alarms.
+Alarm limits, actions, hysteresis, and presets are described in [alarms.md](alarms.md).
+Gauge bounds are display-only and do not produce alarms.
 
 ## Decimal separator
 

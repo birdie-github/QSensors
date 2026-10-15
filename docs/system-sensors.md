@@ -104,23 +104,23 @@ Digital mode with the existing explanatory tooltip, and omit the zero-span gauge
 
 ## Normal, table and tray compact display
 
-Frequency uses MHz below 1000 MHz and GHz at/above 1000 MHz. Tiles, Settings and
-the table show full units; numeric tray icons append M or G. Examples: 900 MHz /
-900M; 1200 MHz becomes 1.2 GHz / 1.2G.
+Normal dashboard, configuration, and table readings use MHz below 1000 MHz and
+GHz at or above 1000 MHz. Normal tray frequency follows a separate four-character
+scheme: K below 1 MHz, whole MHz through 9999 MHz, and rounded G from 10 GHz.
+Values below 1 kHz or above 999 GHz show ERR. Digital tray frequency supports
+1–9999 MHz and shows ERR outside that range. Tooltips retain the full Hz reading.
 
-Memory uses binary units MiB, GiB, TiB, PiB (1024 per step). Tiles, Settings and
-the table show full units; the tray appends M/G/T/P. Examples: 100 MiB / 100M;
-2560 MiB becomes 2.5 GiB / 2.5G. Nonnegative values below one MiB show 0 MiB / 0M.
-The percentage choice instead uses % and does not apply the sub-MiB floor.
+Memory uses binary units MiB, GiB, TiB, PiB (1024 per step), with M/G/T/P suffixes
+in the tray when Show the unit is enabled. Nonnegative amounts below one MiB
+show zero. Percentage readings use % without the sub-MiB floor.
 
-The numeric part has at most three characters, counting the decimal separator
-and sign. Positive values below 9.95 use one decimal; larger values are rounded
-to whole numbers. Memory promotes at 999.5 of the current unit to avoid a
-four-digit rounded result. Frequency retains the requested 1000-MHz unit boundary
-and caps the last rounded MHz value at 999. Values beyond the largest supported
-unit's three-digit capacity saturate at 999 (negative capacity is two digits plus
-sign). Measurement/calculation values retain full precision; formatting never
-feeds back into calculations. Locale decimal separators are respected.
+Non-frequency tray readings with hidden units use up to four characters,
+including the decimal separator and sign, and up to two decimal places. Thus
+14.5 GiB can appear as `14.5`. Showing a unit reserves room for its suffix.
+The shared [sensor formatting rules](sensor-settings.md) describe precision,
+rounding, unit selection, and the distinct display contexts. Formatting never
+changes samples or calculations. The global decimal-separator preference selects
+dot, comma, or the system locale for UI values.
 
 Calibration and custom bounds for Available RAM remain MiB even in percentage
 mode. Percentage conversion uses the total from the same meminfo snapshot.

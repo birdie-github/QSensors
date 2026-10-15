@@ -1,4 +1,4 @@
-# Hardware backend — phase 2
+# Hardware backend
 
 ## Discovery and readings
 
@@ -11,7 +11,8 @@ Typed readable inputs cover temperature (°C), fan (RPM), voltage (V), current
 (A), power (W), energy (J) and humidity (%). Power input and average are separate
 channels if both exist; averages are explicitly labelled. Optional threshold
 attributes are not required. PWM, intrusion, VID, frequency and min/max/history
-attributes are outside this phase. Channels with a failed/non-finite read remain
+attributes are not read by this backend. CPU frequency is provided separately
+by the [system sensor provider](system-sensors.md). Channels with a failed/non-finite read remain
 unavailable, with an error tooltip. Values remain in libsensors canonical units.
 
 Labels are not identities. The Device column shows the complete chip name so
@@ -37,11 +38,12 @@ catalog safely. Resume/long-hidden restoration triggers rescan after a gap;
 read failures or an empty catalog trigger recovery scans with 10, 20, 40, 80,
 160 and then 300-second backoff. Healthy reads do not rescan each tick.
 New devices which do not cause any existing channel to fail require F5 or a
-resume rescan; there is no udev subscription in this phase. With the dashboard hidden or minimized, polling and automatic recovery continue
-only for tray selections. With no selections they pause; an in-flight batch
-may finish after hiding. Newly available rows appear after rescan, removed rows
+resume rescan; there is no udev subscription. With the dashboard hidden or
+minimized, tray selections, armed alarms, and settings previews can continue
+to demand readings. With no consumers, periodic acquisition pauses; an in-flight
+batch may finish after hiding. Newly available rows appear after rescan, removed rows
 leave the view, and the application does not erase sensor preferences on rescan.
-Per-sensor display preferences are implemented in phase 5; alarms follow in phase 6.
+See [sensor preferences](sensor-settings.md) and [alarms](alarms.md).
 `Monitoring/intervalSeconds` (0.10–999.99, default 5) and non-default sensor
 preferences in `[Sensor-NNN]` sections are saved.
 
@@ -60,9 +62,10 @@ The GUI schedules at most one worker operation at a time. A single-shot timer
 is armed after completion, so a slow read extends the interval instead of
 queuing overlapping work. Multiple rescan requests coalesce into one follow-up.
 The tile viewport demands intersecting selected tiles; table mode demands the
-selected dashboard catalog. Tray selections add background demand, including selected missing IDs
-for explicit unavailable results and recovery. The worker reads the union once. Alarm demand follows
-in phase 6 without adding competing readers.
+selected dashboard catalog. Tray selections add background demand, including
+selected missing IDs for explicit unavailable results and recovery. Armed alarms
+request their sensors at the global interval; settings previews temporarily
+request the catalog. The worker reads the union without competing readers.
 
 Shutdown requests interruption, stops the worker event loop, waits for the
 current call to finish, and destroys the backend on its owning thread. Work
@@ -71,10 +74,9 @@ and cannot safely be forcibly cancelled mid-call; a stuck kernel/driver read
 can consequently delay exit. The GUI is not blocked during normal discovery or
 polling. No thread termination is used.
 
-## Validation status
+## Hardware-dependent verification
 
-The user confirmed phase 2 displays their real sensors and allows interval
-changes. The user also confirmed phase 3 works. Phase 4 has only undergone static review
-and patch-application checks.
-Hardware comparison, slow/failing reads, suspend/resume, removal/reappearance
-and native X11/Wayland tray operation still need targeted hardware testing.
+Coverage and recovery depend on the kernel, drivers, permissions, and devices.
+When validating a deployment, compare readings with libsensors and exercise
+slow/failing reads, suspend/resume, and device removal/reappearance. Tray behavior
+also needs checks with the actual X11 or Wayland desktop host.
