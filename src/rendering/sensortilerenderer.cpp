@@ -231,7 +231,11 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
         const QColor base = reading.available ? (reading.valueColor.isValid() ? reading.valueColor : appearance.uptime)
                                              : palette.color(QPalette::Disabled, QPalette::Text);
         if (reading.days.isEmpty()) {
-            drawDigitalText(painter, QRectF(padding, size * .08, size - 2 * padding, size * .13), QStringLiteral("HH:MM"), legend);
+            // Font hinting keeps this small legend readable; thin segment paths
+            // fall between device pixels and blur at compact tile sizes.
+            painter.setPen(legend);
+            fittedText(painter, QRectF(padding, size * .08, size - 2 * padding, size * .13),
+                       QStringLiteral("HH:MM"), style.unitFont, false);
             drawDigitalText(painter, QRectF(padding, size * .29, size - 2 * padding, size * .40), reading.text, base, preferences.dashboardShadow);
         } else {
             const QRectF daysRect(padding, size * .15, size - 2 * padding, size * .23);
