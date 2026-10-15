@@ -28,6 +28,8 @@ qt_add_executable(qsensors
     src/app/singleinstance.h
     src/tray/traycontroller.cpp
     src/tray/traycontroller.h
+    src/settings/numberformat.cpp
+    src/settings/numberformat.h
     src/settings/sensorpreferences.cpp
     src/settings/sensorpreferences.h
     src/settings/settingsdialog.cpp

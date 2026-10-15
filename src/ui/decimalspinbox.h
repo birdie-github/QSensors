@@ -28,6 +28,8 @@ private:
     using QDoubleSpinBox::setDecimals;
     static constexpr int defaultDecimals = 2;
     static constexpr int fineDecimals = 3;
+    void updatePreciseToolTip();
+    std::optional<double> m_loadedValue;
     bool m_textEdited = false;
     bool m_helpCaptured = false;
     QString m_help;

@@ -48,7 +48,12 @@ const QHash<QChar, QPainterPath> &glyphs()
         result.insert(QLatin1Char(':'), colon);
         QPainterPath point;
         point.addEllipse(QPointF(.1,1.94), .06,.06);
-        for (QChar ch : {QChar('.'), QChar(','), QChar(0x066b)}) result.insert(ch, point);
+        result.insert(QLatin1Char('.'), point);
+        QPainterPath comma = point;
+        comma.moveTo(.13,1.94);
+        comma.lineTo(.03,2.08);
+        result.insert(QLatin1Char(','), comma);
+        result.insert(QChar(0x066b), comma);
         QPainterPath degree;
         degree.addRect(QRectF(0,0,.42,.52)); // KSensors' small square degree marker.
         result.insert(QChar(0x00b0), degree);

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "settings/alarmeditor.h"
+#include "settings/numberformat.h"
 #include "ui/decimalspinbox.h"
 #include <QCheckBox>
 #include <QColorDialog>
@@ -156,7 +157,7 @@ void AlarmEditor::setTestRemaining(int milliseconds)
     m_testRemaining = milliseconds;
     m_progress->setVisible(milliseconds > 0);
     m_progress->setValue(milliseconds);
-    m_progress->setFormat(tr("Test expires in %1 s").arg(milliseconds / 1000.0, 0, 'f', 1));
+    m_progress->setFormat(tr("Test expires in %1 s").arg(numberLocale().toString(milliseconds / 1000.0, 'f', 1)));
     m_test->setEnabled(m_value.hasActions() && milliseconds == 0);
 }
 

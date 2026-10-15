@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ui/decimalspinbox.h"
+#include "settings/numberformat.h"
 
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -15,7 +16,14 @@ namespace qsensors {
 
 DecimalSpinBox::DecimalSpinBox(QWidget *parent, Precision precision) : QDoubleSpinBox(parent)
 {
+    setLocale(numberLocale());
     setDecimals(precision == Precision::Fine ? fineDecimals : defaultDecimals);
+    connect(&NumberFormatSettings::instance(), &NumberFormatSettings::changed, this, [this] {
+        const QSignalBlocker blocker(this);
+        m_textEdited = false;
+        setLocale(numberLocale());
+        updatePreciseToolTip();
+    });
     setKeyboardTracking(false);
     setSingleStep(.01);
     connect(lineEdit(), &QLineEdit::textEdited, this, [this] { m_textEdited = true; });
@@ -46,7 +54,14 @@ void DecimalSpinBox::loadValue(double value)
         m_help = toolTip();
         m_helpCaptured = true;
     }
-    const QString precise = tr("Stored value (unchanged unless edited): %1").arg(locale().toString(value, 'g', 17));
+    m_loadedValue = value;
+    updatePreciseToolTip();
+}
+
+void DecimalSpinBox::updatePreciseToolTip()
+{
+    if (!m_loadedValue) return;
+    const QString precise = tr("Stored value (unchanged unless edited): %1").arg(numberLocale().toString(*m_loadedValue, 'g', 17));
     setToolTip(m_help.isEmpty() ? precise : m_help + QLatin1Char('\n') + precise);
 }
 

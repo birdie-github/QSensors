@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ui/dashboard.h"
+#include "settings/numberformat.h"
 #include "ui/decimalspinbox.h"
 #include "alarms/alarmcontroller.h"
 #include "ui/sensortablemodel.h"
@@ -120,6 +121,25 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
         // The editor activates Custom only on OK; Cancel retains the current action.
         for (auto *action : paletteGroup->actions())
             action->setChecked(action->data().toInt() == static_cast<int>(m_grid->palettePreset()));
+    });
+    auto *separatorMenu = view->addMenu(tr("Decimal Separator"));
+    auto *separatorGroup = new QActionGroup(separatorMenu);
+    const auto addSeparator = [separatorMenu, separatorGroup](const QString &label, DecimalSeparator separator) {
+        auto *action = separatorMenu->addAction(label);
+        action->setCheckable(true);
+        action->setData(static_cast<int>(separator));
+        separatorGroup->addAction(action);
+        action->setChecked(NumberFormatSettings::instance().separator() == separator);
+        QObject::connect(action, &QAction::triggered, &NumberFormatSettings::instance(), [separator] {
+            NumberFormatSettings::instance().setSeparator(separator);
+        });
+    };
+    addSeparator(tr("Dot (.)"), DecimalSeparator::Dot);
+    addSeparator(tr("Comma (,)"), DecimalSeparator::Comma);
+    addSeparator(tr("System Default"), DecimalSeparator::System);
+    connect(&NumberFormatSettings::instance(), &NumberFormatSettings::changed, separatorGroup, [separatorGroup] {
+        for (auto *action : separatorGroup->actions())
+            action->setChecked(action->data().toInt() == static_cast<int>(NumberFormatSettings::instance().separator()));
     });
     auto *backgroundMenu = view->addMenu(tr("Background"));
     auto *backgroundGroup = new QActionGroup(backgroundMenu);

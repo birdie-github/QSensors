@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "rendering/valueformat.h"
+#include "settings/numberformat.h"
 #include <QLocale>
 #include <QStringList>
 #include <algorithm>
@@ -24,12 +25,12 @@ QString compact(double value)
     // The sign also counts toward the three-character numeric budget.
     const int decimals = value > 0 && value < 9.95 ? 1 : 0;
     const double limit = value < 0 ? 99 : 999;
-    return QLocale().toString(std::clamp(value, -limit, limit), 'f', decimals);
+    return numberLocale().toString(std::clamp(value, -limit, limit), 'f', decimals);
 }
 }
 QString localizeDecimalPoint(QString number)
 {
-    return number.replace(QLatin1Char('.'), QLocale().decimalPoint());
+    return number.replace(QLatin1Char('.'), numberLocale().decimalPoint());
 }
 
 QString formatTrayNumber(double value)
@@ -72,7 +73,7 @@ UptimeValue formatUptime(double seconds)
     const int minutes = static_cast<int>(std::fmod(remaining, 3600.0) / 60);
     UptimeValue result;
     result.time = QStringLiteral("%1:%2").arg(hours, 2, 10, QLatin1Char('0')).arg(minutes, 2, 10, QLatin1Char('0'));
-    if (days) result.days = QLocale().toString(std::floor(seconds / 86400.0), 'f', 0) + QStringLiteral(" days");
+    if (days) result.days = numberLocale().toString(std::floor(seconds / 86400.0), 'f', 0) + QStringLiteral(" days");
     return result;
 }
 QString formatDigitalSensorValue(const SensorDescriptor &descriptor, double value, bool kelvin)
@@ -134,6 +135,6 @@ FormattedValue formatSensorValue(const SensorDescriptor &descriptor, double valu
     }
     if (descriptor.kind == SensorKind::Percentage)
         return {compact(value), QStringLiteral("%")};
-    return {QLocale().toString(value, 'g', 8), descriptor.unit};
+    return {numberLocale().toString(value, 'g', 8), descriptor.unit};
 }
 }

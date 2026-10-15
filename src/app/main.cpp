@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "app/singleinstance.h"
+#include "settings/numberformat.h"
 #include "alarms/alarmcontroller.h"
 #include "settings/sensorpreferences.h"
 #include "settings/settingsdialog.h"
@@ -48,6 +49,8 @@ int main(int argc, char *argv[])
     qsensors::SensorPreferencesStore preferences;
     qsensors::AlarmController alarms(&preferences);
     qsensors::SensorPresentation presentation(&preferences);
+    QObject::connect(&qsensors::NumberFormatSettings::instance(), &qsensors::NumberFormatSettings::changed,
+                     &presentation, &qsensors::SensorPresentation::refresh);
     qsensors::SensorTableModel model(&preferences);
     qsensors::SensorMonitor monitor(&preferences);
     monitor.setDashboardIds({});

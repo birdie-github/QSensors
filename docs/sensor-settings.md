@@ -4,7 +4,7 @@
 
 The main menus are QSensors, View, Settings and Help. QSensors contains Configure
 Sensors, Rescan Sensors, Hide Dashboard and Quit. View selects Dashboard/Table,
-Compact Mode, Tile Size, Tile Style, Palette and Background. Compact Mode selects
+Compact Mode, Tile Size, Tile Style, Palette, Background and Decimal Separator. Compact Mode selects
 Dashboard; selecting Table exits compact mode. Settings is also available from
 all tray menus and shares the same temperature-unit, global-interval and Start
 at Login actions. Menu choices apply immediately; interval dialogs save on OK.
@@ -132,6 +132,33 @@ have not arrived yet show Waiting. No last-good value is retained after failure.
 Alarm limits/actions, hysteresis and reference-based alarm presets are added
 with the working phase-6 alarm engine. This page's gauge bounds are display-only
 and do not produce alarms.
+
+## Decimal separator
+
+View → Decimal Separator offers mutually exclusive Dot (.), Comma (,), and
+System Default choices. System Default is the initial choice and follows Qt's
+current default numeric locale. Dot/Comma use explicit ungrouped numeric locales,
+so grouping cannot be mistaken for the chosen decimal separator. They affect
+numeric display and editor parsing, without changing the application's dates,
+language, or other system locale settings.
+
+`NumberFormatSettings` caches the choice; `numberLocale()` supplies the shared
+numeric policy to tile text/gauge labels, table/settings readings, tray values
+and tooltips, numeric editors, alarm notifications, and test countdowns. The
+existing tray separator helper uses this policy too. Digital commas include a
+visible tail. Precision, measurement units, and frequency display rules are
+unchanged.
+
+Changing the choice immediately refreshes cached presentations. It does not emit
+sensor preference changes or rearm alarms. Open numeric editors switch parsing
+and display locales with edit signals blocked; canonical drafts remain intact.
+The setting applies immediately and is independent of a sensor dialog's Cancel.
+
+`[Display] decimalSeparator` stores `dot` or `comma`; System Default removes the
+key. Unknown values also use System Default. Numeric settings and command data
+(such as `SENSOR_VALUE`) keep machine-readable representations. Restart preserves
+the choice. Check dot/comma/system switching, editor input with each separator,
+restart persistence, and unchanged alarm state with an active alarm.
 
 ## Canonical values and display conversion
 

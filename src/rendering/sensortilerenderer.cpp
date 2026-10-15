@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "rendering/sensortilerenderer.h"
+#include "settings/numberformat.h"
 #include "rendering/valueformat.h"
 #include "rendering/digitaltext.h"
 
@@ -124,7 +125,7 @@ TileReading SensorTileRenderer::prepare(const SensorDescriptor &descriptor, cons
         result.valueColor = preferences.foreground;
         return result;
     }
-    const QLocale locale;
+    const QLocale locale = numberLocale();
     if (digital) {
         result.digitalText = formatDigitalSensorValue(descriptor, sample.value, unit == TemperatureUnit::Kelvin);
         if (descriptor.kind == SensorKind::Frequency) result.digitalUnit = QStringLiteral("MHz");
