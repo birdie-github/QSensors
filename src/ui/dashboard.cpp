@@ -760,6 +760,7 @@ void Dashboard::closeEvent(QCloseEvent *event)
     // Recheck now rather than trusting the host watchdog's previous result.
     if (m_trayAvailable && QSystemTrayIcon::isSystemTrayAvailable()) {
         event->ignore();
+        QSettings().setValue(QStringLiteral("Dashboard/hiddenToTray"), true);
         hide();
     } else {
         event->accept();

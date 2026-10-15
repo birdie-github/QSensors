@@ -84,3 +84,16 @@ Shutdown deletes tray icons before their shared menu, waits for the serialized
 sensor worker to finish/clean up, then releases the IPC endpoint and lock.
 A synchronous stuck driver read can still delay orderly shutdown as described
 in hardware-backend.md; no thread termination is used.
+
+## Startup visibility
+
+Closing the dashboard to the tray or using Hide Dashboard remembers
+`Dashboard/hiddenToTray=true`. Explicitly showing the dashboard clears this key;
+ordinary show/hide events during compact-mode changes do not affect it.
+
+Startup checks tray availability before showing the dashboard. With a tray host,
+a remembered hidden dashboard is never shown first. Without a tray host, the
+dashboard opens regardless of the preference and shows one startup dialog:
+**Warning** — **Systray is not available**, with an OK button. This dialog is not
+repeated by host-availability polling. The remembered hidden preference is retained
+when startup has to show the window because the tray is unavailable.

@@ -30,6 +30,7 @@ public:
     ~TrayController() override;
     void setAlarmController(AlarmController *alarms);
     void start();
+    bool isAvailable() const { return m_available; }
     void applySnapshot(const SensorSnapshot &snapshot);
     void openSettings();
     void showAlarmNotification(const QString &id, const QString &title, const QString &message);

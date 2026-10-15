@@ -16,6 +16,8 @@
 #include <QPointer>
 #include <QMessageBox>
 #include <QStatusBar>
+#include <QSettings>
+#include <QTimer>
 #include <QSystemTrayIcon>
 
 int main(int argc, char *argv[])
@@ -73,6 +75,7 @@ int main(int argc, char *argv[])
     dashboard.addAction(tray.showAction());
 
     const auto showDashboard = [&dashboard] {
+        QSettings().remove(QStringLiteral("Dashboard/hiddenToTray"));
         auto state = dashboard.windowState();
         state.setFlag(Qt::WindowMinimized, false);
         dashboard.setWindowState(state);
@@ -80,17 +83,21 @@ int main(int argc, char *argv[])
         dashboard.raise();
         dashboard.activateWindow(); // A request; Wayland focus policy remains authoritative.
     };
+    const auto hideDashboard = [&dashboard] {
+        QSettings().setValue(QStringLiteral("Dashboard/hiddenToTray"), true);
+        dashboard.hide();
+    };
     QObject::connect(&instance, &qsensors::SingleInstance::showRequested, &dashboard, showDashboard);
     QObject::connect(&tray, &qsensors::TrayController::showRequested, &dashboard, showDashboard);
-    QObject::connect(&tray, &qsensors::TrayController::hideRequested, &dashboard, [&dashboard, showDashboard] {
+    QObject::connect(&tray, &qsensors::TrayController::hideRequested, &dashboard, [hideDashboard, showDashboard] {
         if (QSystemTrayIcon::isSystemTrayAvailable())
-            dashboard.hide();
+            hideDashboard();
         else
             showDashboard();
     });
-    QObject::connect(&tray, &qsensors::TrayController::toggleRequested, &dashboard, [&dashboard, showDashboard] {
+    QObject::connect(&tray, &qsensors::TrayController::toggleRequested, &dashboard, [&dashboard, hideDashboard, showDashboard] {
         if (dashboard.isVisible() && !dashboard.isMinimized() && QSystemTrayIcon::isSystemTrayAvailable())
-            dashboard.hide();
+            hideDashboard();
         else
             showDashboard();
     });
@@ -170,7 +177,18 @@ int main(int argc, char *argv[])
     });
     monitor.setBackgroundIds(tray.selectedIds());
     tray.start();
-    dashboard.show();
+    const bool trayAvailable = tray.isAvailable();
+    const bool showOnStartup = !trayAvailable
+        || !QSettings().value(QStringLiteral("Dashboard/hiddenToTray"), false).toBool();
+    tray.setDashboardVisible(showOnStartup);
+    if (showOnStartup) dashboard.show();
+    if (!trayAvailable) {
+        // Startup warning only: later host checks must not repeat the dialog.
+        QTimer::singleShot(0, &dashboard, [&dashboard] {
+            QMessageBox::warning(&dashboard, QCoreApplication::translate("main", "Warning"),
+                QCoreApplication::translate("main", "Systray is not available"), QMessageBox::Ok);
+        });
+    }
     const int exitCode = app.exec();
     delete settingsDialog.data();
     return exitCode;
