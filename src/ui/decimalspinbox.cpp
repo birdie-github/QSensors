@@ -17,7 +17,7 @@ namespace qsensors {
 DecimalSpinBox::DecimalSpinBox(QWidget *parent, Precision precision) : QDoubleSpinBox(parent)
 {
     setLocale(numberLocale());
-    setDecimals(precision == Precision::Fine ? fineDecimals : defaultDecimals);
+    setDecimals(precision == Precision::Fine ? fineDecimals : standardDecimalPlaces);
     connect(&NumberFormatSettings::instance(), &NumberFormatSettings::changed, this, [this] {
         const QSignalBlocker blocker(this);
         m_textEdited = false;
@@ -37,7 +37,7 @@ DecimalSpinBox::DecimalSpinBox(QWidget *parent, Precision precision) : QDoubleSp
 
 QString DecimalSpinBox::textFromValue(double value) const
 {
-    int digits = defaultDecimals;
+    int digits = standardDecimalPlaces;
     if (decimals() == fineDecimals) {
         const double thousandths = std::round(value * 1000);
         if (std::fmod(std::abs(thousandths), 10.0) >= .5) digits = fineDecimals;

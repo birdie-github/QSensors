@@ -26,7 +26,6 @@ protected:
 private:
     // Precision changes belong to the shared policy, not individual pages.
     using QDoubleSpinBox::setDecimals;
-    static constexpr int defaultDecimals = 2;
     static constexpr int fineDecimals = 3;
     void updatePreciseToolTip();
     std::optional<double> m_loadedValue;

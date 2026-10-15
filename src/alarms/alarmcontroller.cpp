@@ -137,7 +137,7 @@ void AlarmController::actions(const QString &id, const SensorPreferences &p,
     }
     const bool valid = sample.available && sample.timestamp.isValid() && std::isfinite(value);
     const QString number = valid ? QString::number(value, 'g', 12) : QString();
-    const QString message = valid ? tr("%1: %2 %3").arg(name, numberLocale().toString(value, 'g', 12), unit)
+    const QString message = valid ? tr("%1: %2 %3").arg(name, numberLocale().toString(value, 'f', standardDecimalPlaces), unit)
                                  : tr("%1: no current reading").arg(name);
     if (p.alarm.notify)
         emit notificationRequested(id, test ? tr("QSensors — Test Alarm") : tr("QSensors — Alarm"), message);

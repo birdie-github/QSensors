@@ -64,6 +64,11 @@ whole icon width. Bounds are measured during rendering and reuse the icon cache;
 no image scanning or additional timer is needed. The existing `trayMarkers`
 setting remains valid and now selects these horizontal lines.
 
+Notifications format every available sensor value with exactly two decimal
+places, using the selected decimal separator (for example, `97.12 %` or
+`97,12 %`). This includes Test Alarm. The standard precision is shared with the numeric editor/tray formatting
+policy; command environment values retain their existing machine precision.
+
 Notifications use Qt's tray notification support and depend on the desktop host
 and its notification policy. An unavailable host/support is reported, but a host
 may accept a notification and suppress it (for example, Do Not Disturb).

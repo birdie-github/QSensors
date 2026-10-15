@@ -37,7 +37,7 @@ QString formatTrayNumber(double value)
 {
     if (!std::isfinite(value)) return QStringLiteral("—");
     constexpr int characterBudget = 4;
-    constexpr int maximumDecimals = 2;
+    constexpr int maximumDecimals = standardDecimalPlaces;
     for (int decimals = maximumDecimals; decimals >= 0; --decimals) {
         QString text = QString::number(value, 'f', decimals);
         if (text.contains(QLatin1Char('.'))) {

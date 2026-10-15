@@ -6,6 +6,9 @@
 
 namespace qsensors {
 
+// Standard human-readable precision; specialized compact/fine formats opt out explicitly.
+inline constexpr int standardDecimalPlaces = 2;
+
 enum class DecimalSeparator { System, Dot, Comma };
 
 // Presentation policy only. Never use this locale for settings or command data.
