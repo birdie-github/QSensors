@@ -19,6 +19,8 @@ public:
     explicit AlarmController(SensorPreferencesStore *preferences, QObject *parent = nullptr);
     void applySnapshot(const SensorSnapshot &snapshot);
     int activeCount() const { return m_activeCount; }
+    bool snoozed() const { return m_snoozed; }
+    void setSnoozed(bool snoozed);
     void test(const QString &id, const SensorPreferences &draft);
     std::optional<AlarmSettings> visual(const QString &id) const;
     bool trayHidden(const QString &id) const;
@@ -26,6 +28,7 @@ public:
     QString lastError(const QString &id) const { return m_errors.value(id); }
 
 signals:
+    void snoozedChanged(bool snoozed);
     void activeCountChanged(int count);
     void visualChanged(const QString &id);
     void trayChanged(const QString &id);
@@ -51,6 +54,7 @@ private:
     SensorPreferencesStore *m_preferences;
     QHash<QString, State> m_states;
     int m_activeCount = 0;
+    bool m_snoozed = false;
     QHash<QString, QString> m_errors;
     QHash<QString, Test> m_tests;
     QHash<QString, Blink> m_blinks;

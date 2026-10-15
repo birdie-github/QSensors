@@ -363,6 +363,11 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
 void Dashboard::createSettingsMenu()
 {
     m_settingsMenu = new QMenu(tr("&Settings"), this);
+    m_snoozeAction = m_settingsMenu->addAction(emojiIcon(QStringLiteral("💤")), tr("Snooze Alarms"));
+    m_snoozeAction->setCheckable(true);
+    m_snoozeAction->setIconVisibleInMenu(true);
+    m_snoozeAction->setToolTip(tr("Suppress notifications, command launches, and blinking until turned off or QSensors exits."));
+    m_settingsMenu->addSeparator();
     auto *units = m_settingsMenu->addMenu(tr("Temperature Unit"));
     auto *unitGroup = new QActionGroup(units);
     const auto syncUnits = [this, unitGroup] {
@@ -629,6 +634,16 @@ void Dashboard::setAlarmController(AlarmController *alarms)
 {
     m_grid->setAlarmController(alarms);
     m_model->setAlarmController(alarms);
+    connect(m_snoozeAction, &QAction::toggled, alarms, &AlarmController::setSnoozed);
+    const auto syncSnooze = [this](bool snoozed) {
+        const QSignalBlocker blocker(m_snoozeAction);
+        m_snoozeAction->setChecked(snoozed);
+        setWindowTitle(snoozed ? tr("%1 - Snoozed").arg(QCoreApplication::applicationName())
+                               : QCoreApplication::applicationName());
+        updateStatusSummary();
+    };
+    connect(alarms, &AlarmController::snoozedChanged, this, syncSnooze);
+    syncSnooze(alarms->snoozed());
     connect(alarms, &AlarmController::activeCountChanged, this, [this](int count) {
         m_activeAlarms = count;
         updateStatusSummary();
@@ -701,8 +716,9 @@ void Dashboard::updateStatusSummary()
     while (interval.endsWith(QLatin1Char('0'))) interval.chop(1);
     if (interval.endsWith(QLatin1Char('.'))) interval.chop(1);
     interval.replace(QLatin1Char('.'), numberLocale().decimalPoint());
-    const QString summary = tr("Update interval: %1 seconds | Tile size: %2 pixels | Alarms: %3")
+    QString summary = tr("Update interval: %1 seconds | Tile size: %2 pixels | Alarms: %3")
         .arg(interval).arg(m_grid->tileSize()).arg(m_activeAlarms);
+    if (m_snoozeAction->isChecked()) summary.prepend(tr("Snoozed ON | "));
     if (m_statusSummary->text() != summary) m_statusSummary->setText(summary);
 }
 

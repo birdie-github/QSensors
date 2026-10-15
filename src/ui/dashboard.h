@@ -70,6 +70,7 @@ private:
     int m_activeAlarms = 0;
     double m_intervalSeconds = 5;
     QAction *m_intervalAction;
+    QAction *m_snoozeAction;
     SensorGrid *m_grid;
     QStackedWidget *m_stack;
     QAction *m_tileSizeAction;

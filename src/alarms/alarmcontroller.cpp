@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "alarms/alarmcontroller.h"
 #include "settings/numberformat.h"
+#include <QSet>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <algorithm>
@@ -20,6 +21,21 @@ AlarmController::AlarmController(SensorPreferencesStore *preferences, QObject *p
     m_animation.setTimerType(Qt::PreciseTimer);
     connect(&m_animation, &QTimer::timeout, this, &AlarmController::animate);
     connect(preferences, &SensorPreferencesStore::changed, this, &AlarmController::preferencesChanged);
+}
+
+void AlarmController::setSnoozed(bool snoozed)
+{
+    if (m_snoozed == snoozed) return;
+    m_snoozed = snoozed;
+    // Refresh real alarms and draft overlays once each. changed() restores any
+    // hidden tray text immediately and restarts blinking only when unsnoozed.
+    QSet<QString> ids;
+    for (auto it = m_states.cbegin(); it != m_states.cend(); ++it) ids.insert(it.key());
+    for (auto it = m_tests.cbegin(); it != m_tests.cend(); ++it) ids.insert(it.key());
+    for (auto it = m_blinks.cbegin(); it != m_blinks.cend(); ++it) ids.insert(it.key());
+    for (const auto &id : ids) changed(id);
+    // No action replay: threshold episode latches continue to track readings.
+    emit snoozedChanged(snoozed);
 }
 
 std::optional<AlarmSettings> AlarmController::visual(const QString &id) const
@@ -140,6 +156,7 @@ void AlarmController::actions(const QString &id, const SensorPreferences &p,
                               const SensorSample &sample, bool test)
 {
     m_errors.remove(id);
+    if (m_snoozed) return;
     const auto descriptor = m_catalog.value(id);
     const QString name = p.label.isEmpty() ? (descriptor.label.isEmpty() ? id : descriptor.label) : p.label;
     double value = sample.value * p.multiplier + p.offset;
@@ -190,7 +207,7 @@ void AlarmController::actions(const QString &id, const SensorPreferences &p,
 void AlarmController::changed(const QString &id)
 {
     const auto a = visual(id);
-    if (a && a->trayBlink && m_preferences->value(id).tray && sensorSupportsTray(id)) {
+    if (!m_snoozed && a && a->trayBlink && m_preferences->value(id).tray && sensorSupportsTray(id)) {
         if (!m_blinks.contains(id)) m_blinks.insert(id, {false, m_clock.elapsed() + 1000});
     } else m_blinks.remove(id);
     emit visualChanged(id);
