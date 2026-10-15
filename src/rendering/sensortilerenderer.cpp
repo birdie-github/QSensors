@@ -303,9 +303,13 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
             painter.drawLine(center, tip);
             if (style.size >= 96) {
                 painter.setPen(textColor);
-                fittedText(painter, QRectF(size * 0.05, size * 0.78, size * 0.34, size * 0.07),
+                // At 96–106 px, the proportional box is too short for a small
+                // hinted font. Keep enough vertical room around the same center.
+                const qreal labelHeight = std::max(9.0, size * 0.07);
+                const qreal labelTop = size * 0.815 - labelHeight / 2;
+                fittedText(painter, QRectF(size * 0.05, labelTop, size * 0.34, labelHeight),
                            reading.lowerText, style.detailFont, false);
-                fittedText(painter, QRectF(size * 0.61, size * 0.78, size * 0.34, size * 0.07),
+                fittedText(painter, QRectF(size * 0.61, labelTop, size * 0.34, labelHeight),
                            reading.upperText, style.detailFont, false);
             }
         }
