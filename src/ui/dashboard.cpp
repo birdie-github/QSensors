@@ -2,6 +2,7 @@
 #include "ui/dashboard.h"
 #include "settings/numberformat.h"
 #include "ui/decimalspinbox.h"
+#include "rendering/emojiicon.h"
 #include "alarms/alarmcontroller.h"
 #include "ui/sensortablemodel.h"
 #include "ui/sensorgrid.h"
@@ -12,10 +13,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QCoreApplication>
-#include <QComboBox>
-#include <QIntValidator>
 #include <QInputDialog>
-#include <QLineEdit>
 #include <QSettings>
 #include <QScreen>
 #include <QGuiApplication>
@@ -71,19 +69,33 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     auto *toolbar = addToolBar(tr("Sensors"));
     toolbar->setObjectName(QStringLiteral("sensorsToolbar"));
     toolbar->setMovable(false);
-    toolbar->addSeparator();
-    toolbar->addWidget(new QLabel(tr("Update interval: "), toolbar));
-    m_interval = new DecimalSpinBox(toolbar);
-    m_interval->setRange(minimumGlobalRefreshSeconds, maximumGlobalRefreshSeconds);
-    m_interval->setSingleStep(0.1);
-    m_interval->setSuffix(tr(" s"));
-    m_interval->setValue(5);
-    m_interval->setAccessibleName(tr("Update interval in seconds"));
-    toolbar->addWidget(m_interval);
-    connect(m_interval, &DecimalSpinBox::valueEdited, this, &Dashboard::intervalChanged);
-
+    toolbar->setIconSize(QSize(24, 24));
     createSettingsMenu();
     auto *view = menuBar()->addMenu(tr("&View"));
+    auto *toolbarStyles = view->addMenu(tr("Toolbar Style"));
+    auto *toolbarStyleGroup = new QActionGroup(toolbarStyles);
+    const int savedStyle = QSettings().value(QStringLiteral("Dashboard/toolbarStyle"),
+                                            int(Qt::ToolButtonTextBesideIcon)).toInt();
+    const auto toolbarStyle = savedStyle >= int(Qt::ToolButtonIconOnly)
+        && savedStyle <= int(Qt::ToolButtonTextUnderIcon)
+        ? static_cast<Qt::ToolButtonStyle>(savedStyle) : Qt::ToolButtonTextBesideIcon;
+    toolbar->setToolButtonStyle(toolbarStyle);
+    const auto addToolbarStyle = [this, toolbar, toolbarStyles, toolbarStyleGroup](
+                                     const QString &label, Qt::ToolButtonStyle style) {
+        auto *action = toolbarStyles->addAction(label);
+        action->setCheckable(true);
+        toolbarStyleGroup->addAction(action);
+        action->setChecked(toolbar->toolButtonStyle() == style);
+        connect(action, &QAction::triggered, this, [toolbar, style] {
+            toolbar->setToolButtonStyle(style);
+            QSettings().setValue(QStringLiteral("Dashboard/toolbarStyle"), int(style));
+        });
+    };
+    addToolbarStyle(tr("Icons Only"), Qt::ToolButtonIconOnly);
+    addToolbarStyle(tr("Text Beside Icons"), Qt::ToolButtonTextBesideIcon);
+    addToolbarStyle(tr("Text Below Icons"), Qt::ToolButtonTextUnderIcon);
+    addToolbarStyle(tr("Text Only"), Qt::ToolButtonTextOnly);
+    view->addSeparator();
     auto *presentationGroup = new QActionGroup(view);
     m_dashboardView = view->addAction(tr("Dashboard"));
     m_tableView = view->addAction(tr("Table"));
@@ -96,7 +108,7 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     m_dashboardView->setChecked(!tableView);
     m_controlsAction = view->addAction(tr("Compact Mode"));
     m_controlsAction->setCheckable(true);
-    m_controlsAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+M")));
+    m_controlsAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+M")));
     addAction(m_controlsAction);
     connect(m_controlsAction, &QAction::toggled, this, [this](bool compact) { setControlsVisible(!compact); });
     view->addSeparator();
@@ -251,38 +263,20 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     for (int size : {64, 96, 128, 192, 256, 384, 512, 1024}) {
         auto *preset = sizes->addAction(tr("%1 × %1").arg(size));
         connect(preset, &QAction::triggered, this, [this, size] {
-            m_tileSize->setEditText(QString::number(size));
+            m_grid->setTileSize(size);
         });
     }
     sizes->addSeparator();
-    connect(sizes->addAction(tr("Custom…")), &QAction::triggered, this, &Dashboard::chooseCustomTileSize);
-    toolbar->addSeparator();
-    toolbar->addWidget(new QLabel(tr("Tile size: "), toolbar));
-    m_tileSize = new QComboBox(toolbar);
-    m_tileSize->setEditable(true);
-    m_tileSize->setInsertPolicy(QComboBox::NoInsert);
-    m_tileSize->setValidator(new QIntValidator(minimumTileSize, maximumTileSize, m_tileSize));
-    for (int size : {64, 96, 128, 192, 256, 384, 512, 1024})
-        m_tileSize->addItem(QString::number(size));
-    m_tileSize->addItem(tr("Custom…"), true);
-    m_tileSize->setCurrentText(QString::number(m_grid->tileSize()));
-    m_tileSize->setMinimumContentsLength(4);
-    m_tileSize->setToolTip(tr("Square tile size in logical pixels (%1–%2).").arg(minimumTileSize).arg(maximumTileSize));
-    m_tileSize->setAccessibleName(tr("Tile size in logical pixels"));
-    toolbar->addWidget(m_tileSize);
-    connect(m_tileSize, &QComboBox::currentTextChanged, this, [this](const QString &text) {
-        bool valid = false;
-        const int size = text.toInt(&valid);
-        if (valid && size >= minimumTileSize && size <= maximumTileSize)
-            m_grid->setTileSize(size);
-    });
-    connect(m_tileSize, &QComboBox::activated, this, [this](int index) {
-        if (m_tileSize->itemData(index).toBool()) chooseCustomTileSize();
-    });
-    connect(m_tileSize->lineEdit(), &QLineEdit::editingFinished, this, [this] {
-        const QSignalBlocker blocker(m_tileSize);
-        m_tileSize->setCurrentText(QString::number(m_grid->tileSize()));
-    });
+    m_tileSizeAction = sizes->addAction(emojiIcon(QStringLiteral("📏")), tr("Custom Tile Size…"));
+    m_tileSizeAction->setIconText(tr("Tile Size"));
+    m_tileSizeAction->setIconVisibleInMenu(true);
+    m_tileSizeAction->setShortcut(QKeySequence(Qt::Key_F3));
+    addAction(m_tileSizeAction);
+    sizes->setIcon(m_tileSizeAction->icon());
+    sizes->menuAction()->setIconVisibleInMenu(true);
+    connect(m_tileSizeAction, &QAction::triggered, this, &Dashboard::chooseCustomTileSize);
+    toolbar->addAction(m_intervalAction);
+    toolbar->addAction(m_tileSizeAction);
     auto *stack = new QStackedWidget(this);
     m_stack = stack;
     auto *empty = new QLabel(tr("Scanning sensors…"), stack);
@@ -321,10 +315,10 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
         QSettings().setValue(QStringLiteral("Dashboard/tableView"), table);
         if (table && m_compact) setControlsVisible(true);
         if (!m_compact) m_stack->setCurrentIndex(table ? 2 : 1);
-        m_tileSize->setEnabled(!table);
+        m_tileSizeAction->setEnabled(!table);
         updateVisibleIds();
     });
-    m_tileSize->setEnabled(!m_tableView->isChecked());
+    m_tileSizeAction->setEnabled(!m_tableView->isChecked());
     connect(statusBar(), &QStatusBar::messageChanged, empty, &QLabel::setText);
     m_trayWarning = new QLabel(tr("No system tray host — closing the window exits."), this);
     m_trayWarning->setWordWrap(true);
@@ -386,10 +380,18 @@ void Dashboard::createSettingsMenu()
     addUnit(tr("Kelvin (K)"), TemperatureUnit::Kelvin);
     syncUnits();
     connect(m_preferences, &SensorPreferencesStore::temperatureUnitChanged, this, syncUnits);
-    connect(m_settingsMenu->addAction(tr("Global Update Interval…")), &QAction::triggered, this, [this] {
+    m_intervalAction = m_settingsMenu->addAction(emojiIcon(QStringLiteral("⏱️")), tr("Global Update Interval…"));
+    m_intervalAction->setIconText(tr("Update Interval"));
+    m_intervalAction->setIconVisibleInMenu(true);
+    m_intervalAction->setShortcut(QKeySequence(Qt::Key_F2));
+    addAction(m_intervalAction);
+    connect(m_intervalAction, &QAction::triggered, this, [this] {
         const auto seconds = DecimalSpinBox::getValue(this, tr("Global Update Interval"), tr("Interval (seconds):"),
-            m_interval->value(), minimumGlobalRefreshSeconds, maximumGlobalRefreshSeconds, 0.1);
-        if (seconds) m_interval->setValue(*seconds);
+            m_intervalSeconds, minimumGlobalRefreshSeconds, maximumGlobalRefreshSeconds, 0.1);
+        if (seconds && *seconds != m_intervalSeconds) {
+            setIntervalSeconds(*seconds);
+            emit intervalChanged(*seconds);
+        }
     });
     m_settingsMenu->addSeparator();
     auto *autostart = m_settingsMenu->addAction(tr("Start at Login"));
@@ -485,9 +487,6 @@ void Dashboard::fitCompactView()
     resize(field);
     layout()->activate();
     positionResizeGrip();
-    // Resizing uses the same preference as the menu and toolbar selectors.
-    const QSignalBlocker blocker(m_tileSize);
-    m_tileSize->setCurrentText(QString::number(m_grid->tileSize()));
 }
 
 void Dashboard::positionResizeGrip()
@@ -543,13 +542,6 @@ void Dashboard::saveWindowGeometry()
 
 void Dashboard::chooseCustomTileSize()
 {
-    // Remove the action label immediately, including on Cancel. Clearing its
-    // index prevents Enter on a later direct numeric edit from reopening it.
-    {
-        const QSignalBlocker blocker(m_tileSize);
-        m_tileSize->setCurrentIndex(-1);
-        m_tileSize->setEditText(QString::number(m_grid->tileSize()));
-    }
     auto *dialog = new QInputDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setWindowTitle(tr("Custom Tile Size"));
@@ -559,8 +551,7 @@ void Dashboard::chooseCustomTileSize()
     dialog->setIntStep(1);
     dialog->setIntValue(m_grid->tileSize());
     connect(dialog, &QInputDialog::intValueSelected, this, [this](int size) {
-        // The existing text-change path applies, persists and refits the grid.
-        m_tileSize->setEditText(QString::number(size));
+        m_grid->setTileSize(size);
     });
     dialog->open();
 }
@@ -661,8 +652,10 @@ void Dashboard::setActions(QAction *hide, QAction *settings,
     menuBar()->addMenu(tr("&Help"))->addAction(about);
     auto *toolbar = findChild<QToolBar *>(QStringLiteral("sensorsToolbar"));
     toolbar->insertAction(toolbar->actions().first(), rescan);
-    toolbar->addSeparator();
     toolbar->addAction(settings);
+    // Keep shortcuts active when the toolbar and menu bar are hidden in compact mode.
+    addAction(settings);
+    addAction(rescan);
 }
 
 void Dashboard::setTrayAvailable(bool available)
@@ -686,8 +679,7 @@ void Dashboard::closeEvent(QCloseEvent *event)
 
 void Dashboard::setIntervalSeconds(double seconds)
 {
-    const QSignalBlocker blocker(m_interval);
-    m_interval->setValue(seconds);
+    m_intervalSeconds = seconds;
 }
 
 void Dashboard::showEvent(QShowEvent *event)

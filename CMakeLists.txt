@@ -66,6 +66,8 @@ qt_add_executable(qsensors
     src/rendering/valueformat.h
     src/rendering/digitaltext.cpp
     src/rendering/digitaltext.h
+    src/rendering/emojiicon.cpp
+    src/rendering/emojiicon.h
     src/ui/sensortablemodel.cpp
     src/ui/sensortablemodel.h
 )

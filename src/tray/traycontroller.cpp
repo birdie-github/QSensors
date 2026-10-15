@@ -3,6 +3,7 @@
 #include "alarms/alarmcontroller.h"
 #include "rendering/valueformat.h"
 #include "rendering/digitaltext.h"
+#include "rendering/emojiicon.h"
 #include "settings/sensorpreferences.h"
 
 #include <QAction>
@@ -519,13 +520,17 @@ TrayController::TrayController(QWidget *window, SensorPreferencesStore *preferen
     m_showAction = new QAction(tr("Show Dashboard"), this);
     m_hideAction = new QAction(tr("Hide Dashboard"), this);
     m_menu->addSeparator();
-    m_settingsAction = m_menu->addAction(tr("Configure Sensors…"));
-    m_rescanAction = m_menu->addAction(tr("Rescan Sensors"));
+    m_settingsAction = m_menu->addAction(emojiIcon(QStringLiteral("🛠️")), tr("Configure Sensors…"));
+    m_settingsAction->setIconText(tr("Settings"));
+    m_settingsAction->setIconVisibleInMenu(true);
+    m_rescanAction = m_menu->addAction(emojiIcon(QStringLiteral("🔄")), tr("Rescan Sensors"));
+    m_rescanAction->setIconText(tr("Rescan"));
+    m_rescanAction->setIconVisibleInMenu(true);
     m_menu->addSeparator();
     m_aboutAction = m_menu->addAction(tr("About QSensors"));
     m_quitAction = m_menu->addAction(tr("Quit"));
     m_showAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
-    m_settingsAction->setShortcut(QKeySequence::Preferences);
+    m_settingsAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_O));
     m_rescanAction->setShortcut(QKeySequence(Qt::Key_F5));
     m_quitAction->setShortcut(QKeySequence::Quit);
     connect(m_dashboardAction, &QAction::triggered, this, &TrayController::toggleRequested);

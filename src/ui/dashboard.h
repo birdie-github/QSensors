@@ -12,13 +12,11 @@ class QAction;
 class QLabel;
 class QCloseEvent;
 class QStackedWidget;
-class QComboBox;
 class QSizeGrip;
 class QResizeEvent;
 class QMenu;
 
 namespace qsensors {
-class DecimalSpinBox;
 
 class SensorTableModel;
 class SensorGrid;
@@ -68,10 +66,11 @@ private:
     void finishCompactResize();
     SensorPreferencesStore *m_preferences;
     SensorTableModel *m_model;
-    DecimalSpinBox *m_interval;
+    double m_intervalSeconds = 5;
+    QAction *m_intervalAction;
     SensorGrid *m_grid;
     QStackedWidget *m_stack;
-    QComboBox *m_tileSize;
+    QAction *m_tileSizeAction;
     QAction *m_tableView;
     QAction *m_dashboardView;
     QAction *m_controlsAction;
