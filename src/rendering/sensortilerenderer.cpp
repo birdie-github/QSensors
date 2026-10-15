@@ -66,14 +66,17 @@ void fittedText(QPainter &painter, const QRectF &rect, const QString &text,
         font.setPixelSize(font.pixelSize() - 1);
     painter.setFont(font);
     const QString visible = elide ? QFontMetricsF(font).elidedText(text, Qt::ElideRight, rect.width()) : text;
+    // The text is already fitted or elided. Glyph ink may overhang its advance
+    // width, so do not clip it again to the layout box. The tile clip still applies.
+    constexpr int textFlags = Qt::AlignCenter | Qt::TextSingleLine | Qt::TextDontClip;
     if (shadow) {
         const QPen ink = painter.pen();
         painter.setPen(ink.color().lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white));
         const qreal offset = std::max(.6, rect.height() * .04);
-        painter.drawText(rect.translated(offset, offset), Qt::AlignCenter | Qt::TextSingleLine, visible);
+        painter.drawText(rect.translated(offset, offset), textFlags, visible);
         painter.setPen(ink);
     }
-    painter.drawText(rect, Qt::AlignCenter | Qt::TextSingleLine, visible);
+    painter.drawText(rect, textFlags, visible);
 }
 
 } // namespace
