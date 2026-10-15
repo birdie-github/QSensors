@@ -4,13 +4,13 @@
 #include <QWidget>
 #include <QList>
 class QCheckBox;
-class QDoubleSpinBox;
 class QLineEdit;
 class QLabel;
 class QPushButton;
 class QProgressBar;
 
 namespace qsensors {
+class DecimalSpinBox;
 class AlarmEditor final : public QWidget {
     Q_OBJECT
 public:
@@ -34,9 +34,9 @@ private:
     QList<Color> m_colors;
     QCheckBox *m_lowerEnabled;
     QCheckBox *m_upperEnabled;
-    QDoubleSpinBox *m_lower;
-    QDoubleSpinBox *m_upper;
-    QDoubleSpinBox *m_hysteresis;
+    DecimalSpinBox *m_lower;
+    DecimalSpinBox *m_upper;
+    DecimalSpinBox *m_hysteresis;
     QLineEdit *m_program;
     QLineEdit *m_arguments;
     QWidget *m_tray;

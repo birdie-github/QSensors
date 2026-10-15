@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "settings/alarmeditor.h"
+#include "ui/decimalspinbox.h"
 #include <QCheckBox>
 #include <QColorDialog>
-#include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QLabel>
@@ -12,30 +12,6 @@
 #include <QVBoxLayout>
 
 namespace qsensors {
-namespace {
-class AlarmNumber final : public QDoubleSpinBox {
-public:
-    explicit AlarmNumber(QWidget *parent) : QDoubleSpinBox(parent)
-    {
-        setDecimals(2);
-        connect(lineEdit(), &QLineEdit::textEdited, this, [this] { m_textEdited = true; });
-    }
-    void loadValue(double value)
-    {
-        m_textEdited = false;
-        setValue(value);
-    }
-    bool takeTextEdited()
-    {
-        const bool edited = m_textEdited;
-        m_textEdited = false;
-        return edited;
-    }
-private:
-    bool m_textEdited = false;
-};
-}
-
 AlarmEditor::AlarmEditor(QWidget *parent) : QWidget(parent)
 {
     auto *layout = new QVBoxLayout(this);
@@ -56,8 +32,7 @@ AlarmEditor::AlarmEditor(QWidget *parent) : QWidget(parent)
         return control;
     };
     const auto number = [this](double AlarmSettings::*field, bool difference) {
-        auto *control = new AlarmNumber(this);
-        control->setKeyboardTracking(false);
+        auto *control = new DecimalSpinBox(this);
         control->setSingleStep(.1);
         const auto storeValue = [this, field, difference](double value) {
             if (m_loading) return;
@@ -65,12 +40,7 @@ AlarmEditor::AlarmEditor(QWidget *parent) : QWidget(parent)
                 ? temperatureDifferenceFromDisplay(value, m_unit) : temperatureFromDisplay(value, m_unit);
             emit edited(m_value);
         };
-        connect(control, &QDoubleSpinBox::valueChanged, this, storeValue);
-        connect(control, &QDoubleSpinBox::editingFinished, this, [control, storeValue] {
-            // Explicitly entering the rounded value replaces a more precise
-            // draft, even when the spin box's displayed value did not change.
-            if (control->takeTextEdited()) storeValue(control->value());
-        });
+        connect(control, &DecimalSpinBox::valueEdited, this, storeValue);
         return control;
     };
     m_lowerEnabled = flag(tr("Below:"), &AlarmSettings::lowerEnabled, this);
@@ -155,9 +125,9 @@ void AlarmEditor::load(const AlarmSettings &alarm, bool temperature, Temperature
         control->setRange(difference ? 0 : display(-1e12, false), display(1e12, difference));
         control->setSuffix(QLatin1Char(' ') + unitText);
     }
-    static_cast<AlarmNumber *>(m_lower)->loadValue(display(alarm.lower, false));
-    static_cast<AlarmNumber *>(m_upper)->loadValue(display(alarm.upper, false));
-    static_cast<AlarmNumber *>(m_hysteresis)->loadValue(display(alarm.hysteresis, true));
+    m_lower->loadValue(display(alarm.lower, false));
+    m_upper->loadValue(display(alarm.upper, false));
+    m_hysteresis->loadValue(display(alarm.hysteresis, true));
     m_program->setText(alarm.program);
     m_arguments->setText(alarm.arguments);
     m_tray->setVisible(traySupported);

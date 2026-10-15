@@ -11,7 +11,6 @@ class QTreeWidget;
 class QTreeWidgetItem;
 class QLineEdit;
 class QCheckBox;
-class QDoubleSpinBox;
 class QComboBox;
 class QPushButton;
 class QLabel;
@@ -21,6 +20,7 @@ class QRadioButton;
 class QFontComboBox;
 
 namespace qsensors {
+class DecimalSpinBox;
 
 class AlarmEditor;
 class AlarmController;
@@ -58,7 +58,7 @@ private:
         QCheckBox *enabled;
         QRadioButton *global;
         QRadioButton *custom;
-        QDoubleSpinBox *interval;
+        DecimalSpinBox *interval;
         QPushButton *foreground;
         QPushButton *background;
         QCheckBox *shadow;
@@ -102,11 +102,11 @@ private:
     QRadioButton *m_trayDigital;
     QWidget *m_trayFontControls;
     QFontComboBox *m_trayFont;
-    QDoubleSpinBox *m_multiplier;
-    QDoubleSpinBox *m_offset;
+    DecimalSpinBox *m_multiplier;
+    DecimalSpinBox *m_offset;
     QCheckBox *m_customRange;
-    QDoubleSpinBox *m_lower;
-    QDoubleSpinBox *m_upper;
+    DecimalSpinBox *m_lower;
+    DecimalSpinBox *m_upper;
     QComboBox *m_memoryDisplay;
     QLabel *m_identity;
 };

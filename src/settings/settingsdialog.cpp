@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "settings/settingsdialog.h"
+#include "ui/decimalspinbox.h"
 #include "settings/alarmeditor.h"
 #include "alarms/alarmcontroller.h"
 #include "rendering/valueformat.h"
@@ -8,7 +9,6 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QDialogButtonBox>
-#include <QDoubleSpinBox>
 #include <QFontComboBox>
 #include <QFontDatabase>
 #include <QRadioButton>
@@ -28,9 +28,6 @@
 #include <QShowEvent>
 #include <QHideEvent>
 
-#include <cmath>
-#include <functional>
-#include <utility>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
@@ -39,57 +36,9 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
 
 namespace qsensors {
-namespace {
-// QDoubleSpinBox retains three editable decimal places. Compact text is presentation
-// only: loading these controls never writes their rounded value back to the draft.
-class ConfigurationNumber final : public QDoubleSpinBox {
-public:
-    explicit ConfigurationNumber(QWidget *parent) : QDoubleSpinBox(parent)
-    {
-        setDecimals(3);
-        setKeyboardTracking(false);
-        setSingleStep(.01);
-        connect(lineEdit(), &QLineEdit::textEdited, this, [this] { m_textEdited = true; });
-        connect(this, &QDoubleSpinBox::valueChanged, this, [this](double value) {
-            if (m_editHandler) m_editHandler(value);
-        });
-        connect(this, &QDoubleSpinBox::editingFinished, this, [this] {
-            if (!std::exchange(m_textEdited, false)) return;
-            // An explicit edit matching the rounded display still replaces the
-            // higher-precision draft. Mere focus/acceptance never does.
-            if (m_editHandler) m_editHandler(value());
-        });
-    }
-    void loadValue(double value)
-    {
-        m_textEdited = false;
-        setValue(value);
-    }
-    void setEditHandler(std::function<void(double)> handler) { m_editHandler = std::move(handler); }
-protected:
-    QString textFromValue(double value) const override
-    {
-        const double thousandths = std::round(value * 1000);
-        const int digits = std::fmod(std::abs(thousandths), 10.0) < .5 ? 2 : 3;
-        return locale().toString(value, 'f', digits);
-    }
-private:
-    bool m_textEdited = false;
-    std::function<void(double)> m_editHandler;
-};
-void loadNumber(QDoubleSpinBox *control, double value)
-{
-    static_cast<ConfigurationNumber *>(control)->loadValue(value);
-    control->setToolTip(QObject::tr("Stored value (unchanged unless edited): %1").arg(control->locale().toString(value, 'g', 17)));
-}
-void onNumberEdited(QDoubleSpinBox *control, std::function<void(double)> handler)
-{
-    static_cast<ConfigurationNumber *>(control)->setEditHandler(std::move(handler));
-}
-}
-
 SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<SensorDescriptor> &catalog,
                                QWidget *parent)
     : QDialog(parent), m_store(store), m_draft(store->values()), m_unit(store->temperatureUnit())
@@ -151,9 +100,9 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     form->addRow(tr("Display name:"), m_label);
     auto *resetName = new QPushButton(tr("Use original"), properties);
     form->addRow(resetName);
-    m_multiplier = new ConfigurationNumber(properties);
+    m_multiplier = new DecimalSpinBox(properties, DecimalSpinBox::Precision::Fine);
     m_multiplier->setRange(-1e6, 1e6);
-    m_offset = new ConfigurationNumber(properties);
+    m_offset = new DecimalSpinBox(properties, DecimalSpinBox::Precision::Fine);
     form->addRow(tr("Multiplier:"), m_multiplier);
     form->labelForField(m_multiplier)->setToolTip(tr("Applied after libsensors configuration rules. Temperature multipliers operate on Celsius readings."));
     form->addRow(tr("Offset:"), m_offset);
@@ -221,20 +170,20 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
             loadSensor(m_currentId);
         }
     });
-    onNumberEdited(m_multiplier, [this](double value) {
+    connect(m_multiplier, &DecimalSpinBox::valueEdited, this, [this](double value) {
         if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].multiplier = value;
     });
-    onNumberEdited(m_offset, [this](double value) {
+    connect(m_offset, &DecimalSpinBox::valueEdited, this, [this](double value) {
         if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].offset = fromDisplay(value, true);
     });
     connect(m_customRange, &QCheckBox::toggled, this, [this](bool checked) {
         if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].customRange = checked;
         updatePresentationControls();
     });
-    onNumberEdited(m_lower, [this](double value) {
+    connect(m_lower, &DecimalSpinBox::valueEdited, this, [this](double value) {
         if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].rangeLower = fromDisplay(value, false);
     });
-    onNumberEdited(m_upper, [this](double value) {
+    connect(m_upper, &DecimalSpinBox::valueEdited, this, [this](double value) {
         if (!m_loading && !m_currentId.isEmpty()) m_draft[m_currentId].rangeUpper = fromDisplay(value, false);
     });
     updateCatalog(catalog);
@@ -296,7 +245,7 @@ SettingsDialog::PresentationControls SettingsDialog::createPresentationPage(bool
     auto *timingLayout = new QVBoxLayout(timing);
     c.global = new QRadioButton(tr("Use global"), timing);
     c.custom = new QRadioButton(tr("Every"), timing);
-    c.interval = new ConfigurationNumber(timing);
+    c.interval = new DecimalSpinBox(timing, DecimalSpinBox::Precision::Fine);
     c.interval->setRange(minimumRefreshSeconds, maximumRefreshSeconds);
     c.interval->setSuffix(tr(" seconds"));
     timingLayout->addWidget(c.global);
@@ -393,8 +342,8 @@ SettingsDialog::PresentationControls SettingsDialog::createPresentationPage(bool
         auto *range = new QFormLayout(m_gaugeRange);
         m_customRange = new QCheckBox(tr("Use custom gauge range"), m_gaugeRange);
         m_customRange->setToolTip(tr("Display bounds only; these do not trigger alarms."));
-        m_lower = new ConfigurationNumber(m_gaugeRange);
-        m_upper = new ConfigurationNumber(m_gaugeRange);
+        m_lower = new DecimalSpinBox(m_gaugeRange, DecimalSpinBox::Precision::Fine);
+        m_upper = new DecimalSpinBox(m_gaugeRange, DecimalSpinBox::Precision::Fine);
         range->addRow(m_customRange);
         range->addRow(tr("Gauge minimum:"), m_lower);
         range->addRow(tr("Gauge maximum:"), m_upper);
@@ -416,7 +365,7 @@ SettingsDialog::PresentationControls SettingsDialog::createPresentationPage(bool
         }
         updatePresentationControls();
     });
-    onNumberEdited(c.interval, [this, tray](double value) {
+    connect(c.interval, &DecimalSpinBox::valueEdited, this, [this, tray](double value) {
         if (!m_loading && !m_currentId.isEmpty()) {
             auto &p = m_draft[m_currentId];
             (tray ? p.trayInterval : p.dashboardInterval) = value;
@@ -461,7 +410,7 @@ void SettingsDialog::loadPresentation(const PresentationControls &c, bool tray)
     const bool global = tray ? p.trayUseGlobal : p.dashboardUseGlobal;
     c.global->setChecked(global);
     c.custom->setChecked(!global);
-    loadNumber(c.interval, tray ? p.trayInterval : p.dashboardInterval);
+    c.interval->loadValue(tray ? p.trayInterval : p.dashboardInterval);
     c.shadow->setChecked(tray ? p.trayShadow : p.dashboardShadow);
     const bool transparent = tray ? p.trayTransparent : p.dashboardTransparent;
     c.transparent->setChecked(transparent);
@@ -766,7 +715,7 @@ void SettingsDialog::loadSensor(const QString &id)
     m_trayFont->setCurrentFont(font);
     m_trayNormal->setChecked(!p.trayDigital);
     m_trayDigital->setChecked(p.trayDigital);
-    loadNumber(m_multiplier, p.multiplier);
+    m_multiplier->loadValue(p.multiplier);
     const QString unit = currentIsTemperature() ? temperatureUnitText(m_unit) : descriptor.unit;
     m_alarmEditor->load(p.alarm, currentIsTemperature(), m_unit, unit, sensorSupportsTray(id));
     m_alarmEditor->setTestRemaining(m_alarms ? m_alarms->testRemaining(id) : 0);
@@ -777,10 +726,10 @@ void SettingsDialog::loadSensor(const QString &id)
     m_offset->setRange(toDisplay(-1e12, true), toDisplay(1e12, true));
     m_lower->setRange(toDisplay(-1e12, false), toDisplay(1e12, false));
     m_upper->setRange(toDisplay(-1e12, false), toDisplay(1e12, false));
-    loadNumber(m_offset, toDisplay(p.offset, true));
+    m_offset->loadValue(toDisplay(p.offset, true));
     m_customRange->setChecked(p.customRange);
-    loadNumber(m_lower, toDisplay(p.rangeLower, false));
-    loadNumber(m_upper, toDisplay(p.rangeUpper, false));
+    m_lower->loadValue(toDisplay(p.rangeLower, false));
+    m_upper->loadValue(toDisplay(p.rangeUpper, false));
     m_lower->setEnabled(p.customRange);
     m_upper->setEnabled(p.customRange);
     updateColorButtons();

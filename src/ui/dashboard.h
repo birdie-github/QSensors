@@ -8,7 +8,6 @@
 #include <QSet>
 #include <QTimer>
 
-class QDoubleSpinBox;
 class QAction;
 class QLabel;
 class QCloseEvent;
@@ -19,6 +18,7 @@ class QResizeEvent;
 class QMenu;
 
 namespace qsensors {
+class DecimalSpinBox;
 
 class SensorTableModel;
 class SensorGrid;
@@ -68,7 +68,7 @@ private:
     void finishCompactResize();
     SensorPreferencesStore *m_preferences;
     SensorTableModel *m_model;
-    QDoubleSpinBox *m_interval;
+    DecimalSpinBox *m_interval;
     SensorGrid *m_grid;
     QStackedWidget *m_stack;
     QComboBox *m_tileSize;

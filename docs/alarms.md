@@ -13,7 +13,8 @@ and seven independently selectable actions:
 
 All actions and limits default to off. Enable at least one limit and action to
 arm an alarm. Alarms have their own limits, independent of gauge display bounds.
-The Below, Above, and Hysteresis editors display and accept two decimal places.
+The Below, Above, and Hysteresis editors use the shared `DecimalSpinBox`
+Standard policy: display and accept two decimal places.
 Loading the dialog, changing units, or editing another field preserves the full
 precision of untouched saved limits. Explicit numeric edits replace that value
 with the edited two-decimal value.

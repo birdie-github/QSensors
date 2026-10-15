@@ -114,8 +114,16 @@ Temperature calibration operates in Celsius. Absolute conversions are
 is 18 °F or 10 K, without adding 32 or 273.15. Custom gauge bounds are absolute
 canonical values, converted for editing/rendering. Changing the global temperature unit
 reloads the controls without rewriting their canonical draft values. Only
-actual numeric edits write those draft fields. Numeric editors display two
-decimals, or three when the third is nonzero, and accept up to three decimals.
+actual numeric edits write those draft fields. All floating-point editors use `DecimalSpinBox` (`src/ui/decimalspinbox.*`),
+which owns display precision, locale formatting, deferred keyboard edits,
+precision-preserving loads, and intentional same-value edits. Its Standard
+policy displays/accepts two decimals. Its explicit Fine policy is used for
+calibration, gauge ranges, and per-sensor intervals: it accepts three decimals
+and shows the third only when nonzero. Alarm thresholds/hysteresis and both
+global-interval controls use Standard. The menu's interval dialog uses the same
+widget as the toolbar; individual pages do not call `setDecimals`.
+Readout formatting (including compact tray/digital text) remains a separate
+presentation policy in the rendering code.
 Their internal spin-box rounding is never copied into the draft while loading.
 Opening and accepting, changing units, visiting another sensor, or editing an
 unrelated field preserves the full precision of untouched stored values. A

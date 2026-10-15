@@ -46,6 +46,8 @@ qt_add_executable(qsensors
     src/sensors/lmsensorsprovider.h
     src/sensors/sensormonitor.cpp
     src/sensors/sensormonitor.h
+    src/ui/decimalspinbox.cpp
+    src/ui/decimalspinbox.h
     src/ui/dashboard.cpp
     src/ui/dashboard.h
     src/ui/dashboardcolorsdialog.cpp

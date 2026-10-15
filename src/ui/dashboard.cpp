@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ui/dashboard.h"
+#include "ui/decimalspinbox.h"
 #include "alarms/alarmcontroller.h"
 #include "ui/sensortablemodel.h"
 #include "ui/sensorgrid.h"
@@ -31,7 +32,6 @@
 #include <QScopedValueRollback>
 #include <QResizeEvent>
 #include <QSizeGrip>
-#include <QDoubleSpinBox>
 #include <QSortFilterProxyModel>
 #include <QStackedWidget>
 #include <QStatusBar>
@@ -72,16 +72,14 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     toolbar->setMovable(false);
     toolbar->addSeparator();
     toolbar->addWidget(new QLabel(tr("Update interval: "), toolbar));
-    m_interval = new QDoubleSpinBox(toolbar);
-    m_interval->setDecimals(2);
+    m_interval = new DecimalSpinBox(toolbar);
     m_interval->setRange(minimumGlobalRefreshSeconds, maximumGlobalRefreshSeconds);
     m_interval->setSingleStep(0.1);
     m_interval->setSuffix(tr(" s"));
     m_interval->setValue(5);
-    m_interval->setKeyboardTracking(false);
     m_interval->setAccessibleName(tr("Update interval in seconds"));
     toolbar->addWidget(m_interval);
-    connect(m_interval, &QDoubleSpinBox::valueChanged, this, &Dashboard::intervalChanged);
+    connect(m_interval, &DecimalSpinBox::valueEdited, this, &Dashboard::intervalChanged);
 
     createSettingsMenu();
     auto *view = menuBar()->addMenu(tr("&View"));
@@ -369,11 +367,9 @@ void Dashboard::createSettingsMenu()
     syncUnits();
     connect(m_preferences, &SensorPreferencesStore::temperatureUnitChanged, this, syncUnits);
     connect(m_settingsMenu->addAction(tr("Global Update Interval…")), &QAction::triggered, this, [this] {
-        bool accepted = false;
-        const double seconds = QInputDialog::getDouble(this, tr("Global Update Interval"), tr("Interval (seconds):"),
-            m_interval->value(), minimumGlobalRefreshSeconds, maximumGlobalRefreshSeconds, 2, &accepted,
-            Qt::WindowFlags(), 0.1);
-        if (accepted) m_interval->setValue(seconds);
+        const auto seconds = DecimalSpinBox::getValue(this, tr("Global Update Interval"), tr("Interval (seconds):"),
+            m_interval->value(), minimumGlobalRefreshSeconds, maximumGlobalRefreshSeconds, 0.1);
+        if (seconds) m_interval->setValue(*seconds);
     });
     m_settingsMenu->addSeparator();
     auto *autostart = m_settingsMenu->addAction(tr("Start at Login"));
