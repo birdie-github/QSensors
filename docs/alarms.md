@@ -47,6 +47,12 @@ while a selected tray icon needs blinking or a test countdown is active.
 
 ## Tray and notifications
 
+When the alarm changes the tray text color, Cast shadow uses a slightly darker
+shade of that color (`QColor::darker(110)`) for both normal and digital text.
+Outside that color override, the usual contrasting black/white shadow is used.
+The shadow color is part of the icon cache key, so entry/recovery and tests
+restore it even when normal and alarm text colors happen to match.
+
 Tray actions apply to existing selected tray icons (enable them in the System
 Tray tab). They do not create extra icons. Uptime does not support tray actions.
 Blinking substitutes a transparent icon rather than unregistering it, preserving

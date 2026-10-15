@@ -149,7 +149,7 @@ FontTraits fontTraits(const QFont &font)
 // bitmap strikes and font hinting, particularly at small tray sizes.
 QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &color,
                       QFont font, const SensorPreferences &preferences, TrayFontSizingState &sizing,
-                      QRect *inkBounds = nullptr)
+                      const QColor &shadowColor, QRect *inkBounds = nullptr)
 {
     if (inkBounds) *inkBounds = {};
     if (size.isEmpty()) return {};
@@ -163,8 +163,7 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
         const int shadow = preferences.trayShadow && std::min(size.width(), size.height()) >= 8 ? 1 : 0;
         const QRectF area(QPointF(0, 0), QSizeF(size - QSize(shadow, shadow)));
         if (shadow) {
-            const QColor ink = color.lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white);
-            drawDigitalText(painter, area.translated(shadow, shadow), text, ink, false, true);
+            drawDigitalText(painter, area.translated(shadow, shadow), text, shadowColor, false, true);
         }
         QRectF bounds;
         drawDigitalText(painter, area, text, color, false, true, inkBounds ? &bounds : nullptr);
@@ -347,7 +346,7 @@ QPixmap numericPixmap(const QSize &size, const QString &text, const QColor &colo
     QPainter painter(&pixmap);
     painter.setFont(font);
     if (shadow) {
-        painter.setPen(color.lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white));
+        painter.setPen(shadowColor);
         painter.drawText(baseline + QPoint(shadow, shadow), text);
     }
     painter.setPen(color);
@@ -360,8 +359,8 @@ class NumericIconEngine final : public QIconEngine {
 public:
     NumericIconEngine(const QString &text, const QColor &color, const QFont &font,
                       const SensorPreferences &preferences, std::shared_ptr<TrayFontSizingState> sizing,
-                      bool markers, bool hidden)
-        : m_text(text), m_color(color), m_font(font), m_preferences(preferences), m_sizing(std::move(sizing)),
+                      bool markers, bool hidden, const QColor &shadowColor)
+        : m_text(text), m_color(color), m_shadowColor(shadowColor), m_font(font), m_preferences(preferences), m_sizing(std::move(sizing)),
           m_markers(markers), m_hidden(hidden) {}
 
     QIconEngine *clone() const override { return new NumericIconEngine(*this); }
@@ -400,7 +399,7 @@ public:
             QPainter painter(&result);
             QRect inkBounds;
             painter.drawPixmap(0, band, numericPixmap(QSize(size.width(), size.height() - 2 * band),
-                m_text, m_color, m_font, m_preferences, *m_sizing, &inkBounds));
+                m_text, m_color, m_font, m_preferences, *m_sizing, m_shadowColor, &inkBounds));
             if (!inkBounds.isEmpty()) {
                 QPen pen(m_color, std::max(1, size.width() / 32));
                 pen.setCapStyle(Qt::FlatCap);
@@ -410,7 +409,7 @@ public:
                 painter.drawLine(inkBounds.left(), size.height() - band + 1,
                                  inkBounds.right(), size.height() - band + 1);
             }
-        } else result = numericPixmap(size, m_text, m_color, m_font, m_preferences, *m_sizing);
+        } else result = numericPixmap(size, m_text, m_color, m_font, m_preferences, *m_sizing, m_shadowColor);
         const qint64 pixels = qint64(size.width()) * size.height();
         // Per-current-value LRU: retain the eleven advertised resolutions within
         // 64K raster pixels (~256 KiB at 32bpp). Oversized requests aren't cached.
@@ -449,6 +448,7 @@ public:
 private:
     QString m_text;
     QColor m_color;
+    QColor m_shadowColor;
     QFont m_font;
     SensorPreferences m_preferences;
     std::shared_ptr<TrayFontSizingState> m_sizing;
@@ -463,9 +463,9 @@ private:
 
 QIcon numericIcon(const QString &text, const QColor &color, const QFont &font,
                   const SensorPreferences &preferences, const std::shared_ptr<TrayFontSizingState> &sizing,
-                  bool markers = false, bool hidden = false)
+                  bool markers = false, bool hidden = false, const QColor &shadowColor = {})
 {
-    return QIcon(new NumericIconEngine(text, color, font, preferences, sizing, markers, hidden));
+    return QIcon(new NumericIconEngine(text, color, font, preferences, sizing, markers, hidden, shadowColor));
 }
 
 } // namespace
@@ -711,9 +711,11 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
         : !preferences.trayTransparent && preferences.trayBackground.isValid()
             ? (preferences.trayBackground.lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white))
             : QApplication::palette().color(QPalette::Text);
+    const QColor shadowColor = alarm && alarm->trayColor ? color.darker(110)
+        : color.lightness() > 128 ? QColor(Qt::black) : QColor(Qt::white);
     QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     if (!preferences.trayFontFamily.isEmpty()) font.setFamily(preferences.trayFontFamily);
-    const QString key = QString::number(markers) + QLatin1Char('|') + QString::number(preferences.trayDigital) + QLatin1Char('|') + text + QStringLiteral("|") + color.name(QColor::HexArgb) + font.toString()
+    const QString key = QString::number(markers) + QLatin1Char('|') + QString::number(preferences.trayDigital) + QLatin1Char('|') + text + QStringLiteral("|") + color.name(QColor::HexArgb) + QLatin1Char('|') + shadowColor.name(QColor::HexArgb) + font.toString()
         + QStringLiteral("|%1|%2|%3").arg(preferences.trayShadow)
             .arg(preferences.trayTransparent).arg(preferences.trayTransparent ? QString() :
                 (preferences.trayBackground.isValid() ? preferences.trayBackground : QApplication::palette().color(QPalette::Base)).name(QColor::HexArgb));
@@ -728,7 +730,7 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
     const bool changed = key != entry.renderKey;
     if (changed) {
         entry.renderKey = key;
-        entry.renderedIcon = numericIcon(text, color, font, preferences, entry.fontSizing, markers);
+        entry.renderedIcon = numericIcon(text, color, font, preferences, entry.fontSizing, markers, false, shadowColor);
     }
     if (changed || entry.alarmHidden != hidden) {
         // Keep the icon registered so the panel slot and context menu do not move.
