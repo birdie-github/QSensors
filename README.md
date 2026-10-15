@@ -53,6 +53,16 @@ sensors appear when those interfaces expose them; coverage varies by device.
 QSensors reads sensor values; fan-speed control and privileged SMART access are
 outside its scope.
 
+## Screenshots
+
+### Dashboard
+
+![QSensors' Dashboard](screenshots/dashboard.webp)
+
+### Systray
+
+![QSensors' Dashboard](screenshots/systray.webp)
+
 ## Getting started
 
 QSensors runs on Linux with **Qt 6.8 or newer** and **libsensors**. It uses Qt's
