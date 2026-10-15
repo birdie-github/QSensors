@@ -14,6 +14,7 @@
 #include <QActionGroup>
 #include <QCoreApplication>
 #include <QInputDialog>
+#include <QSpinBox>
 #include <QSettings>
 #include <QScreen>
 #include <QGuiApplication>
@@ -603,6 +604,8 @@ void Dashboard::saveWindowGeometry()
 
 void Dashboard::chooseCustomTileSize()
 {
+    finishCompactResize();
+    const int originalSize = m_grid->tileSize();
     auto *dialog = new QInputDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setWindowTitle(tr("Custom Tile Size"));
@@ -610,9 +613,19 @@ void Dashboard::chooseCustomTileSize()
     dialog->setInputMode(QInputDialog::IntInput);
     dialog->setIntRange(minimumTileSize, maximumTileSize);
     dialog->setIntStep(1);
-    dialog->setIntValue(m_grid->tileSize());
+    dialog->setIntValue(originalSize);
+    // Preview valid typed values immediately, without waiting for focus loss.
+    if (auto *spin = dialog->findChild<QSpinBox *>()) spin->setKeyboardTracking(true);
+    connect(dialog, &QInputDialog::intValueChanged, this, [this](int size) {
+        m_grid->setTileSize(size, false);
+    });
     connect(dialog, &QInputDialog::intValueSelected, this, [this](int size) {
-        m_grid->setTileSize(size);
+        m_grid->setTileSize(size, false);
+        // The preview may already have this size, so explicitly persist on OK.
+        m_grid->saveTileSize();
+    });
+    connect(dialog, &QInputDialog::rejected, this, [this, originalSize] {
+        m_grid->setTileSize(originalSize, false);
     });
     dialog->open();
 }
