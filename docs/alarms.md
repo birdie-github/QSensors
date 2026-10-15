@@ -8,8 +8,25 @@ and seven independently selectable actions:
 - Show a desktop notification.
 - Run an executable with arguments.
 - Draw thin horizontal lines above and below the tray value, spanning the rendered text width.
-- Blink the tray icon: 1000 ms visible, 750 ms transparent.
+- Blink the tray icon (timing is configured globally in the INI file).
 - Change the tray text color.
+
+Tray blink timing is read once at startup from these global INI settings:
+
+```ini
+[Alarms]
+trayBlinkOnSeconds=1
+trayBlinkOffSeconds=0.75
+```
+
+On means visible; Off means hidden. Missing keys are created with these defaults.
+Use decimal seconds with a dot. Each value must be finite and strictly greater
+than 0.1 seconds; invalid values use that phase's default. Values are rounded to
+milliseconds, with a minimum effective duration of 101 ms, and must fit Qt's
+signed 32-bit millisecond timer range (at most 2147483.647 seconds). Restart
+QSensors after editing. These timings also apply to Test Alarm; snooze still
+suppresses blinking. Long phases wait for their deadline rather than polling
+every second.
 
 All actions and limits default to off. Enable at least one limit and action,
 with the **Enable alarms** master switch on, to arm an alarm. The sensor browser's

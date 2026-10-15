@@ -2,6 +2,7 @@
 #include "alarms/alarmcontroller.h"
 #include "settings/numberformat.h"
 #include <QSet>
+#include <QSettings>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <algorithm>
@@ -13,6 +14,19 @@ namespace qsensors {
 AlarmController::AlarmController(SensorPreferencesStore *preferences, QObject *parent)
     : QObject(parent), m_preferences(preferences)
 {
+    // Global INI-only timing, loaded once. Keep invalid edits from creating
+    // zero-duration loops or overflowing the timer's millisecond interval.
+    QSettings settings;
+    const auto blinkDuration = [&settings](const QString &key, int fallback) {
+        if (!settings.contains(key)) settings.setValue(key, fallback / 1000.0);
+        bool valid = false;
+        const double seconds = settings.value(key).toDouble(&valid);
+        if (!valid || !std::isfinite(seconds) || seconds <= 0.1
+            || seconds > std::numeric_limits<int>::max() / 1000.0) return fallback;
+        return std::max(101, static_cast<int>(std::round(seconds * 1000.0)));
+    };
+    m_blinkOnMilliseconds = blinkDuration(QStringLiteral("Alarms/trayBlinkOnSeconds"), 1000);
+    m_blinkOffMilliseconds = blinkDuration(QStringLiteral("Alarms/trayBlinkOffSeconds"), 750);
     m_clock.start();
     connect(this, &AlarmController::actionError, this, [this](const QString &id, const QString &message) {
         m_errors.insert(id, message);
@@ -208,7 +222,7 @@ void AlarmController::changed(const QString &id)
 {
     const auto a = visual(id);
     if (!m_snoozed && a && a->trayBlink && m_preferences->value(id).tray && sensorSupportsTray(id)) {
-        if (!m_blinks.contains(id)) m_blinks.insert(id, {false, m_clock.elapsed() + 1000});
+        if (!m_blinks.contains(id)) m_blinks.insert(id, {false, m_clock.elapsed() + m_blinkOnMilliseconds});
     } else m_blinks.remove(id);
     emit visualChanged(id);
     emit trayChanged(id);
@@ -229,7 +243,7 @@ void AlarmController::animate()
     for (auto it = m_blinks.begin(); it != m_blinks.end(); ++it) {
         if (now < it->next) continue;
         it->hidden = !it->hidden;
-        it->next = now + (it->hidden ? 750 : 1000);
+        it->next = now + (it->hidden ? m_blinkOffMilliseconds : m_blinkOnMilliseconds);
         emit trayChanged(it.key());
     }
     scheduleAnimation();
@@ -243,7 +257,7 @@ void AlarmController::scheduleAnimation()
     for (const auto &blink : m_blinks) next = std::min(next, blink.next);
     for (const auto &test : m_tests) next = std::min(next, std::min(test.expires, now + 100));
     if (next != std::numeric_limits<qint64>::max())
-        m_animation.start(int(std::clamp<qint64>(next - now, 1, 1000)));
+        m_animation.start(int(std::clamp<qint64>(next - now, 1, std::numeric_limits<int>::max())));
 }
 
 } // namespace qsensors

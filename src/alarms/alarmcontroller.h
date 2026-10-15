@@ -55,6 +55,8 @@ private:
     QHash<QString, State> m_states;
     int m_activeCount = 0;
     bool m_snoozed = false;
+    int m_blinkOnMilliseconds = 1000;
+    int m_blinkOffMilliseconds = 750;
     QHash<QString, QString> m_errors;
     QHash<QString, Test> m_tests;
     QHash<QString, Blink> m_blinks;
