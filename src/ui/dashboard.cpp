@@ -30,7 +30,7 @@
 #include <QScopedValueRollback>
 #include <QResizeEvent>
 #include <QSizeGrip>
-#include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QSortFilterProxyModel>
 #include <QStackedWidget>
 #include <QStatusBar>
@@ -71,14 +71,16 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     toolbar->setMovable(false);
     toolbar->addSeparator();
     toolbar->addWidget(new QLabel(tr("Update interval: "), toolbar));
-    m_interval = new QSpinBox(toolbar);
-    m_interval->setRange(1, 3600);
+    m_interval = new QDoubleSpinBox(toolbar);
+    m_interval->setDecimals(2);
+    m_interval->setRange(minimumGlobalRefreshSeconds, maximumGlobalRefreshSeconds);
+    m_interval->setSingleStep(0.1);
     m_interval->setSuffix(tr(" s"));
     m_interval->setValue(5);
     m_interval->setKeyboardTracking(false);
     m_interval->setAccessibleName(tr("Update interval in seconds"));
     toolbar->addWidget(m_interval);
-    connect(m_interval, &QSpinBox::valueChanged, this, &Dashboard::intervalChanged);
+    connect(m_interval, &QDoubleSpinBox::valueChanged, this, &Dashboard::intervalChanged);
 
     createSettingsMenu();
     auto *view = menuBar()->addMenu(tr("&View"));
@@ -367,8 +369,9 @@ void Dashboard::createSettingsMenu()
     connect(m_preferences, &SensorPreferencesStore::temperatureUnitChanged, this, syncUnits);
     connect(m_settingsMenu->addAction(tr("Global Update Interval…")), &QAction::triggered, this, [this] {
         bool accepted = false;
-        const int seconds = QInputDialog::getInt(this, tr("Global Update Interval"), tr("Interval (seconds):"),
-                                               m_interval->value(), 1, 3600, 1, &accepted);
+        const double seconds = QInputDialog::getDouble(this, tr("Global Update Interval"), tr("Interval (seconds):"),
+            m_interval->value(), minimumGlobalRefreshSeconds, maximumGlobalRefreshSeconds, 2, &accepted,
+            Qt::WindowFlags(), 0.1);
         if (accepted) m_interval->setValue(seconds);
     });
     m_settingsMenu->addSeparator();
@@ -658,7 +661,7 @@ void Dashboard::closeEvent(QCloseEvent *event)
     }
 }
 
-void Dashboard::setIntervalSeconds(int seconds)
+void Dashboard::setIntervalSeconds(double seconds)
 {
     const QSignalBlocker blocker(m_interval);
     m_interval->setValue(seconds);

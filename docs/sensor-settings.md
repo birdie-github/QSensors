@@ -8,7 +8,13 @@ Compact Mode, Tile Size, Tile Style, Palette and Background. Compact Mode select
 Dashboard; selecting Table exits compact mode. Settings is also available from
 all tray menus and shares the same temperature-unit, global-interval and Start
 at Login actions. Menu choices apply immediately; interval dialogs save on OK.
-The global interval remains available on the dashboard toolbar.
+The global interval remains available on the dashboard toolbar. Both controls
+accept 0.10–999.99 seconds with two decimal places and 0.10-second arrow steps.
+The stored value and signal/slot interfaces use floating-point seconds; deadlines
+use rounded integer milliseconds, including previews (0.10 s → 100 ms,
+1.25 s → 1250 ms, 999.99 s → 999990 ms). On load, finite saved values are clamped
+and rounded to two decimals; malformed/non-finite values fall back to 5 seconds.
+The existing `Monitoring/intervalSeconds` key also accepts old integer values.
 
 Configure Sensors opens directly to the sensor browser/editor, with Properties,
 Dashboard and (if supported) System Tray tabs. It has no outer General/Sensors

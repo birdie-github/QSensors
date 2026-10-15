@@ -66,9 +66,10 @@ SensorMonitor::SensorMonitor(SensorPreferencesStore *preferences, QObject *paren
     qRegisterMetaType<SensorSnapshot>();
     QSettings settings;
     bool valid = false;
-    const int interval = settings.value(QStringLiteral("Monitoring/intervalSeconds"), 5).toInt(&valid);
-    if (valid && interval >= 1 && interval <= 3600)
-        m_intervalSeconds = interval;
+    const double interval = settings.value(QStringLiteral("Monitoring/intervalSeconds"), 5).toDouble(&valid);
+    if (valid && std::isfinite(interval))
+        m_intervalSeconds = std::round(std::clamp(interval, minimumGlobalRefreshSeconds,
+                                                 maximumGlobalRefreshSeconds) * 100) / 100;
     m_timer.setSingleShot(true);
     m_timer.setTimerType(Qt::PreciseTimer);
     connect(&m_timer, &QTimer::timeout, this, &SensorMonitor::request);
@@ -187,6 +188,11 @@ void SensorMonitor::rebuildDemand()
     append(m_previewIds);
 }
 
+qint64 SensorMonitor::globalIntervalMilliseconds() const
+{
+    return static_cast<qint64>(std::llround(m_intervalSeconds * 1000));
+}
+
 qint64 SensorMonitor::intervalMilliseconds(const QString &id, bool tray) const
 {
     const auto p = m_preferences->value(id);
@@ -200,7 +206,7 @@ qint64 SensorMonitor::acquisitionMilliseconds(const QString &id) const
     qint64 period = std::numeric_limits<qint64>::max();
     if (m_dashboardSet.contains(id)) period = std::min(period, intervalMilliseconds(id, false));
     if (m_backgroundSet.contains(id)) period = std::min(period, intervalMilliseconds(id, true));
-    if (m_previewSet.contains(id)) period = std::min(period, qint64(m_intervalSeconds) * 1000);
+    if (m_previewSet.contains(id)) period = std::min(period, globalIntervalMilliseconds());
     return period;
 }
 
@@ -241,9 +247,11 @@ void SensorMonitor::resetSchedule()
     if (hasDemand()) request();
 }
 
-void SensorMonitor::setIntervalSeconds(int seconds)
+void SensorMonitor::setIntervalSeconds(double seconds)
 {
-    seconds = std::clamp(seconds, 1, 3600);
+    if (!std::isfinite(seconds)) return;
+    seconds = std::round(std::clamp(seconds, minimumGlobalRefreshSeconds,
+                                    maximumGlobalRefreshSeconds) * 100) / 100;
     if (seconds == m_intervalSeconds)
         return;
     m_intervalSeconds = seconds;
@@ -294,7 +302,7 @@ void SensorMonitor::request()
                                           QStringList *refresh, bool tray, bool preview) {
         for (const auto &id : ids) {
             if (!discover && deadlines.value(id, 0) > now) continue;
-            const qint64 period = preview ? m_intervalSeconds * 1000 : intervalMilliseconds(id, tray);
+            const qint64 period = preview ? globalIntervalMilliseconds() : intervalMilliseconds(id, tray);
             // Skip missed ticks; a slow acquisition never queues catch-up reads.
             deadlines[id] = now + period;
             if (refresh) refresh->append(id);

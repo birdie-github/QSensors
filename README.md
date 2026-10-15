@@ -29,7 +29,7 @@ Vector tiles default to 128 logical pixels; the toolbar accepts 64–2048, with
 presets under View. Both Tile Size selectors offer Custom… for an integer-entry
 dialog with OK/Cancel; Cancel leaves the current size unchanged. **View → Table View** retains the sensor table. Use Settings
 to choose dashboard/tray sensors and **QSensors → Rescan Sensors** (F5) after hardware
-changes. The global interval is 1–3600 seconds (default 5); presentation overrides
+changes. The global interval is 0.10–999.99 seconds (default 5); presentation overrides
 accept 0.05–3600 seconds. A single timer schedules acquisition at each sensor's
 fastest active interval, with separate presentation deadlines using its cache.
 Tile mode requests visible selected tiles plus tray selections; table mode

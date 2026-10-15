@@ -10,6 +10,8 @@
 #include <limits>
 
 namespace qsensors {
+inline constexpr double minimumGlobalRefreshSeconds = 0.1;
+inline constexpr double maximumGlobalRefreshSeconds = 999.99;
 
 // Central policy for known dashboard-only readings, also enforced for hand-edited settings.
 inline bool sensorSupportsTray(const QString &id) { return id != QStringLiteral("system/uptime"); }

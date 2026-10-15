@@ -8,7 +8,7 @@
 #include <QSet>
 #include <QTimer>
 
-class QSpinBox;
+class QDoubleSpinBox;
 class QAction;
 class QLabel;
 class QCloseEvent;
@@ -32,7 +32,7 @@ public:
     ~Dashboard() override;
     void applySnapshot(const SensorSnapshot &snapshot);
     void clearReadings();
-    void setIntervalSeconds(int seconds);
+    void setIntervalSeconds(double seconds);
     void setTrayAvailable(bool available);
     QMenu *applicationSettingsMenu() const { return m_settingsMenu; }
     void setActions(QAction *hide, QAction *settings,
@@ -40,7 +40,7 @@ public:
 
 signals:
     void quitRequested();
-    void intervalChanged(int seconds);
+    void intervalChanged(double seconds);
     void dashboardActiveChanged(bool active);
     void visibleSensorIdsChanged(const QStringList &ids);
     void sensorConfigureRequested(const QString &id);
@@ -66,7 +66,7 @@ private:
     void finishCompactResize();
     SensorPreferencesStore *m_preferences;
     SensorTableModel *m_model;
-    QSpinBox *m_interval;
+    QDoubleSpinBox *m_interval;
     SensorGrid *m_grid;
     QStackedWidget *m_stack;
     QComboBox *m_tileSize;

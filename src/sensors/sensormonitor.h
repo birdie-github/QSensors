@@ -22,12 +22,12 @@ class SensorMonitor final : public QObject {
 public:
     explicit SensorMonitor(SensorPreferencesStore *preferences, QObject *parent = nullptr);
     ~SensorMonitor() override;
-    int intervalSeconds() const { return m_intervalSeconds; }
+    double intervalSeconds() const { return m_intervalSeconds; }
     void setDashboardActive(bool active);
     void setDashboardIds(QStringList ids);
     void setBackgroundIds(QStringList ids);
     void setPreviewIds(QStringList ids);
-    void setIntervalSeconds(int seconds);
+    void setIntervalSeconds(double seconds);
     void rescan();
 
 signals:
@@ -45,6 +45,7 @@ private:
 
     const QStringList &dashboardDemand() const;
     qint64 intervalMilliseconds(const QString &id, bool tray) const;
+    qint64 globalIntervalMilliseconds() const;
     qint64 acquisitionMilliseconds(const QString &id) const;
     void resetSchedule();
     void pruneDeadlines();
@@ -79,7 +80,7 @@ private:
     bool m_busy = false;
     bool m_demandChanged = false;
     bool m_rescanPending = true;
-    int m_intervalSeconds = 5;
+    double m_intervalSeconds = 5;
     int m_retrySeconds = 10;
     qint64 m_nextRecovery = 0;
     qint64 m_lastCompletion = 0;
