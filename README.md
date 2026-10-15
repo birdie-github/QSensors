@@ -99,13 +99,12 @@ movement, focus, and always-on-top behavior follow your compositor's policy.
 QSensors keeps the appeal of KSensors—small sensor panels and persistent tray
 readings—while replacing its legacy desktop stack and expanding customization.
 
-| Area | KSensors 0.7.3 | QSensors |
+| Area | [KSensors5](https://sourceforge.net/projects/ksensors5/) SourceForge | QSensors |
 | --- | --- | --- |
-| Desktop dependencies | Built around the KDE and Qt libraries of its era. | Qt 6 Widgets and modern libsensors, without KDE libraries. |
-| Desktop integration | KDE/X11-era window and tray integration. | Qt-based X11/Wayland integration with compatible desktop tray hosts. |
 | Sensor backend | Legacy libsensors interfaces. | Current libsensors interfaces plus Linux CPU, memory, swap, and uptime readings. |
 | Dashboard | Original draggable sensor panels. | Scalable tiles, three tile shapes, custom palettes/fonts, table view, and compact mode. |
 | Alarm actions | A choice between sound playback and a command. | Independently combinable visual, notification, command, and tray actions, with hysteresis, pause, reset, and draft testing. |
+| Charts | Present | Currently missing |
 
 The **Classic KSensors** palette and digital readouts retain the original app's
 visual character, with modern display sizes and desktop integration.
