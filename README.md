@@ -107,7 +107,7 @@ Closing the dashboard hides it when a system tray host is available. Use
 and the dashboard remains the way to access the application. Native Wayland
 movement, focus, and always-on-top behavior follow your compositor's policy.
 
-## Why use QSensors instead of KSensors 0.7.3?
+## Why use QSensors instead of KSensors5?
 
 QSensors keeps the appeal of KSensors—small sensor panels and persistent tray
 readings—while replacing its legacy desktop stack and expanding customization.
@@ -115,9 +115,11 @@ readings—while replacing its legacy desktop stack and expanding customization.
 | Area | [KSensors5](https://sourceforge.net/projects/ksensors5/) SourceForge | QSensors |
 | --- | --- | --- |
 | Dependencies | Needs multiple KDE components | Uses only Qt6 |
-| Dashboard | Original draggable sensor panels. | Scalable tiles, three tile shapes, custom palettes/fonts, table view, and compact mode. |
+| Support | ❌ Dormant | ✅ Actively developed"
+| Dashboard | Original draggable sensor panels. | Scalable vector tiles, three tile shapes, custom palettes/fonts (e.g. dark mode), main window table view, and compact mode. |
 | Alarm actions | A choice between sound playback and a command. | Independently combinable visual, notification, command, and tray actions, with hysteresis, pause, reset, and draft testing. |
-| Charts | ☑️ Present | ❌ Currently missing |
+| Sensors | Limited | Per disk I/O read/write counters and load in percentages, CPU/RAM/IO pressure |   
+| Charts | ✅ Present | ❌ Currently missing |
 
 The **Classic KSensors** palette and digital readouts retain the original app's
 visual character, with modern display sizes and desktop integration.
