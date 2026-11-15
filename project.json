@@ -7,8 +7,8 @@
     "organization_domain": "birdie-github.github.io"
   },
   "release": {
-    "version": "1.0.0",
-    "date": "2026-10-15"
+    "version": "1.1.0",
+    "date": "2026-11-15"
   },
   "project": {
     "description": "A Qt hardware-sensor monitor for Linux inspired by KSensors.",
