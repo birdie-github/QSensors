@@ -73,28 +73,33 @@ void SystemSensorProvider::clearFrequencyMetadata()
     m_policyMaxima.clear();
 }
 
-std::optional<double> SystemSensorProvider::frequencyMaximum(int cpu, QSet<QString> &failedPolicies)
+QString SystemSensorProvider::policyDirectory(int cpu)
 {
-    QString path = m_cpuPolicyPaths.value(cpu);
-    if (path.isEmpty()) {
-        const QString policy = QFileInfo(cpuPath(cpu) + QStringLiteral("cpufreq")).canonicalFilePath();
-        path = (policy.isEmpty() ? cpuPath(cpu) + QStringLiteral("cpufreq") : policy)
-            + QStringLiteral("/cpuinfo_max_freq");
-        m_cpuPolicyPaths.insert(cpu, path);
+    QString dir = m_cpuPolicyPaths.value(cpu);
+    if (dir.isEmpty()) {
+        const QString cpufreq = cpuPath(cpu) + QStringLiteral("cpufreq");
+        const QString canonical = QFileInfo(cpufreq).canonicalFilePath();
+        dir = canonical.isEmpty() ? cpufreq : canonical;
+        m_cpuPolicyPaths.insert(cpu, dir);
     }
-    const auto cached = m_policyMaxima.constFind(path);
+    return dir;
+}
+
+std::optional<double> SystemSensorProvider::frequencyMaximum(int cpu, const QString &policyDir, QSet<QString> &failedPolicies)
+{
+    const auto cached = m_policyMaxima.constFind(policyDir);
     if (cached != m_policyMaxima.cend()) return cached.value();
-    if (failedPolicies.contains(path)) {
+    if (failedPolicies.contains(policyDir)) {
         m_cpuPolicyPaths.remove(cpu);
         return {};
     }
-    const auto limit = systemmetrics::frequencyLimitMHz(read(path));
-    if (limit) m_policyMaxima.insert(path, *limit);
+    const auto limit = systemmetrics::frequencyLimitMHz(read(policyDir + QStringLiteral("/cpuinfo_max_freq")));
+    if (limit) m_policyMaxima.insert(policyDir, *limit);
     else {
         // Don't cache a failure. Resolve this CPU's policy again on its next
         // demand, so a late driver or replaced policy can recover.
         m_cpuPolicyPaths.remove(cpu);
-        failedPolicies.insert(path); // At most one failed read per policy in this batch.
+        failedPolicies.insert(policyDir); // At most one failed read per policy in this batch.
     }
     return limit;
 }
@@ -175,19 +180,18 @@ QList<SensorSample> SystemSensorProvider::readBatch(const QStringList &ids)
     });
     const bool memory = std::any_of(ids.cbegin(), ids.cend(), [](const QString &id) { return id.startsWith(QStringLiteral("system/memory/")); });
     const QByteArray stat = cpu ? read(QStringLiteral("/proc/stat")) : QByteArray();
-    const QByteArray info = frequency ? read(QStringLiteral("/proc/cpuinfo")) : QByteArray();
     const QByteArray mem = memory ? read(QStringLiteral("/proc/meminfo")) : QByteArray();
     const QByteArray up = ids.contains(QStringLiteral("system/uptime")) ? read(QStringLiteral("/proc/uptime")) : QByteArray();
     QHash<QString, double> frequencies;
     QHash<QString, double> coreMaxima;
     QList<double> onlineMaxima;
-    const auto reported = frequency ? systemmetrics::cpuFrequencies(info) : QHash<int, double>();
     bool allFrequencies = true;
     const bool summary = ids.contains(QStringLiteral("system/cpu/frequency")) || ids.contains(QStringLiteral("system/cpu/maximum-frequency"));
     const QSet<QString> requested(ids.cbegin(), ids.cend());
     if (frequency) {
         // One lightweight topology check per frequency batch. Stable batches
-        // reuse policy paths and limits; current MHz still comes from cpuinfo.
+        // reuse policy paths and limits; current frequency prefers cpufreq
+        // scaling_cur_freq and falls back to /proc/cpuinfo for the whole batch.
         const QByteArray mask = read(QStringLiteral("/sys/devices/system/cpu/online")).trimmed();
         bool onlineKnown = !m_onlineRanges.isEmpty() && mask == m_onlineMask;
         if (!onlineKnown) {
@@ -204,22 +208,44 @@ QList<SensorSample> SystemSensorProvider::readBatch(const QStringList &ids)
                 return cpu >= range.first && cpu <= range.second;
             });
         };
+        struct ActiveCore { QString id; int cpu; };
+        QList<ActiveCore> activeCores;
         QSet<QString> failedPolicies;
+        QHash<QString, std::optional<double>> batchScaling;
+        bool scalingFailed = false;
         for (const auto &core : m_cores) {
             if (!summary && !requested.contains(core.id)) continue;
             const auto first = std::find_if(core.threads.cbegin(), core.threads.cend(), isOnline);
             if (first == core.threads.cend()) continue;
-            if (reported.contains(*first)) frequencies.insert(core.id, reported.value(*first));
-            else {
-                allFrequencies = false;
-                // A missing current reading may indicate a replaced/offline
-                // policy. Drop only the affected mapping and shared limit.
-                const QString path = m_cpuPolicyPaths.take(*first);
-                m_policyMaxima.remove(path);
-            }
-            const double limit = frequencyMaximum(*first, failedPolicies).value_or(std::numeric_limits<double>::quiet_NaN());
+            const int representative = *first;
+            const QString policyDir = policyDirectory(representative);
+            activeCores.append({core.id, representative});
+            const double limit = frequencyMaximum(representative, policyDir, failedPolicies).value_or(std::numeric_limits<double>::quiet_NaN());
             coreMaxima.insert(core.id, limit);
             onlineMaxima.append(limit);
+            if (!scalingFailed) {
+                auto cached = batchScaling.constFind(policyDir);
+                if (cached == batchScaling.cend()) {
+                    const auto cur = systemmetrics::frequencyKHzToMHz(read(policyDir + QStringLiteral("/scaling_cur_freq")));
+                    cached = batchScaling.insert(policyDir, cur);
+                }
+                if (cached.value()) frequencies.insert(core.id, *cached.value());
+                else scalingFailed = true;
+            }
+        }
+        if (scalingFailed) {
+            frequencies.clear();
+            const auto reported = systemmetrics::cpuFrequencies(read(QStringLiteral("/proc/cpuinfo")));
+            for (const auto &core : activeCores) {
+                if (reported.contains(core.cpu)) frequencies.insert(core.id, reported.value(core.cpu));
+                else {
+                    allFrequencies = false;
+                    // A missing current reading may indicate a replaced/offline
+                    // policy. Drop only the affected mapping and shared limit.
+                    const QString path = m_cpuPolicyPaths.take(core.cpu);
+                    m_policyMaxima.remove(path);
+                }
+            }
         }
     }
     const auto limits = systemmetrics::frequencyLimits(onlineMaxima);

@@ -146,12 +146,16 @@ checked when frequency readings are requested; a representative going offline
 can fall back to another online sibling of the same core. Newly enabled physical
 cores require Rescan to enter the catalog. Usage remains independent of topology.
 
-Frequency uses the representative's `cpu MHz` entry from a single `/proc/cpuinfo`
-snapshot. It is a kernel-reported estimate, not an effective work rate. If a
-representative has no valid reading, average/maximum are unavailable rather than
-silently averaging an incomplete set. If topology is unknown, frequencies are
-unavailable rather than guessing which logical CPUs are physical cores. A fully
-offline core is excluded from summaries and its saved row becomes unavailable.
+Frequency prefers the representative's `/sys/devices/system/cpu/cpuN/cpufreq/scaling_cur_freq`
+(converted from kHz to canonical MHz), reading shared cpufreq policies once per
+batch. If `scaling_cur_freq` is missing or invalid for any requested online core,
+the batch falls back uniformly to `cpu MHz` from a single `/proc/cpuinfo` snapshot
+so summaries do not mix measurement sources. It is a kernel-reported estimate, not
+an effective work rate. If a representative has no valid reading, average/maximum
+are unavailable rather than silently averaging an incomplete set. If topology is
+unknown, frequencies are unavailable rather than guessing which logical CPUs are
+physical cores. A fully offline core is excluded from summaries and its saved row
+becomes unavailable.
 
 ## Automatic frequency gauge limits
 
@@ -178,10 +182,11 @@ parsed ranges while unchanged. CPU-to-policy paths and successful
 `cpuinfo_max_freq` limits persist across batches, shared by policy. Rescan or an
 online-set change clears this metadata; a missing current reading drops its
 CPU's mapping and policy limit, and failed limit reads are retried rather than
-cached. Missing/malformed aggregate lists fall back to the existing per-CPU
-online checks. Current MHz values still come from a fresh `/proc/cpuinfo` batch.
-Use Rescan after replacing a cpufreq driver or changing hardware-limit metadata
-without an online-set change; no periodic metadata-maintenance timer is added.
+cached. Missing/malformed aggregate lists fall back to the existing per-CPU online checks.
+Unavailable `scaling_cur_freq` reads are re-probed on each batch so late-loaded
+cpufreq drivers or replaced policies recover automatically. Use Rescan after
+replacing a cpufreq driver or changing hardware-limit metadata without an
+online-set change; no periodic metadata-maintenance timer is added.
 
 ## Dashboard text styles
 

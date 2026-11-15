@@ -32,6 +32,7 @@ struct Usage {
 std::optional<CpuCounters> cpuCounters(const QByteArray &contents);
 QHash<int, double> cpuFrequencies(const QByteArray &contents);
 struct FrequencyLimits { double average; double maximum; };
+std::optional<double> frequencyKHzToMHz(const QByteArray &contents);
 std::optional<double> frequencyLimitMHz(const QByteArray &contents);
 std::optional<FrequencyLimits> frequencyLimits(const QList<double> &coreMaxima);
 std::optional<double> cpuActivity(const CpuCounters &previous, const CpuCounters &current);

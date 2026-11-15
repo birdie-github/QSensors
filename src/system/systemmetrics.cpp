@@ -145,11 +145,16 @@ QHash<int, double> cpuFrequencies(const QByteArray &contents)
     return values;
 }
 
-std::optional<double> frequencyLimitMHz(const QByteArray &contents)
+std::optional<double> frequencyKHzToMHz(const QByteArray &contents)
 {
     const auto khz = unsignedNumber(contents.trimmed());
     if (!khz || !*khz) return {};
     return static_cast<double>(*khz) / 1000.0;
+}
+
+std::optional<double> frequencyLimitMHz(const QByteArray &contents)
+{
+    return frequencyKHzToMHz(contents);
 }
 
 std::optional<FrequencyLimits> frequencyLimits(const QList<double> &coreMaxima)

@@ -115,6 +115,8 @@ int main()
         require(!cpuCounters("cpu0 1 2 3 4\n"), "aggregate missing");
         const auto frequencies = cpuFrequencies("processor : 0\ncpu MHz : 900\n\nprocessor : 1\ncpu MHz : 1200\n");
         require(frequencies.value(0) == 900 && frequencies.value(1) == 1200, "logical frequency association");
+        near(frequencyKHzToMHz("2450123\n"), 2450.123, "sysfs current kHz to MHz");
+        require(!frequencyKHzToMHz("0\n") && !frequencyKHzToMHz("bad\n") && !frequencyKHzToMHz("-1\n"), "invalid sysfs frequency");
         near(frequencyLimitMHz("5200000\n"), 5200, "sysfs kHz to MHz");
         require(!frequencyLimitMHz("0\n") && !frequencyLimitMHz("bad\n") && !frequencyLimitMHz("-1\n"), "invalid hardware limits");
         const auto limits = frequencyLimits({5200, 3600, 2800});

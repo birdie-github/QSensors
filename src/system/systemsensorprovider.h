@@ -21,7 +21,8 @@ public:
 private:
     struct Core { int package; int core; QString id; QList<int> threads; };
     void clearFrequencyMetadata();
-    std::optional<double> frequencyMaximum(int cpu, QSet<QString> &failedPolicies);
+    QString policyDirectory(int cpu);
+    std::optional<double> frequencyMaximum(int cpu, const QString &policyDir, QSet<QString> &failedPolicies);
     QList<Core> m_cores;
     QByteArray m_onlineMask;
     QList<QPair<int, int>> m_onlineRanges;
