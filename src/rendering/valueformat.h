@@ -14,5 +14,6 @@ QString localizeDecimalPoint(QString number);
 QString formatTrayNumber(double value);
 QString formatTrayMemoryNumber(double mebibytes);
 QString formatTrayByteNumber(double bytes);
+QString formatFrequencyMHz(double megahertz);
 FormattedValue formatSensorValue(const SensorDescriptor &descriptor, double value, bool tray = false);
 }

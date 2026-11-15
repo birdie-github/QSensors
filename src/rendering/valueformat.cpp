@@ -95,6 +95,19 @@ QString formatTrayByteNumber(double bytes)
     return formatTrayNumber(scaleBytes(bytes, true).value);
 }
 
+QString formatFrequencyMHz(double megahertz)
+{
+    if (!std::isfinite(megahertz)) return QStringLiteral("—");
+    const bool scientific = std::abs(megahertz) >= 1e12;
+    QString text = QString::number(megahertz, scientific ? 'g' : 'f', scientific ? 6 : 3);
+    if (text.contains(QLatin1Char('.')) && !text.contains(QLatin1Char('e'))) {
+        while (text.endsWith(QLatin1Char('0'))) text.chop(1);
+        if (text.endsWith(QLatin1Char('.'))) text.chop(1);
+    }
+    if (text == QStringLiteral("-0")) text = QStringLiteral("0");
+    return localizeDecimalPoint(text);
+}
+
 UptimeValue formatUptime(double seconds)
 {
     if (!std::isfinite(seconds) || seconds < 0) return {QStringLiteral("—"), {}};

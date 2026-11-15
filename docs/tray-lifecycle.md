@@ -27,7 +27,7 @@ seven-segment digits with no unit suffix. Readings from 1 through 9999 MHz are
 rounded to whole MHz; values outside that inclusive range show ERR. Unavailable
 readings retain the dash. The font selector is disabled in Digital mode, but its
 choice is retained for Normal mode. Color, background, and the optional
-one-pixel offset shadow apply to both styles. Tooltips retain grouped raw Hz.
+one-pixel offset shadow apply to both styles. Tooltips show MHz with up to kHz precision.
 
 Icons are painted at a bounded set of physical resolutions, independent of tile
 size. Image and font-fit caches avoid unnecessary rendering. Icon images change

@@ -230,7 +230,7 @@ Normal dashboard, configuration, and table readings use MHz below 1000 MHz and
 GHz at or above 1000 MHz. Normal tray frequency follows a separate four-character
 scheme: K below 1 MHz, whole MHz through 9999 MHz, and rounded G from 10 GHz.
 Values below 1 kHz or above 999 GHz show ERR. Digital tray frequency supports
-1–9999 MHz and shows ERR outside that range. Tooltips retain the full Hz reading.
+1–9999 MHz and shows ERR outside that range. Tray tooltips show the full MHz reading (up to kHz precision).
 
 Memory uses binary units MiB, GiB, TiB, PiB (1024 per step), with M/G/T/P suffixes
 in the tray when Show the unit is enabled. Nonnegative amounts below one MiB

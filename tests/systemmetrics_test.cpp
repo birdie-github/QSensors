@@ -157,6 +157,9 @@ int main()
         require(formatted.number == "900" && formatted.unit == "MHz", "MHz format");
         formatted = qsensors::formatSensorValue(descriptor, 1200, true);
         require(formatted.number == "1.2" && formatted.unit == "G", "GHz tray format");
+        require(qsensors::formatFrequencyMHz(2450.123) == "2450.123"
+            && qsensors::formatFrequencyMHz(900.0) == "900"
+            && qsensors::formatFrequencyMHz(2450.1) == "2450.1", "frequency tooltip MHz format");
         descriptor.kind = qsensors::SensorKind::Memory;
         formatted = qsensors::formatSensorValue(descriptor, 2560);
         require(formatted.number == "2.5" && formatted.unit == "GiB", "GiB format");

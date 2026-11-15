@@ -766,7 +766,7 @@ void TrayController::updateEntry(const QString &id, Entry &entry)
     if (entry.reading->text() != menuLabel) entry.reading->setText(menuLabel);
     const auto formatted = formatSensorValue(descriptor, sample.value);
     const QString value = available && descriptor.kind == SensorKind::Frequency
-        ? QLocale(QLocale::English, QLocale::UnitedStates).toString(sample.value * 1000000, 'f', 0) + QStringLiteral(" Hz")
+        ? tr("%1 MHz").arg(formatFrequencyMHz(sample.value))
         : available ? tr("%1 %2").arg(formatted.number, formatted.unit)
                                    : tr("Unavailable");
     QString tooltip = tr("%1\n%2\n%3").arg(label, descriptor.device, value);
