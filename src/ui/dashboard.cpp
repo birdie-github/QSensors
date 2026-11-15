@@ -22,6 +22,7 @@
 #include <QEvent>
 #include <QHeaderView>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QMoveEvent>
 #include <QPointer>
@@ -860,18 +861,36 @@ void Dashboard::setTrayAvailable(bool available)
     m_trayWarning->setVisible(!available);
 }
 
-void Dashboard::closeEvent(QCloseEvent *event)
+void Dashboard::hideToTray()
 {
     saveWindowGeometry();
+    QSettings().setValue(QStringLiteral("Dashboard/hiddenToTray"), true);
+    hide();
+}
+
+void Dashboard::closeEvent(QCloseEvent *event)
+{
     // Recheck now rather than trusting the host watchdog's previous result.
     if (m_trayAvailable && QSystemTrayIcon::isSystemTrayAvailable()) {
         event->ignore();
-        QSettings().setValue(QStringLiteral("Dashboard/hiddenToTray"), true);
-        hide();
+        hideToTray();
     } else {
+        saveWindowGeometry();
         event->accept();
         emit quitRequested();
     }
+}
+
+void Dashboard::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier
+        && !event->isAutoRepeat()
+        && m_trayAvailable && QSystemTrayIcon::isSystemTrayAvailable()) {
+        event->accept();
+        hideToTray();
+        return;
+    }
+    QMainWindow::keyPressEvent(event);
 }
 
 void Dashboard::setIntervalSeconds(double seconds)

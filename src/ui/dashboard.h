@@ -13,6 +13,7 @@
 class QAction;
 class QLabel;
 class QCloseEvent;
+class QKeyEvent;
 class QMoveEvent;
 class QStackedWidget;
 class QSizeGrip;
@@ -51,6 +52,7 @@ signals:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
     void changeEvent(QEvent *event) override;
@@ -65,6 +67,7 @@ private:
     void updatePresentation(const QList<SensorSample> &samples, bool incremental);
     void refreshPresentation();
     void saveWindowGeometry();
+    void hideToTray();
     void setControlsVisible(bool visible);
     void fitCompactView();
     void positionResizeGrip();

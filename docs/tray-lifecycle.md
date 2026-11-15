@@ -45,7 +45,8 @@ delivers it; explicit Show/Hide actions remain in the context menu.
 
 ## Visibility and recovery
 
-Closing with a tray host hides the dashboard. Quit always exits, including from
+Closing with a tray host or pressing Escape in the main window hides the
+dashboard to the tray when a tray host is available. Quit always exits, including from
 an open configuration dialog. Tray selections and armed alarms keep requesting
 readings in the background. Settings previews temporarily request the catalog.
 With no consumers, periodic acquisition stops. Showing restores the active view's

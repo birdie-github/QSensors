@@ -91,6 +91,7 @@ private:
     QAction *m_aboutAction;
     QAction *m_quitAction;
     QSystemTrayIcon *m_fallback = nullptr;
+    QMenu *m_fallbackMenu = nullptr;
     QMap<QString, Entry> m_entries;
     QStringList m_selected;
     QHash<QString, SensorDescriptor> m_descriptors;

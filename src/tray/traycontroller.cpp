@@ -585,6 +585,7 @@ TrayController::~TrayController()
         delete entry.menu;
     }
     delete m_fallback;
+    delete m_fallbackMenu;
 }
 
 void TrayController::start()
@@ -599,7 +600,6 @@ void TrayController::start()
 QSystemTrayIcon *TrayController::createIcon()
 {
     auto *icon = new QSystemTrayIcon(this);
-    icon->setContextMenu(m_menu.get());
     connect(icon, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
         if (reason == QSystemTrayIcon::Trigger)
             emit toggleRequested();
@@ -655,6 +655,9 @@ void TrayController::reconcileIcons()
     if (m_selected.isEmpty()) {
         if (!m_fallback) {
             m_fallback = createIcon();
+            m_fallbackMenu = new QMenu;
+            m_fallbackMenu->addActions(m_menu->actions());
+            m_fallback->setContextMenu(m_fallbackMenu);
             m_fallback->setIcon(QApplication::windowIcon());
             m_fallback->setToolTip(tr("QSensors — hardware sensor monitor"));
             m_fallback->show();
@@ -662,6 +665,8 @@ void TrayController::reconcileIcons()
     } else {
         delete m_fallback;
         m_fallback = nullptr;
+        delete m_fallbackMenu;
+        m_fallbackMenu = nullptr;
         for (const auto &id : m_selected) {
             if (!m_entries.contains(id)) {
                 Entry entry;
