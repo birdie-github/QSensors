@@ -487,6 +487,13 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
         const QSize available = currentScreen->availableGeometry().size();
         resize(size().boundedTo(available));
     }
+    if (auto *app = QCoreApplication::instance()) {
+        app->installEventFilter(this);
+#ifndef QT_NO_SESSIONMANAGER
+        if (auto *guiApp = qobject_cast<QGuiApplication *>(app))
+            connect(guiApp, &QGuiApplication::commitDataRequest, this, &Dashboard::prepareForQuit);
+#endif
+    }
     if (!controlsVisible) QTimer::singleShot(0, this, [this] { setControlsVisible(false); });
 }
 
@@ -554,12 +561,26 @@ void Dashboard::createSettingsMenu()
 
 Dashboard::~Dashboard()
 {
+    if (auto *app = QCoreApplication::instance())
+        app->removeEventFilter(this);
     finishCompactResize();
-    saveWindowGeometry();
-    if (isVisible())
-        QSettings().remove(QStringLiteral("Dashboard/hiddenToTray"));
-    else if (m_trayAvailable)
-        QSettings().setValue(QStringLiteral("Dashboard/hiddenToTray"), true);
+    if (!m_closedForQuit) {
+        saveWindowGeometry();
+        if (isVisible())
+            QSettings().remove(QStringLiteral("Dashboard/hiddenToTray"));
+    }
+}
+
+void Dashboard::prepareForQuit()
+{
+    m_quitting = true;
+}
+
+bool Dashboard::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == QCoreApplication::instance() && event->type() == QEvent::Quit)
+        m_quitting = true;
+    return QMainWindow::eventFilter(watched, event);
 }
 
 void Dashboard::setControlsVisible(bool visible)
@@ -875,12 +896,18 @@ void Dashboard::hideToTray()
 void Dashboard::closeEvent(QCloseEvent *event)
 {
     // Recheck now rather than trusting the host watchdog's previous result.
-    if (m_trayAvailable && QSystemTrayIcon::isSystemTrayAvailable()) {
+    if (!m_quitting && m_trayAvailable && QSystemTrayIcon::isSystemTrayAvailable()) {
         event->ignore();
         hideToTray();
-    } else {
-        saveWindowGeometry();
-        event->accept();
+        return;
+    }
+    m_closedForQuit = true;
+    saveWindowGeometry();
+    if (isVisible())
+        QSettings().remove(QStringLiteral("Dashboard/hiddenToTray"));
+    event->accept();
+    if (!m_quitting) {
+        m_quitting = true;
         emit quitRequested();
     }
 }
@@ -922,8 +949,6 @@ void Dashboard::updateStatusSummary()
 void Dashboard::showEvent(QShowEvent *event)
 {
     QMainWindow::showEvent(event);
-    if (!m_adjustingCompact)
-        QSettings().remove(QStringLiteral("Dashboard/hiddenToTray"));
     if (m_compact && QGuiApplication::platformName() == QStringLiteral("xcb")) {
         const QPoint desired = m_compactPosition.value_or(pos());
         const QPoint target = placeOnActiveScreen(desired, size(), screen()).position;

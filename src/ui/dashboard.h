@@ -38,6 +38,7 @@ public:
     void clearReadings();
     void setIntervalSeconds(double seconds);
     void setTrayAvailable(bool available);
+    void prepareForQuit();
     QMenu *applicationSettingsMenu() const { return m_settingsMenu; }
     void setActions(QAction *hide, QAction *settings,
                     QAction *rescan, QAction *about, QAction *quit);
@@ -58,6 +59,7 @@ protected:
     void changeEvent(QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void moveEvent(QMoveEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     void createSettingsMenu();
@@ -96,6 +98,8 @@ private:
     QLabel *m_alarmStatus;
     QLabel *m_trayWarning;
     bool m_trayAvailable = false;
+    bool m_quitting = false;
+    bool m_closedForQuit = false;
     bool m_compact = false;
     bool m_adjustingCompact = false;
     QSizeGrip *m_resizeGrip = nullptr;

@@ -104,8 +104,12 @@ int main(int argc, char *argv[])
     });
     QObject::connect(&tray, &qsensors::TrayController::availabilityChanged,
                      &dashboard, &qsensors::Dashboard::setTrayAvailable);
-    QObject::connect(&tray, &qsensors::TrayController::quitRequested, &app, &QCoreApplication::quit);
-    QObject::connect(&dashboard, &qsensors::Dashboard::quitRequested, &app, &QCoreApplication::quit);
+    const auto quitApplication = [&dashboard] {
+        dashboard.prepareForQuit();
+        QCoreApplication::quit();
+    };
+    QObject::connect(&tray, &qsensors::TrayController::quitRequested, &dashboard, quitApplication);
+    QObject::connect(&dashboard, &qsensors::Dashboard::quitRequested, &dashboard, quitApplication);
     QObject::connect(&dashboard, &qsensors::Dashboard::dashboardActiveChanged,
                      &tray, &qsensors::TrayController::setDashboardVisible);
     QObject::connect(&dashboard, &qsensors::Dashboard::dashboardActiveChanged,
