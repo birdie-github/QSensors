@@ -52,8 +52,9 @@ never individually allocated.
 
 Double-click empty space (including gutters between tiles) to hide controls.
 In compact view, double-click anywhere, including on a sensor, to restore controls.
-Hiding controls switches to a frameless, always-on-top window sized to the tile
-field. The menu, toolbar, status bar and table view are hidden. This view has a
+Hiding controls switches to a frameless, always-on-top tool window (`Qt::Tool`)
+sized to the tile field, hiding its taskbar entry on supporting desktop
+environments (X11). The menu, toolbar, status bar and table view are hidden. This view has a
 fixed size and disables mouse and keyboard tile rearrangement. Left-dragging a
 tile or empty space requests native window movement through Qt; X11 also has a
 manual movement fallback. Wayland movement and stacking are compositor-managed.

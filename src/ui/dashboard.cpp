@@ -556,7 +556,7 @@ void Dashboard::setControlsVisible(bool visible)
         m_compact = true;
         m_grid->setCompactView(true);
         setWindowState(Qt::WindowNoState);
-        setWindowFlags(m_expandedFlags | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+        setWindowFlags((m_expandedFlags & ~Qt::WindowType_Mask) | Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     } else {
         if (QGuiApplication::platformName() == QStringLiteral("xcb")
             && (m_compactPosition || pos() != m_compactInitialPosition)) {
