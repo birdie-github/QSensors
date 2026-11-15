@@ -556,6 +556,10 @@ Dashboard::~Dashboard()
 {
     finishCompactResize();
     saveWindowGeometry();
+    if (isVisible())
+        QSettings().remove(QStringLiteral("Dashboard/hiddenToTray"));
+    else if (m_trayAvailable)
+        QSettings().setValue(QStringLiteral("Dashboard/hiddenToTray"), true);
 }
 
 void Dashboard::setControlsVisible(bool visible)
@@ -918,6 +922,8 @@ void Dashboard::updateStatusSummary()
 void Dashboard::showEvent(QShowEvent *event)
 {
     QMainWindow::showEvent(event);
+    if (!m_adjustingCompact)
+        QSettings().remove(QStringLiteral("Dashboard/hiddenToTray"));
     if (m_compact && QGuiApplication::platformName() == QStringLiteral("xcb")) {
         const QPoint desired = m_compactPosition.value_or(pos());
         const QPoint target = placeOnActiveScreen(desired, size(), screen()).position;
