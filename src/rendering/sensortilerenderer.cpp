@@ -91,9 +91,12 @@ TileStyle SensorTileRenderer::style(int size, const QFont &baseFont,
     result.contentScale = shape == DashboardTileShape::Circle
         ? 1.0 - std::clamp(circleShrinkPercent, 0, 50) / 100.0 : 1.0;
     result.customNameFont = nameFont != nullptr;
-    const auto font = [&baseFont, size](double fraction, int minimum, bool bold, const QFont *overrideFont) {
+    const qreal contentSize = size * result.contentScale;
+    const auto font = [&baseFont, contentSize, scale = result.contentScale](
+                          double fraction, int minimum, bool bold, const QFont *overrideFont) {
         QFont font = overrideFont ? *overrideFont : baseFont;
-        font.setPixelSize(std::max(minimum, static_cast<int>(std::round(size * fraction))));
+        const int minPixels = std::max(1, static_cast<int>(std::round(minimum * scale)));
+        font.setPixelSize(std::max(minPixels, static_cast<int>(std::round(contentSize * fraction))));
         if (!overrideFont) font.setBold(bold);
         return font;
     };
@@ -205,26 +208,28 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
     painter.save();
     painter.setClipRect(rect, Qt::IntersectClip);
     painter.translate(rect.topLeft());
-    const qreal size = style.size;
-    const qreal padding = std::max(3.0, size * 0.05);
+    const qreal outerSize = style.size;
     painter.setRenderHint(QPainter::Antialiasing);
     if (preferences.dashboardTransparent) painter.setBrush(Qt::NoBrush);
     else painter.setBrush(palette.brush(QPalette::Base));
     const qreal borderWidth = style.shape == DashboardTileShape::Square ? 1.0
-        : std::max(1.0, size * (selected ? 0.014 : 0.006));
+        : std::max(1.0, outerSize * (selected ? 0.014 : 0.006));
     painter.setPen(QPen(palette.color(selected ? QPalette::Highlight : QPalette::Mid), borderWidth));
     if (style.shape == DashboardTileShape::Square)
-        painter.drawRect(QRectF(.5, .5, size - 1, size - 1));
+        painter.drawRect(QRectF(.5, .5, outerSize - 1, outerSize - 1));
     else if (style.shape == DashboardTileShape::Circle)
-        painter.drawEllipse(QRectF(borderWidth / 2, borderWidth / 2, size - borderWidth, size - borderWidth));
-    else painter.drawRoundedRect(QRectF(1, 1, size - 2, size - 2), size * 0.06, size * 0.06);
+        painter.drawEllipse(QRectF(borderWidth / 2, borderWidth / 2, outerSize - borderWidth, outerSize - borderWidth));
+    else painter.drawRoundedRect(QRectF(1, 1, outerSize - 2, outerSize - 2), outerSize * 0.06, outerSize * 0.06);
     // Shrink all contents about the center, leaving the circular border intact.
     // Keep the rectangular cell clip: contents may protrude beyond the circle.
+    // Scale layout dimensions rather than the painter transform so bitmap font
+    // strikes render at 1:1 device pixels without dropping 1-pixel strokes.
     if (style.contentScale != 1) {
-        const qreal inset = size * (1 - style.contentScale) / 2;
+        const qreal inset = outerSize * (1 - style.contentScale) / 2;
         painter.translate(inset, inset);
-        painter.scale(style.contentScale, style.contentScale);
     }
+    const qreal size = outerSize * style.contentScale;
+    const qreal padding = std::max(3.0 * style.contentScale, size * 0.05);
     const QColor textColor = palette.color(reading.available ? QPalette::Active : QPalette::Disabled,
                                           QPalette::Text);
     painter.setPen(textColor);
@@ -280,7 +285,7 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
                    reading.text, style.valueFont, false, preferences.dashboardShadow);
         painter.setPen(textColor);
         const QString detail = reading.days.isEmpty() ? reading.unit : reading.days;
-        fittedText(painter, QRectF(padding, size * (gauge ? .36 : .56), size - 2 * padding, std::max(9.0, size * .13)),
+        fittedText(painter, QRectF(padding, size * (gauge ? .36 : .56), size - 2 * padding, std::max(9.0 * style.contentScale, size * .13)),
                    detail, style.unitFont, true, preferences.dashboardShadow);
     }
 
@@ -308,7 +313,7 @@ void SensorTileRenderer::draw(QPainter &painter, const QRectF &rect,
                 painter.setPen(textColor);
                 // At 96–106 px, the proportional box is too short for a small
                 // hinted font. Keep enough vertical room around the same center.
-                const qreal labelHeight = std::max(9.0, size * 0.07);
+                const qreal labelHeight = std::max(9.0 * style.contentScale, size * 0.07);
                 const qreal labelTop = size * 0.815 - labelHeight / 2;
                 fittedText(painter, QRectF(size * 0.05, labelTop, size * 0.34, labelHeight),
                            reading.lowerText, style.detailFont, false);
