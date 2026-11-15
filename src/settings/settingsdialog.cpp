@@ -28,6 +28,8 @@
 #include <QSignalBlocker>
 #include <QShowEvent>
 #include <QHideEvent>
+#include <QEvent>
+#include <QKeyEvent>
 
 #include <QMessageBox>
 #include <QPushButton>
@@ -61,6 +63,7 @@ SettingsDialog::SettingsDialog(SensorPreferencesStore *store, const QList<Sensor
     m_search = new QLineEdit(browser);
     m_search->setPlaceholderText(tr("Search sources or sensors…"));
     m_search->setClearButtonEnabled(true);
+    m_search->installEventFilter(this);
     browserLayout->addWidget(m_search);
     m_list = new QTreeWidget(browser);
     m_list->setHeaderLabels({tr("Source / sensor"), tr("Dashboard"), tr("Tray"), tr("Alarm"), tr("Value")});
@@ -860,6 +863,20 @@ bool SettingsDialog::applyChanges()
 void SettingsDialog::accept()
 {
     if (applyChanges()) QDialog::accept();
+}
+
+bool SettingsDialog::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_search && !m_search->text().isEmpty()
+        && (event->type() == QEvent::KeyPress || event->type() == QEvent::ShortcutOverride)) {
+        const auto *key = static_cast<QKeyEvent *>(event);
+        if (key->key() == Qt::Key_Escape && key->modifiers() == Qt::NoModifier) {
+            if (event->type() == QEvent::KeyPress) m_search->clear();
+            event->accept();
+            return true;
+        }
+    }
+    return QDialog::eventFilter(watched, event);
 }
 
 } // namespace qsensors

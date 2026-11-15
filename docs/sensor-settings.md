@@ -38,7 +38,8 @@ scrolls only when screen space is limited or the user deliberately narrows the
 window/pane; long sensor lists still scroll vertically. The resizable browser groups sensors under collapsible source
 headings, naturally sorts source and display names (Core 2 before Core 18), and
 keeps unavailable sensors in a separate group. Search matches display names,
-original names, sources and stable IDs. The columns are Source / sensor,
+original names, sources and stable IDs; pressing Escape in a non-empty search
+field clears the filter before a subsequent Escape closes the dialog. The columns are Source / sensor,
 Dashboard, Tray, Alarm, and Value. Alarm is checked when at least one action is
 selected and the sensor's alarm master switch is on; automatic triggering also
 requires a configured limit. Unchecking Alarm pauses all actions without clearing
