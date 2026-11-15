@@ -23,6 +23,7 @@
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QMouseEvent>
+#include <QMoveEvent>
 #include <QPointer>
 #include <QFontMetrics>
 #include <QKeySequence>
@@ -43,6 +44,7 @@
 #include <QSystemTrayIcon>
 #include <QTimer>
 #include <algorithm>
+#include <limits>
 
 namespace qsensors {
 namespace {
@@ -99,6 +101,51 @@ protected:
         return QSortFilterProxyModel::lessThan(left, right);
     }
 };
+
+struct ScreenPlacement {
+    QPoint position;
+    const QScreen *screen = nullptr;
+};
+
+// Keep saved/restored windows reachable on an active monitor across multi-monitor changes.
+ScreenPlacement placeOnActiveScreen(const QPoint &position, const QSize &size, const QScreen *fallback)
+{
+    const auto screens = QGuiApplication::screens();
+    if (screens.isEmpty()) return {position, fallback};
+    const QSize effective = size.expandedTo(QSize(1, 1));
+    const QRect rect(position, effective);
+    const int minWidth = std::min(32, effective.width());
+    const int minHeight = std::min(32, effective.height());
+    for (const auto *display : screens) {
+        const QRect overlap = display->availableGeometry().intersected(rect);
+        if (overlap.width() >= minWidth && overlap.height() >= minHeight) return {position, display};
+    }
+    const QScreen *best = nullptr;
+    qint64 bestDistance = std::numeric_limits<qint64>::max();
+    const QPoint center = rect.center();
+    for (const auto *display : screens) {
+        const QRect avail = display->availableGeometry();
+        const QPoint clamped(std::clamp(center.x(), avail.left(), avail.right()),
+                             std::clamp(center.y(), avail.top(), avail.bottom()));
+        const qint64 dx = center.x() - clamped.x();
+        const qint64 dy = center.y() - clamped.y();
+        const qint64 dist = dx * dx + dy * dy;
+        if (dist < bestDistance) {
+            bestDistance = dist;
+            best = display;
+        }
+    }
+    if (!best)
+        best = fallback && std::find(screens.cbegin(), screens.cend(), fallback) != screens.cend()
+            ? fallback : QGuiApplication::primaryScreen();
+    if (!best) best = screens.first();
+    const QRect avail = best->availableGeometry();
+    return {
+        QPoint(std::clamp(position.x(), avail.left(), std::max(avail.left(), avail.right() - effective.width() + 1)),
+               std::clamp(position.y(), avail.top(), std::max(avail.top(), avail.bottom() - effective.height() + 1))),
+        best
+    };
+}
 }
 
 Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preferences, QWidget *parent)
@@ -394,15 +441,16 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
             bool xOk = false, yOk = false;
             const int x = settings.value(QStringLiteral("Dashboard/x")).toInt(&xOk);
             const int y = settings.value(QStringLiteral("Dashboard/y")).toInt(&yOk);
-            if (xOk && yOk) {
-                const QPoint position(x, y);
-                for (const auto *display : QGuiApplication::screens()) {
-                    if (display->availableGeometry().contains(position)) { move(position); break; }
-                }
-            }
+            if (xOk && yOk) move(placeOnActiveScreen(QPoint(x, y), size(), screen()).position);
         }
         if (settings.value(QStringLiteral("Dashboard/maximized"), false).toBool())
             setWindowState(windowState() | Qt::WindowMaximized);
+    }
+    if (QGuiApplication::platformName() == QStringLiteral("xcb")) {
+        bool cxOk = false, cyOk = false;
+        const int cx = settings.value(QStringLiteral("Dashboard/compactX")).toInt(&cxOk);
+        const int cy = settings.value(QStringLiteral("Dashboard/compactY")).toInt(&cyOk);
+        if (cxOk && cyOk) m_compactPosition = QPoint(cx, cy);
     }
     if (const auto *currentScreen = screen()) {
         const QSize available = currentScreen->availableGeometry().size();
@@ -487,9 +535,15 @@ void Dashboard::setControlsVisible(bool visible)
     finishCompactResize();
     const QScopedValueRollback<bool> adjusting(m_adjustingCompact, true);
     const bool wasVisible = isVisible();
+    QPoint gridOrigin;
     if (!visible) {
+        gridOrigin = m_stack->mapToGlobal(QPoint(0, 0));
         saveWindowGeometry();
-        m_expandedGeometry = (isMaximized() || isMinimized()) ? normalGeometry() : geometry();
+        const QRect normal = (isMaximized() || isMinimized()) && normalGeometry().isValid()
+            ? normalGeometry() : geometry();
+        m_expandedGeometry = normal;
+        m_expandedPosition = (isMaximized() || isMinimized()) && normalGeometry().isValid()
+            ? normal.topLeft() : pos();
         m_expandedState = windowState() & ~Qt::WindowMinimized;
         m_expandedFlags = windowFlags();
         // Remove the stack so hidden table/placeholder minimum sizes cannot enlarge the field.
@@ -504,6 +558,11 @@ void Dashboard::setControlsVisible(bool visible)
         setWindowState(Qt::WindowNoState);
         setWindowFlags(m_expandedFlags | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     } else {
+        if (QGuiApplication::platformName() == QStringLiteral("xcb")
+            && (m_compactPosition || pos() != m_compactInitialPosition)) {
+            m_compactPosition = pos();
+        }
+        saveWindowGeometry();
         m_compact = false;
         setMinimumSize(0, 0);
         setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
@@ -513,7 +572,16 @@ void Dashboard::setControlsVisible(bool visible)
         setCentralWidget(m_stack);
         m_stack->setCurrentIndex(m_tableView->isChecked() ? 2 : 1);
         setWindowFlags(m_expandedFlags);
-        setGeometry(m_expandedGeometry);
+        if (QGuiApplication::platformName() == QStringLiteral("xcb")) {
+            const auto placement = placeOnActiveScreen(m_expandedPosition, m_expandedGeometry.size(), screen());
+            QSize targetSize = m_expandedGeometry.size();
+            if (!(m_expandedState & Qt::WindowMaximized) && placement.screen)
+                targetSize = targetSize.boundedTo(placement.screen->availableGeometry().size());
+            resize(targetSize);
+            move(placeOnActiveScreen(m_expandedPosition, targetSize, placement.screen).position);
+        } else {
+            setGeometry(m_expandedGeometry);
+        }
         setWindowState(m_expandedState);
     }
     menuBar()->setVisible(visible);
@@ -525,6 +593,13 @@ void Dashboard::setControlsVisible(bool visible)
     refreshPresentation();
     m_resizeGrip->setVisible(m_compact);
     fitCompactView();
+    if (m_compact && QGuiApplication::platformName() == QStringLiteral("xcb")) {
+        const QPoint desired = m_compactPosition.value_or(gridOrigin);
+        const QPoint target = placeOnActiveScreen(desired, size(), screen()).position;
+        m_compactInitialPosition = target;
+        move(target);
+        if (m_compactPosition) m_compactPosition = target;
+    }
     if (wasVisible) show();
     // Window flag changes and hidden toolbars settle through posted layout events.
     QTimer::singleShot(0, this, &Dashboard::fitCompactView);
@@ -549,6 +624,13 @@ void Dashboard::fitCompactView()
     resize(field);
     layout()->activate();
     positionResizeGrip();
+    if (isVisible() && QGuiApplication::platformName() == QStringLiteral("xcb")) {
+        const QPoint visiblePos = placeOnActiveScreen(pos(), field, screen()).position;
+        if (visiblePos != pos()) {
+            move(visiblePos);
+            if (m_compactPosition) m_compactPosition = visiblePos;
+        }
+    }
 }
 
 void Dashboard::positionResizeGrip()
@@ -589,17 +671,28 @@ void Dashboard::saveWindowGeometry()
     QSettings settings;
     const QRect normal = m_compact ? m_expandedGeometry
         : (isMaximized() || isMinimized()) ? normalGeometry() : geometry();
-    if (!normal.isValid()) return;
-    settings.setValue(QStringLiteral("Dashboard/width"), normal.width());
-    settings.setValue(QStringLiteral("Dashboard/height"), normal.height());
-    if (QGuiApplication::platformName() == QStringLiteral("xcb")) {
-        // move() on a top-level widget accepts the frame position.
-        const QPoint position = (isMaximized() || isMinimized()) ? normal.topLeft() : pos();
-        settings.setValue(QStringLiteral("Dashboard/x"), position.x());
-        settings.setValue(QStringLiteral("Dashboard/y"), position.y());
+    if (normal.isValid()) {
+        settings.setValue(QStringLiteral("Dashboard/width"), normal.width());
+        settings.setValue(QStringLiteral("Dashboard/height"), normal.height());
+        if (QGuiApplication::platformName() == QStringLiteral("xcb")) {
+            // move() on a top-level widget accepts the frame position.
+            const QPoint position = m_compact ? m_expandedPosition
+                : (isMaximized() || isMinimized()) ? normal.topLeft() : pos();
+            settings.setValue(QStringLiteral("Dashboard/x"), position.x());
+            settings.setValue(QStringLiteral("Dashboard/y"), position.y());
+        }
+        if (m_compact ? bool(m_expandedState & Qt::WindowMaximized) : isMaximized()) settings.setValue(QStringLiteral("Dashboard/maximized"), true);
+        else settings.remove(QStringLiteral("Dashboard/maximized"));
     }
-    if (m_compact ? bool(m_expandedState & Qt::WindowMaximized) : isMaximized()) settings.setValue(QStringLiteral("Dashboard/maximized"), true);
-    else settings.remove(QStringLiteral("Dashboard/maximized"));
+    if (QGuiApplication::platformName() == QStringLiteral("xcb")) {
+        const std::optional<QPoint> compactPos = m_compact
+            ? std::optional<QPoint>(m_compactPosition.value_or(pos()))
+            : m_compactPosition;
+        if (compactPos) {
+            settings.setValue(QStringLiteral("Dashboard/compactX"), compactPos->x());
+            settings.setValue(QStringLiteral("Dashboard/compactY"), compactPos->y());
+        }
+    }
 }
 
 void Dashboard::chooseCustomTileSize()
@@ -793,9 +886,28 @@ void Dashboard::updateStatusSummary()
 void Dashboard::showEvent(QShowEvent *event)
 {
     QMainWindow::showEvent(event);
+    if (m_compact && QGuiApplication::platformName() == QStringLiteral("xcb")) {
+        const QPoint desired = m_compactPosition.value_or(pos());
+        const QPoint target = placeOnActiveScreen(desired, size(), screen()).position;
+        if (pos() != target) {
+            const QScopedValueRollback<bool> adjusting(m_adjustingCompact, true);
+            m_compactInitialPosition = target;
+            move(target);
+        }
+    }
     QTimer::singleShot(0, this, &Dashboard::fitCompactView);
     updateVisibleIds();
     emit dashboardActiveChanged(!isMinimized());
+}
+
+void Dashboard::moveEvent(QMoveEvent *event)
+{
+    QMainWindow::moveEvent(event);
+    if (m_compact && !m_adjustingCompact && isVisible()
+        && QGuiApplication::platformName() == QStringLiteral("xcb")
+        && (m_compactPosition || pos() != m_compactInitialPosition)) {
+        m_compactPosition = pos();
+    }
 }
 
 void Dashboard::hideEvent(QHideEvent *event)

@@ -5,12 +5,15 @@
 #include "sensors/sensortypes.h"
 #include <QStringList>
 #include <QHash>
+#include <QPoint>
 #include <QSet>
 #include <QTimer>
+#include <optional>
 
 class QAction;
 class QLabel;
 class QCloseEvent;
+class QMoveEvent;
 class QStackedWidget;
 class QSizeGrip;
 class QResizeEvent;
@@ -52,6 +55,7 @@ protected:
     void hideEvent(QHideEvent *event) override;
     void changeEvent(QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void moveEvent(QMoveEvent *event) override;
 
 private:
     void createSettingsMenu();
@@ -97,6 +101,9 @@ private:
     int m_resizeInitialTileSize = 0;
     QSize m_compactChrome;
     QRect m_expandedGeometry;
+    QPoint m_expandedPosition;
+    std::optional<QPoint> m_compactPosition;
+    QPoint m_compactInitialPosition;
     Qt::WindowStates m_expandedState;
     Qt::WindowFlags m_expandedFlags;
 };

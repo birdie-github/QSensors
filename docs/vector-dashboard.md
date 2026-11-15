@@ -60,9 +60,14 @@ manual movement fallback. Wayland movement and stacking are compositor-managed.
 Clicking a tile also selects it and focuses the grid for keyboard navigation.
 Compact windows match the complete field even when it exceeds the screen.
 Compact view never has scrollbars or scroll offsets. Tile size or sensor selection
-changes refit the compact window. Showing controls restores the previous normal
+changes refit the compact window. On X11, compact mode initially keeps the tile
+grid at its current screen position instead of jumping to the window menu,
+remembers its dragged screen coordinates separately from normal mode, and clamps
+saved compact or normal positions onto an active monitor when a display is
+disconnected or off-screen. Showing controls restores the previous normal
 window geometry, maximized state and chosen tile/table view. The controls state
-is saved; compact dimensions do not overwrite the normal window dimensions.
+is saved; compact dimensions and coordinates do not overwrite normal window
+dimensions or coordinates.
 Compact sizing is reapplied after show/layout events so startup does not retain
 stale central-widget dimensions or transient scrollbars.
 **Ctrl+Shift+M** toggles Compact Mode; entering it selects Dashboard. Selecting
@@ -219,8 +224,11 @@ Tile size, table view, control visibility and plain window geometry stay
 under Dashboard. Only visible sensor tiles (including a visible drag preview)
 request readings; canvas growth creates no monitoring demand itself.
 
-Plain numeric settings retain supported normal-window size and X11 position, with restored
-normal-window size bounded to the current screen's available area. Compact dimensions
+Plain numeric settings retain supported normal-window size and X11 positions
+(`Dashboard/x`, `Dashboard/y`, and `Dashboard/compactX`, `Dashboard/compactY`),
+validating overlap against active screens' available areas and clamping
+off-screen placements to the nearest active screen, with restored normal-window
+size bounded to that screen's available area. Compact dimensions
 are always derived from the field and are never capped to the screen. Exact global positioning
 and virtual-desktop restoration are not required on Wayland. Compact dragging requests native system movement, with a fallback only on X11.
 
