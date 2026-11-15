@@ -541,8 +541,8 @@ TrayController::TrayController(QWidget *window, SensorPreferencesStore *preferen
     connect(m_rescanAction, &QAction::triggered, this, &TrayController::rescanRequested);
     connect(m_quitAction, &QAction::triggered, this, &TrayController::quitRequested);
     connect(m_aboutAction, &QAction::triggered, this, [this] {
-        emit showRequested();
-        QMessageBox::about(m_window, tr("About %1").arg(QCoreApplication::applicationName()),
+        QMessageBox::about(m_window && m_window->isVisible() ? m_window : nullptr,
+            tr("About %1").arg(QCoreApplication::applicationName()),
             tr("%1 %2\n%3\nReleased: %4\nLicense: %5\n%6")
                 .arg(QCoreApplication::applicationName(), QCoreApplication::applicationVersion(),
                      QCoreApplication::translate("main", QSENSORS_DESCRIPTION),
@@ -686,7 +686,6 @@ void TrayController::reconcileIcons()
                 entry.reading->setFont(readingFont);
                 entry.menu->setDefaultAction(entry.reading);
                 connect(entry.reading, &QAction::triggered, this, [this, id] {
-                    emit showRequested();
                     emit sensorSettingsRequested(id);
                 });
                 entry.icon->setContextMenu(entry.menu);
@@ -706,7 +705,7 @@ void TrayController::removeSensor(const QString &id)
     preferences.tray = false;
     QString error;
     if (!m_preferences->apply({{id, preferences}}, m_preferences->temperatureUnit(), error)) {
-        QMessageBox::warning(m_window, tr("Remove Sensor"), error);
+        QMessageBox::warning(m_window && m_window->isVisible() ? m_window : nullptr, tr("Remove Sensor"), error);
         return;
     }
     emit sensorRemoved(id);
@@ -841,7 +840,6 @@ void TrayController::showAlarmNotification(const QString &id, const QString &tit
 
 void TrayController::openSettings()
 {
-    emit showRequested();
     emit settingsRequested();
 }
 

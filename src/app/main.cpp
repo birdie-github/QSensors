@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
     });
     const auto showSettings = [&dashboard, &preferences, &rawCatalog, &settingsDialog, &monitor, &alarms](const QString &id) {
         if (!settingsDialog) {
-            settingsDialog = new qsensors::SettingsDialog(&preferences, rawCatalog, &dashboard);
+            settingsDialog = new qsensors::SettingsDialog(&preferences, rawCatalog, dashboard.isVisible() ? &dashboard : nullptr);
             settingsDialog->setAlarmController(&alarms);
             QObject::connect(settingsDialog.data(), &qsensors::SettingsDialog::previewIdsChanged,
                              &monitor, &qsensors::SensorMonitor::setPreviewIds);

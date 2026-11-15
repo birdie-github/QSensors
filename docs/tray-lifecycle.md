@@ -38,8 +38,9 @@ When the alarm changes the text color, its shadow uses a darker version of that
 color. See [alarms](alarms.md).
 
 Every tray menu has one dashboard action: Hide Dashboard while visible, or
-Show Dashboard while hidden or minimized. Configuration, Rescan, About, and Quit
-remain accessible. Single activation toggles the dashboard where the host
+Show Dashboard while hidden or minimized. Configuration, `[ Sensor name ]`,
+Settings, Rescan, About, and Quit remain accessible without unhiding a
+hidden dashboard. Single activation toggles the dashboard where the host
 delivers it; explicit Show/Hide actions remain in the context menu.
 
 ## Visibility and recovery

@@ -511,7 +511,7 @@ void Dashboard::createSettingsMenu()
         connect(action, &QAction::triggered, this, [this, unit, syncUnits] {
             QString error;
             if (!m_preferences->setTemperatureUnit(unit, error))
-                QMessageBox::warning(this, tr("Temperature Unit"), error);
+                QMessageBox::warning(isVisible() ? this : nullptr, tr("Temperature Unit"), error);
             syncUnits();
         });
     };
@@ -526,7 +526,8 @@ void Dashboard::createSettingsMenu()
     m_intervalAction->setShortcut(QKeySequence(Qt::Key_F2));
     addAction(m_intervalAction);
     connect(m_intervalAction, &QAction::triggered, this, [this] {
-        const auto seconds = DecimalSpinBox::getValue(this, tr("Global Update Interval"), tr("Interval (seconds):"),
+        const auto seconds = DecimalSpinBox::getValue(isVisible() ? this : nullptr,
+            tr("Global Update Interval"), tr("Interval (seconds):"),
             m_intervalSeconds, minimumGlobalRefreshSeconds, maximumGlobalRefreshSeconds, 0.1);
         if (seconds && *seconds != m_intervalSeconds) {
             setIntervalSeconds(*seconds);
@@ -542,7 +543,7 @@ void Dashboard::createSettingsMenu()
         QString error;
         if (!Autostart::setEnabled(enabled, error)) {
             autostart->setChecked(Autostart::enabled());
-            QMessageBox::warning(this, tr("Start at Login"), error);
+            QMessageBox::warning(isVisible() ? this : nullptr, tr("Start at Login"), error);
         }
     });
     connect(m_settingsMenu, &QMenu::aboutToShow, this, [autostart] {
