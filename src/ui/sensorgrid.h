@@ -26,7 +26,8 @@ public:
     DashboardTileShape tileShape() const { return m_tileShape; }
     int circleShrinkPercent() const { return m_circleShrinkPercent; }
     void setTileShape(DashboardTileShape shape);
-    void setCircleShrinkPercent(int percent);
+    void setCircleShrinkPercent(int percent, bool persist = true);
+    void saveCircleShrinkPercent() const;
     void chooseTileFont(bool sensorName);
     void resetTileFonts();
     DashboardPalette palettePreset() const { return m_palettePreset; }

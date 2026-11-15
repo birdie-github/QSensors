@@ -146,6 +146,34 @@ ScreenPlacement placeOnActiveScreen(const QPoint &position, const QSize &size, c
         best
     };
 }
+
+template <typename Apply, typename Save>
+void openLiveIntDialog(QWidget *parent, const QString &title, const QString &label,
+                       int initial, int minimum, int maximum, Apply apply, Save save)
+{
+    auto *dialog = new QInputDialog(parent);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle(title);
+    dialog->setLabelText(label);
+    dialog->setInputMode(QInputDialog::IntInput);
+    dialog->setIntRange(minimum, maximum);
+    dialog->setIntStep(1);
+    dialog->setIntValue(initial);
+    // Preview valid typed values immediately, without waiting for focus loss.
+    if (auto *spin = dialog->findChild<QSpinBox *>()) spin->setKeyboardTracking(true);
+    QObject::connect(dialog, &QInputDialog::intValueChanged, parent, [apply](int value) {
+        apply(value);
+    });
+    QObject::connect(dialog, &QInputDialog::intValueSelected, parent, [apply, save](int value) {
+        apply(value);
+        // The preview may already have this value, so explicitly persist on OK.
+        save(value);
+    });
+    QObject::connect(dialog, &QInputDialog::rejected, parent, [apply, initial] {
+        apply(initial);
+    });
+    dialog->open();
+}
 }
 
 Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preferences, QWidget *parent)
@@ -304,11 +332,13 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     });
     connect(shrinkMenu, &QMenu::aboutToShow, this, updateShrinkActions);
     connect(customShrink, &QAction::triggered, this, [this, updateShrinkActions] {
-        bool accepted = false;
-        const int percent = QInputDialog::getInt(this, tr("Circular Content Shrink"), tr("Shrink contents by (%):"),
-                                                m_grid->circleShrinkPercent(), 0, 50, 1, &accepted);
-        if (accepted) m_grid->setCircleShrinkPercent(percent);
-        updateShrinkActions();
+        openLiveIntDialog(this, tr("Circular Content Shrink"), tr("Shrink contents by (%):"),
+            m_grid->circleShrinkPercent(), 0, 50,
+            [this](int percent) { m_grid->setCircleShrinkPercent(percent, false); },
+            [this, updateShrinkActions](int) {
+                m_grid->saveCircleShrinkPercent();
+                updateShrinkActions();
+            });
     });
     updateShrinkActions();
     // A bottom-right handle leaves the tile field available for moving the window.
@@ -698,29 +728,11 @@ void Dashboard::saveWindowGeometry()
 void Dashboard::chooseCustomTileSize()
 {
     finishCompactResize();
-    const int originalSize = m_grid->tileSize();
-    auto *dialog = new QInputDialog(this);
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setWindowTitle(tr("Custom Tile Size"));
-    dialog->setLabelText(tr("Tile size in logical pixels (%1–%2):").arg(minimumTileSize).arg(maximumTileSize));
-    dialog->setInputMode(QInputDialog::IntInput);
-    dialog->setIntRange(minimumTileSize, maximumTileSize);
-    dialog->setIntStep(1);
-    dialog->setIntValue(originalSize);
-    // Preview valid typed values immediately, without waiting for focus loss.
-    if (auto *spin = dialog->findChild<QSpinBox *>()) spin->setKeyboardTracking(true);
-    connect(dialog, &QInputDialog::intValueChanged, this, [this](int size) {
-        m_grid->setTileSize(size, false);
-    });
-    connect(dialog, &QInputDialog::intValueSelected, this, [this](int size) {
-        m_grid->setTileSize(size, false);
-        // The preview may already have this size, so explicitly persist on OK.
-        m_grid->saveTileSize();
-    });
-    connect(dialog, &QInputDialog::rejected, this, [this, originalSize] {
-        m_grid->setTileSize(originalSize, false);
-    });
-    dialog->open();
+    openLiveIntDialog(this, tr("Custom Tile Size"),
+        tr("Tile size in logical pixels (%1–%2):").arg(minimumTileSize).arg(maximumTileSize),
+        m_grid->tileSize(), minimumTileSize, maximumTileSize,
+        [this](int size) { m_grid->setTileSize(size, false); },
+        [this](int) { m_grid->saveTileSize(); });
 }
 
 void Dashboard::applySnapshot(const SensorSnapshot &snapshot)

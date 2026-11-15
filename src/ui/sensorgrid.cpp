@@ -200,13 +200,17 @@ void SensorGrid::setTileShape(DashboardTileShape shape)
     ensureVisible(m_order.indexOf(m_selected));
     emit fieldSizeChanged();
 }
-void SensorGrid::setCircleShrinkPercent(int percent)
+void SensorGrid::saveCircleShrinkPercent() const
+{
+    QSettings().setValue(QStringLiteral("Dashboard/circleShrinkPercent"), m_circleShrinkPercent);
+}
+void SensorGrid::setCircleShrinkPercent(int percent, bool persist)
 {
     percent = std::clamp(percent, 0, 50);
     if (percent == m_circleShrinkPercent) return;
     m_circleShrinkPercent = percent;
     updateStyle(tileSize());
-    QSettings().setValue(QStringLiteral("Dashboard/circleShrinkPercent"), percent);
+    if (persist) saveCircleShrinkPercent();
     viewport()->update();
 }
 void SensorGrid::setTileSize(int size, bool persist)

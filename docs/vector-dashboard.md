@@ -103,7 +103,8 @@ circles within the existing spaced square cells. Square and Circular omit dotted
 rectangular cell guides so no extra frame appears behind transparent tiles.
 
 **Circular Content Shrink** defaults to 20%, with dynamically generated 0–30%
-presets in 5% steps and Custom accepting any integer from 0 to 50%. It scales all
+presets in 5% steps and Custom accepting any integer from 0 to 50% with live
+preview (persisting on OK and reverting on Cancel). It scales all
 tile contents uniformly about the center, including text, gauges and shadows;
 the circular border remains full size. Contents are clipped only to the square
 cell, so protrusion beyond the circle is allowed. The control is enabled for
