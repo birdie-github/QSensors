@@ -109,7 +109,7 @@ struct ScreenPlacement {
 };
 
 // Keep saved/restored windows reachable on an active monitor across multi-monitor changes.
-ScreenPlacement placeOnActiveScreen(const QPoint &position, const QSize &size, const QScreen *fallback)
+ScreenPlacement placeOnActiveScreen(const QPoint &position, const QSize &size, const QScreen *fallback, bool compact = false)
 {
     const auto screens = QGuiApplication::screens();
     if (screens.isEmpty()) return {position, fallback};
@@ -119,7 +119,11 @@ ScreenPlacement placeOnActiveScreen(const QPoint &position, const QSize &size, c
     const int minHeight = std::min(32, effective.height());
     for (const auto *display : screens) {
         const QRect overlap = display->availableGeometry().intersected(rect);
-        if (overlap.width() >= minWidth && overlap.height() >= minHeight) return {position, display};
+        // Expanded windows need their top edge reachable, not just any corner.
+        const bool topReachable = position.y() >= display->availableGeometry().top()
+            && position.y() + minHeight - 1 <= display->availableGeometry().bottom();
+        if (overlap.width() >= minWidth && overlap.height() >= minHeight
+            && (compact || topReachable)) return {position, display};
     }
     const QScreen *best = nullptr;
     qint64 bestDistance = std::numeric_limits<qint64>::max();
@@ -489,10 +493,6 @@ Dashboard::Dashboard(SensorTableModel *model, SensorPreferencesStore *preference
     }
     if (auto *app = QCoreApplication::instance()) {
         app->installEventFilter(this);
-#ifndef QT_NO_SESSIONMANAGER
-        if (auto *guiApp = qobject_cast<QGuiApplication *>(app))
-            connect(guiApp, &QGuiApplication::commitDataRequest, this, &Dashboard::prepareForQuit);
-#endif
     }
     if (!controlsVisible) QTimer::singleShot(0, this, [this] { setControlsVisible(false); });
 }
@@ -652,7 +652,7 @@ void Dashboard::setControlsVisible(bool visible)
     fitCompactView();
     if (m_compact && QGuiApplication::platformName() == QStringLiteral("xcb")) {
         const QPoint desired = m_compactPosition.value_or(gridOrigin);
-        const QPoint target = placeOnActiveScreen(desired, size(), screen()).position;
+        const QPoint target = placeOnActiveScreen(desired, size(), screen(), true).position;
         m_compactInitialPosition = target;
         move(target);
         if (m_compactPosition) m_compactPosition = target;
@@ -682,7 +682,7 @@ void Dashboard::fitCompactView()
     layout()->activate();
     positionResizeGrip();
     if (isVisible() && QGuiApplication::platformName() == QStringLiteral("xcb")) {
-        const QPoint visiblePos = placeOnActiveScreen(pos(), field, screen()).position;
+        const QPoint visiblePos = placeOnActiveScreen(pos(), field, screen(), true).position;
         if (visiblePos != pos()) {
             move(visiblePos);
             if (m_compactPosition) m_compactPosition = visiblePos;
@@ -896,17 +896,21 @@ void Dashboard::hideToTray()
 void Dashboard::closeEvent(QCloseEvent *event)
 {
     // Recheck now rather than trusting the host watchdog's previous result.
-    if (!m_quitting && m_trayAvailable && QSystemTrayIcon::isSystemTrayAvailable()) {
+    bool savingSession = false;
+#ifndef QT_NO_SESSIONMANAGER
+    savingSession = qGuiApp && qGuiApp->isSavingSession();
+#endif
+    if (!m_quitting && !savingSession && m_trayAvailable && QSystemTrayIcon::isSystemTrayAvailable()) {
         event->ignore();
         hideToTray();
         return;
     }
-    m_closedForQuit = true;
+    m_closedForQuit = !savingSession;
     saveWindowGeometry();
     if (isVisible())
         QSettings().remove(QStringLiteral("Dashboard/hiddenToTray"));
     event->accept();
-    if (!m_quitting) {
+    if (!m_quitting && !savingSession) {
         m_quitting = true;
         emit quitRequested();
     }
@@ -951,7 +955,7 @@ void Dashboard::showEvent(QShowEvent *event)
     QMainWindow::showEvent(event);
     if (m_compact && QGuiApplication::platformName() == QStringLiteral("xcb")) {
         const QPoint desired = m_compactPosition.value_or(pos());
-        const QPoint target = placeOnActiveScreen(desired, size(), screen()).position;
+        const QPoint target = placeOnActiveScreen(desired, size(), screen(), true).position;
         if (pos() != target) {
             const QScopedValueRollback<bool> adjusting(m_adjustingCompact, true);
             m_compactInitialPosition = target;
